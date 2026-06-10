@@ -1,5 +1,6 @@
 package com.kylinops.common;
 
+import com.kylinops.tool.ToolNotRegisteredException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -101,6 +102,16 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleNoResourceFoundException(NoResourceFoundException ex) {
         log.warn("资源不存在: {}", ex.getResourcePath());
         return ApiResponse.error(404, "接口不存在: " + ex.getResourcePath());
+    }
+
+    /**
+     * 工具未注册异常
+     */
+    @ExceptionHandler(ToolNotRegisteredException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleToolNotRegisteredException(ToolNotRegisteredException ex) {
+        log.warn("工具未注册: {}", ex.getMessage());
+        return ApiResponse.error(400, ex.getMessage());
     }
 
     /**
