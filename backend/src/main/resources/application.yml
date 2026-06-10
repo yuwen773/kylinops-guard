@@ -1,0 +1,66 @@
+# ============================================================
+# 麒麟安全智能运维 Agent — Application Configuration
+# ============================================================
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: kylin-ops-guard
+
+  # H2 File Mode (P0)
+  datasource:
+    url: jdbc:h2:file:./data/kylinops;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: kylinops
+    password: kylinops
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # JPA / Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+
+  # Jackson serialization
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+# ============================================================
+# Application custom configuration
+# ============================================================
+
+kylinops:
+  version: 0.1.0
+  app:
+    name: 麒麟安全智能运维 Agent
+    codename: KylinOps Guard
+    environment: dev
+  llm:
+    # LLM is optional — when unavailable, falls back to rule-based intent
+    enabled: false
+    base-url: ${LLM_BASE_URL:}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:deepseek-chat}
+  security:
+    # Maximum pending actions (L2 confirmations) per session
+    max-pending-actions: 10
+    # Default timeout for L2 confirmations (ms)
+    pending-action-timeout-ms: 300000
+  audit:
+    # Enable audit log persistence
+    enabled: true
+    # Max log entries per page
+    page-size: 50

@@ -1,0 +1,38 @@
+# ============================================================
+# 麒麟安全智能运维 Agent — .gitignore
+# ============================================================
+
+# Maven / Java
+backend/target/
+*.jar
+*.war
+*.class
+
+# H2 Database files
+backend/data/
+*.mv.db
+*.trace.db
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (frontend, for Phase 2)
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+logs/
+
+# Environment-specific
+.env
+.env.local
