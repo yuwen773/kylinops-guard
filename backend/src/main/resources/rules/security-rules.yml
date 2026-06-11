@@ -1,0 +1,171 @@
+# ============================================================
+# 安全风险规则配置 — P0 规则
+# ============================================================
+# 本文件在应用启动时由 RiskRuleEngine 加载为不可变规则列表。
+# 修改此文件后需重启应用生效。
+#
+# 规则匹配流程：
+# 1. 命令/内容先做大小写归一化和连续空白合并
+# 2. 按 targetTypes 筛选适用的规则
+# 3. 所有匹配的规则中取最高 riskLevel
+# 4. 同等级下 decision 优先级：BLOCK > CONFIRM > ALLOW
+# ============================================================
+
+rules:
+  # ==================== L4 — 绝对禁止命令 ====================
+
+  - id: block_rm_rf_root
+    targetTypes: [ "command" ]
+    pattern: "^rm\\s+-[rfv]{1,3}\\s+/*$"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "绝对禁止的根目录递归删除操作"
+    safeSuggestion: "该操作可能导致系统损坏或数据丢失，已被系统禁止。如有需要请联系系统管理员。"
+    enabled: true
+    priority: 100
+
+  - id: block_rm_rf_root_star
+    targetTypes: [ "command" ]
+    pattern: "^rm\\s+-[rfv]{1,3}\\s+/\\*+$"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "绝对禁止的根目录全部文件递归删除操作"
+    safeSuggestion: "该操作可能导致系统损坏或数据丢失，已被系统禁止。"
+    enabled: true
+    priority: 100
+
+  - id: block_rm_rf_protected_dirs
+    targetTypes: [ "command" ]
+    pattern: "^rm\\s+-[rfv]{1,3}\\s+/(etc|usr|bin|sbin|boot|dev|proc|sys)(/.*|$)"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止删除系统关键目录"
+    safeSuggestion: "系统关键目录不可删除。如确定需要清理，请使用安全清理工具。"
+    enabled: true
+    priority: 90
+
+  - id: block_rm_rf_sensitive_dirs
+    targetTypes: [ "command" ]
+    pattern: "^rm\\s+-[rfv]{1,3}\\s+/(var/lib(/.*)?|root(/.*)?)$"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止删除敏感数据目录（数据库、用户数据）"
+    safeSuggestion: "敏感数据目录不可删除。如确定需要清理数据，请使用对应的安全工具。"
+    enabled: true
+    priority: 90
+
+  - id: block_chmod_777_root
+    targetTypes: [ "command" ]
+    pattern: "^chmod\\s+-?r?\\s*777\\s+/"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止将根目录权限设置为 777"
+    safeSuggestion: "将系统根目录设为全局可写将破坏系统安全。请联系系统管理员。"
+    enabled: true
+    priority: 80
+
+  - id: block_chown_recursive
+    targetTypes: [ "command" ]
+    pattern: "^chown\\s+-[Rr]"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止递归变更文件所有者"
+    safeSuggestion: "递归 chown 操作可能导致系统权限混乱。请指定具体文件路径操作。"
+    enabled: true
+    priority: 80
+
+  - id: block_mkfs
+    targetTypes: [ "command" ]
+    pattern: "^mkfs"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止格式化文件系统"
+    safeSuggestion: "格式化操作将导致数据完全丢失，已被系统禁止。"
+    enabled: true
+    priority: 80
+
+  - id: block_fdisk
+    targetTypes: [ "command" ]
+    pattern: "^fdisk"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止磁盘分区操作"
+    safeSuggestion: "磁盘分区操作可能导致数据丢失，已被系统禁止。"
+    enabled: true
+    priority: 80
+
+  - id: block_dd_if
+    targetTypes: [ "command" ]
+    pattern: "^dd\\s+if="
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止 dd 直接磁盘写入操作"
+    safeSuggestion: "dd 磁盘写入可能导致数据完全丢失，已被系统禁止。"
+    enabled: true
+    priority: 80
+
+  - id: block_fork_bomb
+    targetTypes: [ "command" ]
+    pattern: ":\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:"
+    riskLevel: L4
+    decision: BLOCK
+    reason: "禁止 fork 炸弹（拒绝服务攻击）"
+    safeSuggestion: "Fork 炸弹将导致系统崩溃，已被系统禁止。"
+    enabled: true
+    priority: 100
+
+  # ==================== L3 — 高风险路径 ====================
+
+  - id: block_path_root
+    targetTypes: [ "path" ]
+    pattern: "^/(etc|usr|bin|sbin|boot|dev|proc|sys|root)(/|$)"
+    riskLevel: L3
+    decision: BLOCK
+    reason: "禁止访问或操作系统关键路径"
+    safeSuggestion: "该系统路径包含关键系统文件，不可直接操作。"
+    enabled: true
+    priority: 70
+
+  - id: block_path_sensitive_data
+    targetTypes: [ "path" ]
+    pattern: "^/(var/lib/mysql|var/lib/postgresql|var/lib/redis)(/|$)"
+    riskLevel: L3
+    decision: BLOCK
+    reason: "禁止直接操作数据库数据目录"
+    safeSuggestion: "数据库目录应通过对应数据库管理工具维护。"
+    enabled: true
+    priority: 70
+
+  # ==================== L2 — 高风险动作 ====================
+
+  - id: confirm_service_restart
+    targetTypes: [ "action" ]
+    pattern: "safe_service_restart"
+    riskLevel: L2
+    decision: CONFIRM
+    reason: "服务重启操作将导致服务短暂不可用"
+    safeSuggestion: "请确认是否重启该服务。重启期间服务将短暂不可用。"
+    enabled: true
+    priority: 50
+
+  - id: action_cleanup
+    targetTypes: [ "action" ]
+    pattern: "safe_(temp_clean|log_truncate|file_clean)"
+    riskLevel: L2
+    decision: CONFIRM
+    reason: "清理操作将删除文件或数据"
+    safeSuggestion: "请确认清理范围和影响，避免误删重要数据。"
+    enabled: true
+    priority: 50
+
+  # ==================== L0 — 安全只读命令 ====================
+
+  - id: allow_readonly_commands
+    targetTypes: [ "command" ]
+    pattern: "^(df|du|ps|top|uptime|uname|who|w|last|free|date|cal|ls|cat|head|tail|echo|hostname|dmesg|ip\\s+a|ss\\s+|netstat)"
+    riskLevel: L0
+    decision: ALLOW
+    reason: "只读信息查询命令，无安全风险"
+    safeSuggestion: null
+    enabled: true
+    priority: 10

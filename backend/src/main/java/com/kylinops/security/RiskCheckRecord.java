@@ -27,9 +27,17 @@ public class RiskCheckRecord extends BaseEntity {
     @Column(nullable = false, unique = true, length = 36)
     private String riskCheckId;
 
-    /** 关联的工具调用记录 */
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tool_call_record_id", nullable = false)
+    /** 评估目标类型: plan / tool / content */
+    @Column(length = 20)
+    private String targetType;
+
+    /** 评估目标内容摘要（命令/路径/计划摘要） */
+    @Column(columnDefinition = "TEXT")
+    private String targetContent;
+
+    /** 关联的工具调用记录（可为空 — 计划级校验无单工具记录） */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tool_call_record_id", nullable = true)
     private ToolCallRecord toolCallRecord;
 
     /** 风险等级 */
@@ -42,7 +50,7 @@ public class RiskCheckRecord extends BaseEntity {
     @Column(nullable = false, length = 12)
     private RiskDecision riskDecision;
 
-    /** 匹配的规则（JSON 数组） */
+    /** 匹配的规则 ID（JSON 数组） */
     @Column(columnDefinition = "TEXT")
     private String matchedRules;
 

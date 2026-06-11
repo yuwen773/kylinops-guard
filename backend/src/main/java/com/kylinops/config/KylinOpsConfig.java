@@ -31,6 +31,9 @@ public class KylinOpsConfig {
     /** 审计配置 */
     private Audit audit = new Audit();
 
+    /** 执行器配置 */
+    private Executor executor = new Executor();
+
     @Data
     public static class App {
         private String name;
@@ -48,8 +51,14 @@ public class KylinOpsConfig {
 
     @Data
     public static class Security {
-        private int maxPendingActions;
-        private long pendingActionTimeoutMs;
+        private int maxPendingActions = 10;
+        private long pendingActionTimeoutMs = 300000;
+    }
+
+    @Data
+    public static class Executor {
+        /** 服务重启白名单 */
+        private java.util.List<String> whitelistedServices = java.util.List.of("nginx", "mysql", "redis", "ssh", "docker");
     }
 
     @Data

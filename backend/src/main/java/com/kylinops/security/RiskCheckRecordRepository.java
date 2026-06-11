@@ -26,6 +26,9 @@ public interface RiskCheckRecordRepository extends JpaRepository<RiskCheckRecord
     /** 查询某风险决策的所有记录 */
     List<RiskCheckRecord> findByRiskDecision(RiskDecision riskDecision);
 
-    /** 根据 auditId 查询 */
+    /** 根据 auditId 查询（用于审计详情聚合） */
     List<RiskCheckRecord> findByAuditId(String auditId);
+
+    /** 根据 auditId 和目标类型查询 */
+    List<RiskCheckRecord> findByAuditIdAndTargetType(String auditId, String targetType);
 }
