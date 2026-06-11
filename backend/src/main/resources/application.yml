@@ -64,3 +64,11 @@ kylinops:
     enabled: true
     # Max log entries per page
     page-size: 50
+  executor:
+    # Services allowed for restart
+    whitelisted-services:
+      - nginx
+      - mysql
+      - redis
+      - ssh
+      - docker
