@@ -4,6 +4,7 @@ import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -14,7 +15,8 @@ import java.util.Optional;
  * 审计日志 Repository
  */
 @Repository
-public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+public interface AuditLogRepository extends JpaRepository<AuditLog, Long>,
+        JpaSpecificationExecutor<AuditLog> {
 
     /** 根据 auditId 查询 */
     Optional<AuditLog> findByAuditId(String auditId);

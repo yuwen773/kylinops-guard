@@ -63,6 +63,34 @@ public class AuditLog extends BaseEntity {
     /** 执行耗时（毫秒） */
     private Long durationMs;
 
+    /** 匹配的风险规则 ID（JSON 数组） */
+    @Column(columnDefinition = "TEXT")
+    private String matchedRules;
+
+    /** 执行计划摘要 */
+    @Column(columnDefinition = "TEXT")
+    private String actionPlan;
+
+    /** 是否需要用户确认 */
+    @Column(nullable = false)
+    private boolean confirmationRequired;
+
+    /** 确认状态：WAITING / CONFIRMED / CANCELLED */
+    @Column(length = 20)
+    private String confirmationStatus;
+
+    /** 执行结果摘要 */
+    @Column(columnDefinition = "TEXT")
+    private String executionResult;
+
+    /** 最终回复摘要 */
+    @Column(columnDefinition = "TEXT")
+    private String finalAnswer;
+
+    /** 审计警告信息 */
+    @Column(columnDefinition = "TEXT")
+    private String warning;
+
     @PrePersist
     @Override
     protected void onCreate() {

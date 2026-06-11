@@ -44,13 +44,15 @@ class OsToolRegistrationTest {
             "large_file_scan_tool",
             "process_list_tool",
             "process_detail_tool",
-            "network_port_tool"
+            "network_port_tool",
+            "service_status_tool",
+            "journal_log_tool"
     );
 
     @Test
-    @DisplayName("ToolRegistry 注册了 ≥ 10 个工具（含 Mock + FailingMock + 8 OS 工具）")
+    @DisplayName("ToolRegistry 注册了 ≥ 12 个工具（含 Mock + FailingMock + 10 OS 工具）")
     void allToolsRegistered() {
-        assertThat(toolRegistry.count()).isGreaterThanOrEqualTo(10);
+        assertThat(toolRegistry.count()).isGreaterThanOrEqualTo(12);
     }
 
     @Test

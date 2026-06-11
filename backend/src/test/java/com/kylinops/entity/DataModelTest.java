@@ -281,7 +281,7 @@ class DataModelTest {
 
         ToolCallRecord tcr = new ToolCallRecord();
         tcr.setMessage(message);
-        tcr.setToolName("command_risk_check_tool");
+        tcr.setToolName("system_info_tool");
         tcr.setStatus(ToolCallStatus.BLOCKED);
         tcr.setErrorMessage("L4 严重风险 — 绝对阻断");
         tcr.setAuditId(auditId);
