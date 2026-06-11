@@ -36,3 +36,10 @@ logs/
 # Environment-specific
 .env
 .env.local
+
+# Local tool / agent state (not source code)
+.omc/
+docs/superpowers/
+
+# Maven build artifacts (classpath dumps, etc.)
+backend/cp.txt
