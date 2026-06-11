@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Status
 
-**This repository currently contains specification documents only — no source code, no `backend/`, no `frontend/`, no build files yet.** The eight `*.md` files in the root are the v0.1 product/architecture/task specs (all in Chinese) that define what is to be built. Any new work starts by scaffolding `backend/` (Spring Boot) and `frontend/` (Vue 3) per the structures defined in `麒麟安全智能运维 Agent Coding Agent 开发任务卡 v0.1.md` §3 and `系统架构设计 v0.1.md` §5.1 / §6.1.
+**Phase 1 (后端安全闭环) 已完成并通过验收 — backend/ 包含 Agent 编排、安全校验、确认执行和审计链路。** The eight `*.md` files in the root are the v0.1 product/architecture/task specs (all in Chinese) that define what is to be built. The specs remain the source of truth; any code change that deviates from a spec must update the spec too.
 
-Before doing anything substantive, read these specs in this order — they are the source of truth and override any guesses from training data:
+**Next:** Phase 2 (前端演示闭环) — see §Development Order below.
+
+Before writing code, read these specs in this order — they are the source of truth and override assumptions from training data:
 
 1. `麒麟安全智能运维 Agent PRD v0.1.md` — what to build
 2. `麒麟安全智能运维 Agent 技术栈选型与架构落地方案 v0.1.md` — locked tech stack and Coding Agent constraints (§14)
@@ -107,7 +109,7 @@ GET  /api/security/events
 
 ## Required P0 Tools (must register ≥ 8 with L0 read-only)
 
-From 任务卡 Task 05–06: `system_info_tool`, `cpu_status_tool`, `memory_status_tool`, `disk_usage_tool`, `large_file_scan_tool`, `process_list_tool`, `process_detail_tool`, `network_port_tool`, `service_status_tool`, `journal_log_tool`, `command_risk_check_tool`. Each must enforce parameter whitelisting, path normalization, output truncation, and per-call timeout — even L0 reads.
+From 任务卡 Task 05–06: `system_info_tool`, `cpu_status_tool`, `memory_status_tool`, `disk_usage_tool`, `large_file_scan_tool`, `process_list_tool`, `process_detail_tool`, `network_port_tool`, `service_status_tool`, `journal_log_tool`. Each must enforce parameter whitelisting, path normalization, output truncation, and per-call timeout — even L0 reads. Command requests are evaluated directly by `RiskRuleEngine`; no command-execution OpsTool is registered.
 
 ## Four Demo Scenarios (the architecture must support these)
 
@@ -139,25 +141,54 @@ Tools must still degrade gracefully when these fixtures are absent (return struc
 
 Spec-mandated task sequence (任务卡 §4, MVP 路线 §15). Don't reorder — earlier tasks set up registries the later ones depend on:
 
-- **Phase 1 — backend safety loop:** Task 00 → 01 → 03 → 04 → 05 → 07 → 10 → 11
+- **Phase 1 — backend safety loop (complete):** Task 00 → 01 → 03 → 04 → 05 → 07 → 08 → 10 → 11
+  - 00: Project scaffolding / Spring Boot skeleton
+  - 01: Java 17 + Maven + application.yml + health endpoint
+  - 03: JPA entities (Session, Message, ToolDefinition, ToolCallRecord, RiskCheckRecord, AuditLog, Report)
+  - 04: MCP Tool abstraction (OpsTool, ToolRegistry, ToolExecutor, ToolCallRecordService)
+  - 05: 8 read-only OS tools (system_info, cpu, memory, disk, large_file_scan, process_list, process_detail, network_port)
+  - 07: Security risk engine (PromptInjectionDetector, RiskCheckService, RiskRuleEngine)
+  - 08: Agent orchestration layer (IntentClassifier, ToolPlanningService, AgentOrchestrator, AgentResponseBuilder + ChatController/ChatService)
+  - 10/11: SafeExecutor + ActionConfirmService / confirmation execution endpoints
+
 - **Phase 2 — frontend demo loop:** Task 02 → 13 → 14 → 15 → 16 → 17
-- **Phase 3 — exec + reports:** Task 06 → 08 → 09 → 12
+- **Phase 3 — exec + reports:** Task 06 → 09 → 12
 - **Phase 4 — delivery materials:** Task 18 → 19 → 20 → 21
 
-Phase 1 alone produces a working end-to-end safety closed loop without the UI, which is the project's irreducible minimum.
+Phase 1 provides an accepted end-to-end safety closed loop without the UI. `POST /api/chat/send` works, prompt injection is blocked, tool plans execute, responses are generated, and every request is audited.
 
-## Build / Run (once scaffolded)
+**Phase 1 安全闭环状态（2026-06-11 验收）：**
+安全闭环实现包括：
+- 配置化风险规则引擎 (RiskRuleEngine) + P0 规则 YAML 文件
+- 前置风险校验服务 (RiskCheckService.checkPlan) — 执行前决策
+- Prompt Injection 检测器讨论语境豁免（无误拦截）
+- 持久化待确认动作 (PendingAction) + 生命周期管理
+- 白名单安全执行器 (SafeExecutor) — 仅支持预定义动作
+- /api/actions/confirm 确认/取消 API — 不接受命令注入
+- AgentOrchestrator 编排顺序修复：审计→注入检测→规划→风险校验→执行
+- 健康检查 6 工具并行批次修复 (order=0)
+- service_status_tool, journal_log_tool 已实现并注册
+- 审计模型扩展 (matchedRules, confirmation, executionResult 等)
+- AuditSanitizer 脱敏工具
+- GET /api/audit/logs 组合筛选+GET /api/audit/logs/{auditId} 详情聚合
 
-These commands don't exist yet — they will after Task 01 / Task 02. Expected shape:
+**Phase 3 (deferred):** 真正的日志截断/文件删除实现；RBAC 和分布式任务队列。
+
+## Build / Run (backend works, frontend pending)
+
+Backend commands are live:
 
 ```bash
-# Backend (after Task 01)
-cd backend && mvn test           # JUnit 5 + Spring Boot Test
-cd backend && mvn package        # produces kylin-ops-guard.jar
-java -jar backend/target/kylin-ops-guard.jar
-curl http://localhost:8080/api/health
+# Backend — compile, test, package
+cd backend && mvn test                    # runs 197 tests (JUnit 5 + Spring Boot Test)
+cd backend && mvn clean package -DskipTests  # produces backend/target/kylin-ops-guard.jar
+java -jar backend/target/kylin-ops-guard.jar   # starts on http://localhost:8080
+curl http://localhost:8080/api/health      # should return {"status":"UP"}
+curl -X POST http://localhost:8080/api/chat/send \
+  -H "Content-Type: application/json" \
+  -d '{"content":"你好"}'
 
-# Frontend (after Task 02)
+# Frontend (after Phase 2 starts)
 cd frontend && npm install
 cd frontend && npm run dev       # Vite dev server
 cd frontend && npm run build     # produces frontend/dist for deployment

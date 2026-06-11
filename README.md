@@ -47,13 +47,13 @@ kylin-ops/
 │   │   │   │   ├── KylinOpsApplication.java
 │   │   │   │   ├── common/          # 通用响应、异常处理、枚举
 │   │   │   │   ├── config/          # 应用配置
-│   │   │   │   ├── chat/            # 聊天接口
-│   │   │   │   ├── agent/           # Agent 编排 (TODO)
-│   │   │   │   ├── tool/            # Tool 注册与管理 (TODO)
-│   │   │   │   ├── os/              # OS 感知工具 (TODO)
-│   │   │   │   ├── security/        # 安全风险校验 (TODO)
-│   │   │   │   ├── executor/        # 安全执行器 (TODO)
-│   │   │   │   ├── audit/           # 审计日志 (TODO)
+│   │   │   │   ├── chat/            # 聊天接口 (ChatController + ChatService)
+│   │   │   │   ├── agent/           # Agent 编排 (IntentClassifier, ToolPlanningService, AgentOrchestrator)
+│   │   │   │   ├── tool/            # Tool 注册与管理 (OpsTool, ToolRegistry, ToolExecutor)
+│   │   │   │   ├── os/              # OS 感知工具 (8 个只读工具, L0)
+│   │   │   │   ├── security/        # 安全风险校验 (PromptInjectionDetector, RiskCheckService)
+│   │   │   │   ├── executor/        # 安全执行器与确认流程
+│   │   │   │   ├── audit/           # 审计日志 (AuditLogService, AuditLog)
 │   │   │   │   ├── report/          # 报告生成 (TODO)
 │   │   │   │   └── dashboard/       # 仪表盘 (TODO)
 │   │   │   └── resources/
@@ -117,8 +117,8 @@ curl http://localhost:8080/api/health
 
 根据规格文档，按以下顺序开发（Phase 1 → 4）：
 
-### Phase 1 — 后端安全闭环 (Task 00→11)
-后端核心安全闭环 — 无 UI 即可运行端到端安全测试
+### Phase 1 — 后端安全闭环 (Task 00→11) — 已完成
+后端核心安全闭环已通过全量测试、打包和 Git 检查验收。包括 Spring Boot 骨架、JPA 实体、OS 工具、安全风险引擎、Agent 编排层、确认执行、审计 API 和 Chat API。`POST /api/chat/send` 已可用。
 
 ### Phase 2 — 前端演示闭环 (Task 02→17)
 六页面前端 (ChatConsole, Dashboard, ToolCenter, SecurityCenter, AuditLog, ReportCenter)
