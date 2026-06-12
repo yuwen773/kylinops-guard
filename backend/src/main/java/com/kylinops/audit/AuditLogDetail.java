@@ -107,6 +107,7 @@ public class AuditLogDetail {
         private String riskDecision;
         private String matchedRules;
         private String reason;
+        private java.time.LocalDateTime checkedAt;
     }
 
     @Data

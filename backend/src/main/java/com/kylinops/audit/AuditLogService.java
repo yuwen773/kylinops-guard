@@ -322,7 +322,7 @@ public class AuditLogService {
                 .toList();
 
         List<AuditLogDetail.RiskCheckInfo> riskChecks = riskCheckRecordRepository
-                .findByAuditId(log.getAuditId())
+                .findTop50ByAuditIdOrderByCheckedAtDesc(log.getAuditId())
                 .stream()
                 .map(rcr -> AuditLogDetail.RiskCheckInfo.builder()
                         .riskCheckId(rcr.getRiskCheckId())
@@ -331,6 +331,7 @@ public class AuditLogService {
                         .riskDecision(rcr.getRiskDecision() != null ? rcr.getRiskDecision().name() : null)
                         .matchedRules(rcr.getMatchedRules())
                         .reason(rcr.getReason())
+                        .checkedAt(rcr.getCheckedAt())
                         .build())
                 .toList();
 

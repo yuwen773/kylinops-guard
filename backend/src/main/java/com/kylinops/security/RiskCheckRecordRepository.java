@@ -29,6 +29,9 @@ public interface RiskCheckRecordRepository extends JpaRepository<RiskCheckRecord
     /** 根据 auditId 查询（用于审计详情聚合） */
     List<RiskCheckRecord> findByAuditId(String auditId);
 
+    /** 根据 auditId 查询最新的 50 条记录（按 checkedAt 降序）— 详情页防 OOM 上限 */
+    List<RiskCheckRecord> findTop50ByAuditIdOrderByCheckedAtDesc(String auditId);
+
     /** 根据 auditId 和目标类型查询 */
     List<RiskCheckRecord> findByAuditIdAndTargetType(String auditId, String targetType);
 }
