@@ -174,30 +174,38 @@ Phase 1 provides an accepted end-to-end safety closed loop without the UI. `POST
 
 **Phase 3 (deferred):** 真正的日志截断/文件删除实现；RBAC 和分布式任务队列。
 
-## Build / Run (backend works, frontend pending)
+## Build / Run
 
-Backend commands are live:
+Backend is live on master; frontend lives on `feature/phase2-frontend-demo`. Worktree path: `.worktrees/phase2-frontend-demo`.
 
 ```bash
-# Backend — compile, test, package
-cd backend && mvn test                    # runs 197 tests (JUnit 5 + Spring Boot Test)
-cd backend && mvn clean package -DskipTests  # produces backend/target/kylin-ops-guard.jar
-java -jar backend/target/kylin-ops-guard.jar   # starts on http://localhost:8080
-curl http://localhost:8080/api/health      # should return {"status":"UP"}
+# Backend — compile, test, package (run from worktree)
+cd "D:/Work/code/kylin-ops/.worktrees/phase2-frontend-demo"
+mvn -f backend/pom.xml test                         # 225+ on master; more on feature branch
+mvn -f backend/pom.xml clean package -DskipTests    # → backend/target/kylin-ops-guard.jar
+java -jar backend/target/kylin-ops-guard.jar        # http://localhost:8080
+curl http://localhost:8080/api/health               # expect {"status":"UP"}
 curl -X POST http://localhost:8080/api/chat/send \
   -H "Content-Type: application/json" \
   -d '{"content":"你好"}'
 
-# Frontend (after Phase 2 starts)
-cd frontend && npm install
-cd frontend && npm run dev       # Vite dev server
-cd frontend && npm run build     # produces frontend/dist for deployment
+# Frontend (Phase 2 — worktree)
+cd "D:/Work/code/kylin-ops/.worktrees/phase2-frontend-demo/frontend"
+npm install
+npm run dev                                         # Vite dev server (127.0.0.1:5173, proxy /api → :8080)
+npm run test:unit -- --run
+npm run build                                       # → frontend/dist
+npx playwright install chromium
+npm run test:e2e                                    # E2E with mock interception
+E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts
 
 # Environment validation on Kylin / LoongArch (after Task 20)
 bash deploy/scripts/check-env.sh
 bash deploy/scripts/start-backend.sh
 bash deploy/scripts/start-frontend.sh
 ```
+
+Full manual smoke + acceptance checklist: `docs/test/phase2-acceptance-guide.md`.
 
 Performance budgets to hit (PRD §12.3): single tool ≤ 3s, risk check ≤ 1s, full health check ≤ 30s, normal chat ≤ 10s, report gen ≤ 5s.
 

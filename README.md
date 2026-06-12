@@ -27,7 +27,7 @@
 
 | 层 | 技术选型 |
 |---|---|
-| 前端 | Vue 3 + TypeScript + Vite + Element Plus + Axios |
+| 前端 | Vue 3 + TypeScript + Vite + Element Plus + Axios + Vue Router |
 | 后端 | Java 17 + Spring Boot 3.x + Maven |
 | 数据库 | H2 File Mode (P0) / PostgreSQL (P1) |
 | Agent | 自研轻量 AgentOrchestrator |
@@ -35,41 +35,39 @@
 | OS 感知 | 受控 Linux 命令白名单封装 |
 | 安全 | RiskRuleEngine + PromptInjectionDetector |
 | 审计 | AuditLogService |
+| 报告 | 确定性 Markdown 从 AuditLogDetail 组装（不调 LLM） |
 
 ## 项目结构
 
 ```
 kylin-ops/
 ├── backend/                    # Spring Boot 后端
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/kylinops/
-│   │   │   │   ├── KylinOpsApplication.java
-│   │   │   │   ├── common/          # 通用响应、异常处理、枚举
-│   │   │   │   ├── config/          # 应用配置
-│   │   │   │   ├── chat/            # 聊天接口 (ChatController + ChatService)
-│   │   │   │   ├── agent/           # Agent 编排 (IntentClassifier, ToolPlanningService, AgentOrchestrator)
-│   │   │   │   ├── tool/            # Tool 注册与管理 (OpsTool, ToolRegistry, ToolExecutor)
-│   │   │   │   ├── os/              # OS 感知工具 (8 个只读工具, L0)
-│   │   │   │   ├── security/        # 安全风险校验 (PromptInjectionDetector, RiskCheckService)
-│   │   │   │   ├── executor/        # 安全执行器与确认流程
-│   │   │   │   ├── audit/           # 审计日志 (AuditLogService, AuditLog)
-│   │   │   │   ├── report/          # 报告生成 (TODO)
-│   │   │   │   └── dashboard/       # 仪表盘 (TODO)
-│   │   │   └── resources/
-│   │   │       ├── application.yml
-│   │   │       └── application-h2.yml
-│   │   └── test/
-│   │       └── java/com/kylinops/
-│   └── pom.xml
-├── frontend/                   # Vue 3 前端 (TODO)
+│   └── src/main/java/com/kylinops/
+│       ├── common/             # ApiResponse, GlobalExceptionHandler, enums
+│       ├── config/             # LLM, security
+│       ├── chat/               # ChatController + ChatService
+│       ├── agent/              # AgentOrchestrator, IntentClassifier, ToolPlanningService, AgentResponseBuilder
+│       ├── tool/               # OpsTool, ToolRegistry, ToolExecutor, ToolDefinitionVO (+ call stats)
+│       ├── os/                 # 10 只读 L0 工具 (system_info/cpu/memory/disk/large_file_scan/process_list/process_detail/network_port/service_status/journal_log)
+│       ├── security/           # PromptInjectionDetector, RiskRuleEngine, RiskCheckService, SecurityCatalogController (GET-only)
+│       ├── executor/           # SafeExecutor, PendingAction, ActionConfirmService
+│       ├── audit/              # AuditLog, AuditLogService (+ toolCallCount aggregate)
+│       ├── report/             # Report entity, ReportService (deterministic Markdown from AuditLogDetail)
+│       └── dashboard/          # DashboardService (parallel ToolExecutor collection, shared auditId)
+├── frontend/                   # Vue 3 + TS + Vite + Element Plus (Phase 2)
+│   └── src/
+│       ├── api/                # client + chat/actions/audit/security/dashboard/tools/reports
+│       ├── components/         # RiskLevelTag, ToolCallCard, ExecutionConfirmCard, AuditTimeline, StatusMetricCard, ReportPreview
+│       ├── layouts/AppLayout.vue
+│       ├── pages/              # ChatConsole, Dashboard, ToolCenter, SecurityCenter, AuditLog, ReportCenter
+│       ├── router/, types/, styles/
+│   └── tests/e2e/              # Playwright navigation + demo-flows + demo-live
 ├── deploy/
-│   └── scripts/
-│       ├── check-env.sh        # 环境检查
-│       ├── start-backend.sh    # 后端启动
-│       └── start-frontend.sh   # 前端启动
-├── *.md                        # 产品规格/架构设计文档
-└── README.md                   # 本文件
+│   └── scripts/                # check-env.sh, start-backend.sh, start-frontend.sh
+├── docs/
+│   └── test/                   # phase2-acceptance-guide.md, phase2-demo-acceptance.md
+├── *.md                        # 产品规格/架构设计文档 (v0.1)
+└── README.md
 ```
 
 ## 快速开始
@@ -92,7 +90,10 @@ cd backend && mvn clean package -DskipTests
 # 3. 启动后端
 java -jar backend/target/kylin-ops-guard.jar
 
-# 4. 验证
+# 4. 启动前端 (Phase 2)
+cd frontend && npm install && npm run dev   # http://127.0.0.1:5173
+
+# 5. 验证
 curl http://localhost:8080/api/health
 ```
 
@@ -123,11 +124,11 @@ curl http://localhost:8080/api/health
 ### Phase 2 — 前端演示闭环 (Task 02→17) — 已完成
 六页面前端 (ChatConsole, Dashboard, ToolCenter, SecurityCenter, AuditLog, ReportCenter) 全部落地，单元/集成测试 + Playwright E2E 覆盖四演示场景与六页面导航。验收证据见 `docs/test/phase2-demo-acceptance.md`；该文档严格区分 **Windows 已验证** 与 **LoongArch 待验证**。
 
-### Phase 3 — 执行器与报告 (Task 06→12)
-SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_preview` 已实现，真实删除仍 deferred）
+### Phase 3 — 执行器与报告 (Task 06→12) — 已实现
+SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_preview` 已实现，真实删除仍 deferred）。
 
-### Phase 4 — 交付材料 (Task 18→21)
-演示脚本、部署文档、环境验证、最终整合
+### Phase 4 — 交付材料 (Task 18→21) — 待启动
+演示脚本、部署文档、环境验证、最终整合。
 
 ## 四演示场景
 
@@ -141,9 +142,9 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 | 页面 | 路径 | 职责 |
 |---|---|---|
 | ChatConsole | `/chat` | 自然语言入口 + quick-action 按钮 + 风险标签 + L2 确认 |
-| Dashboard | `/dashboard` | 工具调用统计 + 风险等级分布 + 服务状态总览 |
-| ToolCenter | `/tools` | 已注册 OpsTool 元数据 + 调用次数 |
-| SecurityCenter | `/security` | 风险规则目录 + 拦截事件流 |
+| Dashboard | `/dashboard` | 工具调用统计 + 风险等级分布 + 服务状态总览（经 ToolExecutor 采集） |
+| ToolCenter | `/tools` | 已注册 OpsTool 元数据 + 调用次数与成功率 |
+| SecurityCenter | `/security` | 风险规则目录 + 拦截事件流（GET-only） |
 | AuditLog | `/audit` | 审计筛选 + 详情回放（关联 `auditId`） |
 | ReportCenter | `/reports` | 报告列表 + `sourceAuditId` 反查回审计 |
 
@@ -155,11 +156,13 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 - ❌ 无 `/api/shell`、`/api/exec`、`/api/command/run` 端点
 - ❌ 不将用户输入直接拼接为 Shell 命令
 - ❌ 不以 `/bin/sh -c` 执行用户原始输入
+- ❌ 前端不降低后端返回的风险等级，不自动确认 L2
 - ✅ 所有 OS 操作通过 OpsTool 封装
 - ✅ 所有 Tool 注册到 ToolRegistry
 - ✅ 所有执行动作经过 RiskCheckService
 - ✅ L2 操作必须确认，L3/L4 必须阻断
 - ✅ 全量审计日志
+- ✅ Markdown 渲染 `html:false`，禁止 raw HTML
 
 ## License
 

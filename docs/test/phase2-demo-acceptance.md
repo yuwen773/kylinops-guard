@@ -27,6 +27,28 @@
 - 用户可见文案中文；标识符与代码注释英文
 - 占位符使用 `<...>` 形式，**禁止**在此文件中编造具体测试数字
 
+### 1.1 2026-06-12 手工验收结论
+
+**结论：FAIL，当前分支不满足 Phase 2 发布门禁。**
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| forbidden endpoint 静态扫描 | PASS | 未发现真实 `/api/exec`、`/api/shell`、`/api/command/run` 端点；唯一命中为 `frontend/README.md` 的禁止性说明 |
+| `mvn test` | FAIL | 编译阶段失败，`DashboardService.java:184` 找不到 `HashMap`，未进入测试执行阶段 |
+| `mvn clean package -DskipTests` | FAIL | 同一编译错误，未生成 `backend/target/kylin-ops-guard.jar` |
+| 后端启动与 `/api/health` | NOT RUN | 无可启动 JAR |
+| `npm ci` | FAIL | 仓库未提交 `frontend/package-lock.json`，npm 返回 `EUSAGE` |
+| `npm run test:unit -- --run` | FAIL | 15 个 suite 在收集阶段失败、0 tests；`tsconfig.node.json` 引用了不存在的 `@vue/tsconfig/tsconfig.node.json` |
+| `npm run build` | FAIL | Vite 无法解析同一 `tsconfig.node.json` extends，未生成 `frontend/dist/` |
+| `npm run test:e2e` | NOT RUN | 本机无 Playwright Chromium；按验收决定不下载浏览器 |
+| live E2E / Live Demo Smoke | NOT RUN | 后端无法构建启动，且本机无 Playwright Chromium |
+
+环境补充：
+- Node.js `v22.21.0`，npm `11.16.0`
+- 本机仅发现 JDK 23；Maven 使用 `--release 17` 编译
+- PATH 首位的 Oracle `javapath` shim 会静默返回 0；本轮 Maven 证据通过显式设置 `JAVA_HOME=D:\Program Files\Java\jdk-23` 获取
+- 旧 `target/surefire-reports` 曾记录 225 tests / 0 failures / 0 errors / 0 skipped，但不是本轮新鲜执行结果，且已被 `mvn clean package` 清理，不能作为本轮通过证据
+
 ---
 
 ## 2. Forbidden Endpoint 静态扫描（Implementer 已执行）
@@ -265,15 +287,23 @@ npx playwright test tests/e2e/demo-live.spec.ts
 
 ## 6. 环境区分（诚实声明）
 
-### 6.1 Windows 11 (开发机) — **已验证**
+### 6.1 Windows 11 (开发机) — **已执行，验收失败**
 
-> 本任务的 forbidden endpoint 扫描已由 Implementer 在本机完成。其它命令的"已验证"状态由用户在执行后回填到 `<...>` 占位符。
+> 2026-06-12 已执行发布门禁命令。静态安全扫描通过，但后端编译、依赖锁定、前端单测和生产构建存在阻断项，详见 §1.1。
 
 - OS：Windows 11 Home China 10.0.26200
 - Shell：Git Bash + PowerShell
-- 工具链：Java 17 / Maven 3.x / Node 18+ / npm
-- 已跑通的命令：
+- 工具链：JDK 23（`--release 17`）/ Maven 3.9.9 / Node 22.21.0 / npm 11.16.0
+- 已通过的命令：
   - ✅ forbidden endpoint 扫描（本机执行，0 命中，详见 §2）
+- 失败或未执行：
+  - ❌ `mvn test`：`DashboardService.java:184` 缺少 `HashMap` 符号
+  - ❌ `mvn clean package -DskipTests`：同一编译错误，无 JAR
+  - ❌ `npm ci`：缺少已提交的 `package-lock.json`
+  - ❌ `npm run test:unit -- --run`：15 suites 收集失败，0 tests
+  - ❌ `npm run build`：无效的 `@vue/tsconfig/tsconfig.node.json` extends
+  - ⏸ `npm run test:e2e`：未下载 Chromium，未执行
+  - ⏸ live smoke：后端无法启动，未执行
 - 已知限制：
   - **后端 OS 工具大多降级**：`df`、`ps`、`ss`、`systemctl`、`journalctl` 在 Windows 上缺失或行为不一致；OS-sensing 工具按设计返回 `status: "failed"` + degradation note，**不**崩溃请求
   - **safety 闭环可演示**：四演示场景的 prompt injection、L4 阻断、L2 确认、审计、报告链接**全部**走纯逻辑链路（不依赖真实 OS 探测），在 Windows 上**可以**端到端跑通
@@ -357,27 +387,28 @@ git commit -m "docs: 完成 Phase 2 演示闭环验收记录"
 
 ---
 
-## 11. 占位符回填区（用户执行后填）
+## 11. 验收结果回填区
 
-> 用户在真实跑完命令与 smoke 后回填；本节**禁止** Implementer 提前填值。
+> 以下为 2026-06-12 实际执行结果。未执行项不得记为通过。
 
 | 字段 | 实际值 | 备注 |
 |---|---|---|
-| 后端 `mvn test` 测试数 | `<tests run count>` |  |
-| 后端 `mvn test` failures | `<failures>` |  |
-| 后端 `mvn test` errors | `<errors>` |  |
-| 后端 `mvn test` skipped | `<skipped>` |  |
-| 后端 jar 体积 | `<jar size>` |  |
-| 前端 unit tests 文件数 | `<unit test files>` |  |
-| 前端 unit tests 全部通过 | `<unit tests passed>` |  |
-| 前端 build 产物大小 | `<bundle size>` |  |
-| 前端 build 产物体积（gzip 后） | `<bundle gz size>` |  |
-| 前端 E2E 默认模式 spec 数 | `<specs passed>` / `<specs failed>` |  |
-| 前端 E2E live smoke spec 数 | `<live specs passed>` |  |
-| 浏览器 | `<Chromium [version] on [OS]>` |  |
-| 实际 commit SHA | `<commit sha>` |  |
-| Live smoke §5.5 全 PASS | `<YES / NO>` |  |
-| LoongArch 实测环境 | `<未执行>` | 强制留空，由 Task 20/21 后续回填 |
+| 后端 `mvn test` 测试数 | `0（未进入测试阶段）` | 编译失败 |
+| 后端 `mvn test` failures | `N/A` | Surefire 未执行 |
+| 后端 `mvn test` errors | `N/A` | Surefire 未执行 |
+| 后端 `mvn test` skipped | `N/A` | Surefire 未执行 |
+| 后端 jar 体积 | `N/A` | 打包失败，未生成 JAR |
+| 前端 `npm ci` | `FAIL` | 缺少已提交的 `package-lock.json` |
+| 前端 unit tests 文件数 | `15 failed suites` | 收集阶段失败 |
+| 前端 unit tests 全部通过 | `0 tests / FAIL` | 无效 tsconfig extends |
+| 前端 build 产物大小 | `N/A` | 构建失败，未生成 `dist/` |
+| 前端 build 产物体积（gzip 后） | `N/A` | 构建失败 |
+| 前端 E2E 默认模式 spec 数 | `NOT RUN` | 本机无 Playwright Chromium，按决定不下载 |
+| 前端 E2E live smoke spec 数 | `NOT RUN` | 后端无法构建启动 |
+| 浏览器 | `NOT INSTALLED` | Playwright Chromium 未下载 |
+| 实际 commit SHA | `af1dd4bef39a0900b27f42a19b6c5363c8385cc4` | 验收开始时分支 HEAD |
+| Live smoke §5.5 全 PASS | `NO（未执行）` | 不得视为通过 |
+| LoongArch 实测环境 | `未执行` | 由 Task 20/21 后续回填 |
 
 ---
 
