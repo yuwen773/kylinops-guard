@@ -1,5 +1,8 @@
 package com.kylinops.common.enums;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 /**
  * Tool 调用状态
  * <p>
@@ -24,5 +27,26 @@ public enum ToolCallStatus {
     TIMEOUT,
 
     /** 被安全规则阻断 */
-    BLOCKED
+    BLOCKED;
+
+    /**
+     * 终态集合 — 调用进入这些状态后不再变更。
+     * <p>
+     * 用于工具调用成功率（successRate）的分母：
+     * terminal = SUCCESS + FAILED + TIMEOUT + BLOCKED。
+     * PENDING/RUNNING 不计入分母（尚未完成）。
+     * </p>
+     */
+    public static final Set<ToolCallStatus> TERMINAL_STATUSES =
+            EnumSet.of(SUCCESS, FAILED, TIMEOUT, BLOCKED);
+
+    /**
+     * 是否为终态。
+     *
+     * @return true when the call has reached a terminal state (SUCCESS /
+     *         FAILED / TIMEOUT / BLOCKED)
+     */
+    public boolean isTerminal() {
+        return TERMINAL_STATUSES.contains(this);
+    }
 }
