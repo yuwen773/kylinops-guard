@@ -51,6 +51,55 @@ public class AuditLogService {
     private final PendingActionRepository pendingActionRepository;
 
     /**
+     * 创建一次 Dashboard / 工具批量采集的审计记录。
+     * <p>
+     * 与 {@link #createAuditLog(String, String, String, IntentType, AuditStatus)} 类似，
+     * 但省略会话/意图等 Chat 上下文，专门服务于「一次刷新调用多个只读工具」的场景。
+     * 采集流程应当：先调 {@code startCollection} 拿到 auditId，把 auditId 透传给所有
+     * {@code ToolExecutor.execute(toolName, params, auditId)}；最后调
+     * {@link #finalizeCollection(String, double, AuditStatus)} 收尾。
+     * </p>
+     *
+     * @param userInput 触发采集的用户输入摘要（可为空）
+     * @return 持久化后的审计日志（含 auditId）
+     */
+    @Transactional
+    public AuditLog startCollection(String userInput) {
+        AuditLog entry = new AuditLog();
+        entry.setAuditId(java.util.UUID.randomUUID().toString());
+        entry.setUserInput(userInput != null ? AuditSanitizer.truncateInput(userInput)
+                : "dashboard_collection");
+        entry.setIntentType(IntentType.SYSTEM_CHECK);
+        entry.setStatus(AuditStatus.RECEIVED);
+        AuditLog saved = auditLogRepository.save(entry);
+        log.debug("启动采集审计: auditId={}, userInput={}", saved.getAuditId(), saved.getUserInput());
+        return saved;
+    }
+
+    /**
+     * 采集结束后的审计收尾：写入 coverage、最终状态与摘要。
+     *
+     * @param auditId  审计 ID
+     * @param coverage 工具调用覆盖率（成功数 / 总数，0.0 - 1.0）
+     * @param status   最终状态（SUCCESS / FAILED / BLOCKED 等）
+     */
+    @Transactional
+    public void finalizeCollection(String auditId, double coverage, AuditStatus status) {
+        auditLogRepository.findByAuditId(auditId).ifPresent(entry -> {
+            // 摘要：覆盖数 / 总数（聚合信息；具体 metric 详情由 ToolCallRecord 提供）
+            String coveragePct = String.format("%.0f%%", Math.max(0.0, Math.min(1.0, coverage)) * 100.0);
+            entry.setMessage(AuditSanitizer.truncateInput(
+                    "采集完成，覆盖率 " + coveragePct));
+            if (status != null) {
+                entry.setStatus(status);
+            }
+            auditLogRepository.save(entry);
+            log.debug("收尾采集审计: auditId={}, coverage={}, status={}",
+                    auditId, coveragePct, status);
+        });
+    }
+
+    /**
      * 创建审计日志记录。
      *
      * @param auditId    审计 ID（贯穿全链路）
