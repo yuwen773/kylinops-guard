@@ -1,11 +1,50 @@
-// Audit log detail DTOs — mirrors com.kylinops.audit.AuditLogDetail and its
-// nested classes (ToolCallInfo, RiskCheckInfo, PendingActionInfo).
+// Audit log DTOs — mirrors the backend
+//   com.kylinops.audit.AuditLogSummary
+//   com.kylinops.audit.AuditLogDetail (and nested ToolCallInfo / RiskCheckInfo /
+//   PendingActionInfo)
+//   org.springframework.data.domain.Page<T>  (wire shape: { content, totalElements,
+//   totalPages, number, size })
 //
-// The frontend NEVER recomputes these fields. They are rendered verbatim —
-// the only local logic allowed is mapping the server-side status / decision
-// codes onto Chinese labels.
+// The frontend NEVER recomputes any safety field. Backend values are rendered
+// verbatim. The only local logic allowed is:
+//   * mapping the server-side status / decision codes onto Chinese labels
+//   * defensive JSON.parse for fields that look like JSON (matchedRules,
+//     actionPlan, executionResult, etc.); on parse failure we fall back to
+//     the raw sanitized string instead of crashing.
 
 import type { RiskDecision, RiskLevel } from './safety';
+
+/** Mirrors com.kylinops.audit.AuditLogSummary. */
+export interface AuditLogSummary {
+  auditId: string;
+  sessionId?: string;
+  /** Sanitized + truncated user input. */
+  userInput?: string;
+  intentType?: string;
+  riskLevel?: RiskLevel;
+  riskDecision?: RiskDecision;
+  /** Mirrors com.kylinops.common.enums.AuditStatus. */
+  status?: string;
+  confirmationRequired?: boolean;
+  confirmationStatus?: string;
+  message?: string;
+  /**
+   * Number of ToolCallRecord rows associated with this audit.
+   * Populated server-side via a single grouped aggregate
+   * (`countByAuditIdInGrouped`) — never derived in the frontend.
+   */
+  toolCallCount?: number;
+  createdAt?: string;
+}
+
+/** Mirrors org.springframework.data.domain.Page wire shape. */
+export interface AuditLogPage {
+  content: AuditLogSummary[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
 
 /** Mirrors com.kylinops.audit.AuditLogDetail.ToolCallInfo. */
 export interface AuditToolCallInfo {

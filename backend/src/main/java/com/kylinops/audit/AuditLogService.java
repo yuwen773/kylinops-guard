@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -274,7 +276,22 @@ public class AuditLogService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        return auditLogRepository.findAll(spec, pageable).map(this::toSummary);
+        Page<AuditLog> logsPage = auditLogRepository.findAll(spec, pageable);
+
+        // Single grouped aggregate: one count query per page, NOT one per row.
+        // Empty page → skip the aggregate entirely (no useful ids).
+        Map<String, Long> countsByAuditId = new HashMap<>();
+        List<AuditLog> entities = logsPage.getContent();
+        if (!entities.isEmpty()) {
+            List<String> ids = entities.stream()
+                    .map(AuditLog::getAuditId)
+                    .toList();
+            for (var projection : toolCallRecordRepository.countByAuditIdInGrouped(ids)) {
+                countsByAuditId.put(projection.getAuditId(), projection.getCount());
+            }
+        }
+
+        return logsPage.map(log -> toSummary(log, countsByAuditId.getOrDefault(log.getAuditId(), 0L)));
     }
 
     /**
@@ -289,7 +306,10 @@ public class AuditLogService {
 
     // ==================== DTO 映射 ====================
 
-    private AuditLogSummary toSummary(AuditLog log) {
+    /**
+     * 单条 summary 映射（toolCallCount 由调用方通过 grouped aggregate 提供）。
+     */
+    private AuditLogSummary toSummary(AuditLog log, long toolCallCount) {
         return AuditLogSummary.builder()
                 .auditId(log.getAuditId())
                 .sessionId(log.getSessionId())
@@ -301,6 +321,7 @@ public class AuditLogService {
                 .confirmationRequired(log.isConfirmationRequired())
                 .confirmationStatus(log.getConfirmationStatus())
                 .message(log.getMessage())
+                .toolCallCount(toolCallCount)
                 .createdAt(log.getCreatedAt())
                 .build();
     }

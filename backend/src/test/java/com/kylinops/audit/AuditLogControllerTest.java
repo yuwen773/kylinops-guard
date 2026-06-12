@@ -6,6 +6,7 @@ import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -15,11 +16,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -128,5 +134,25 @@ class AuditLogControllerTest {
         mockMvc.perform(get("/api/audit/logs/{auditId}", auditId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("GET /api/audit/logs → 每条 summary 含 toolCallCount 字段")
+    void listLogsExposesToolCallCount() throws Exception {
+        AuditLogSummary summary = AuditLogSummary.builder()
+                .auditId(UUID.randomUUID().toString())
+                .userInput("健康巡检")
+                .riskLevel(RiskLevel.L0)
+                .status(AuditStatus.SUCCESS)
+                .toolCallCount(6L)
+                .createdAt(LocalDateTime.now())
+                .build();
+        Page<AuditLogSummary> page = new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1);
+        when(auditLogService.queryLogs(any(), any(), any(), any(), any(),
+                anyInt(), anyInt())).thenReturn(page);
+
+        mockMvc.perform(get("/api/audit/logs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].toolCallCount").value(6));
     }
 }

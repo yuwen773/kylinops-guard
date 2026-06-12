@@ -8,7 +8,45 @@
 // them verbatim and does NOT retry / mutate.
 
 import { get } from './client';
-import type { AuditLogDetail } from '@/types/audit';
+import type { AuditLogDetail, AuditLogPage } from '@/types/audit';
+
+/**
+ * Query the audit log list with pagination and composite filters.
+ *
+ * Wire contract (mirrors com.kylinops.audit.AuditLogController#listLogs):
+ *   - riskLevel (L0..L4, optional)
+ *   - status    (AuditStatus, optional)
+ *   - keyword   (substring of userInput, optional)
+ *   - startTime / endTime (ISO-8601, optional)
+ *   - page      (default 0)
+ *   - size      (default 20)
+ *
+ * The backend returns a Page<AuditLogSummary>; the toolCallCount field is
+ * populated server-side via a single grouped aggregate — there is no per-row
+ * call from this module.
+ */
+export interface AuditLogQuery {
+  page?: number;
+  size?: number;
+  riskLevel?: string;
+  status?: string;
+  keyword?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export function getAuditLogs(query: AuditLogQuery = {}): Promise<AuditLogPage> {
+  const params: Record<string, string | number> = {};
+  if (query.page !== undefined) params.page = query.page;
+  if (query.size !== undefined) params.size = query.size;
+  if (query.riskLevel) params.riskLevel = query.riskLevel;
+  if (query.status) params.status = query.status;
+  if (query.keyword) params.keyword = query.keyword;
+  if (query.startTime) params.startTime = query.startTime;
+  if (query.endTime) params.endTime = query.endTime;
+
+  return get<AuditLogPage>('/api/audit/logs', { params });
+}
 
 /**
  * Fetch a single audit log detail by id.
