@@ -120,11 +120,11 @@ curl http://localhost:8080/api/health
 ### Phase 1 — 后端安全闭环 (Task 00→11) — 已完成
 后端核心安全闭环已通过全量测试、打包和 Git 检查验收。包括 Spring Boot 骨架、JPA 实体、OS 工具、安全风险引擎、Agent 编排层、确认执行、审计 API 和 Chat API。`POST /api/chat/send` 已可用。
 
-### Phase 2 — 前端演示闭环 (Task 02→17)
-六页面前端 (ChatConsole, Dashboard, ToolCenter, SecurityCenter, AuditLog, ReportCenter)
+### Phase 2 — 前端演示闭环 (Task 02→17) — 已完成
+六页面前端 (ChatConsole, Dashboard, ToolCenter, SecurityCenter, AuditLog, ReportCenter) 全部落地，单元/集成测试 + Playwright E2E 覆盖四演示场景与六页面导航。验收证据见 `docs/test/phase2-demo-acceptance.md`；该文档严格区分 **Windows 已验证** 与 **LoongArch 待验证**。
 
 ### Phase 3 — 执行器与报告 (Task 06→12)
-SafeExecutor、PendingAction 确认流程、报告生成
+SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_preview` 已实现，真实删除仍 deferred）
 
 ### Phase 4 — 交付材料 (Task 18→21)
 演示脚本、部署文档、环境验证、最终整合
@@ -135,6 +135,20 @@ SafeExecutor、PendingAction 确认流程、报告生成
 2. **磁盘诊断** — 根因分析 + 安全清理建议 (需 CONFIRM)
 3. **服务诊断 + L2 确认** — nginx 检查 + 安全重启流程
 4. **危险命令阻断** — rm -rf / + Prompt Injection → BLOCK + 审计
+
+## Phase 2 — 六页面前端
+
+| 页面 | 路径 | 职责 |
+|---|---|---|
+| ChatConsole | `/chat` | 自然语言入口 + quick-action 按钮 + 风险标签 + L2 确认 |
+| Dashboard | `/dashboard` | 工具调用统计 + 风险等级分布 + 服务状态总览 |
+| ToolCenter | `/tools` | 已注册 OpsTool 元数据 + 调用次数 |
+| SecurityCenter | `/security` | 风险规则目录 + 拦截事件流 |
+| AuditLog | `/audit` | 审计筛选 + 详情回放（关联 `auditId`） |
+| ReportCenter | `/reports` | 报告列表 + `sourceAuditId` 反查回审计 |
+
+详细验收记录、四演示场景 manual smoke 清单与 Windows / LoongArch 区分，参见
+[`docs/test/phase2-demo-acceptance.md`](docs/test/phase2-demo-acceptance.md)。
 
 ## 安全红线
 
