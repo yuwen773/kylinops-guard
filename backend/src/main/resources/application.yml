@@ -9,6 +9,12 @@ server:
       charset: UTF-8
       enabled: true
       force: true
+  # Tomcat max-swallow-size：请求处理完成后，Tomcat 还能「读后丢弃」多少
+  # body 字节（用于流式上传中客户端提前中断后清理残留 body）。注意这不是请
+  # 求体大小限制；JSON 请求体由 ChatRequest.content @Size(16384) 在应用层
+  # 校验（@Size 按 Java char 计数，UTF-8 字节数视字符集 1~4 倍不等）。
+  # 这里设为 16KB 是防御性兜底，避免异常连接在 Tomcat 层消费过多字节。
+  max-swallow-size: 16KB
 
 spring:
   application:
@@ -37,6 +43,14 @@ spring:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
     default-property-inclusion: non_null
+
+  # Multipart 上限：用于文件上传端点（非 chat 路径）。chat 走 JSON @RequestBody，
+  # 由 ChatRequest.content @Size(16384) 在应用层校验，与 multipart 配置无关。
+  # max-request-size = 整个 multipart 请求体上限；max-file-size = 单个文件上限。
+  servlet:
+    multipart:
+      max-request-size: 32MB
+      max-file-size: 32MB
 
 # ============================================================
 # Application custom configuration

@@ -4,6 +4,7 @@ import com.kylinops.agent.AgentResult;
 import com.kylinops.common.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +72,7 @@ public class ChatController {
     public static class ChatRequest {
         /** 用户输入内容（必填） */
         @NotBlank(message = "消息内容不能为空")
+        @Size(max = 16384, message = "单次输入不超过 16KB")
         private String content;
 
         /** 会话 ID（可选，不传则创建新会话） */
