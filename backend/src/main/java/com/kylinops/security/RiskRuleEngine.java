@@ -152,6 +152,34 @@ public class RiskRuleEngine {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 返回当前已加载规则的不可变快照视图（只读 DTO 列表）。
+     * <p>
+     * 用于 Security Center 的 GET /api/security/rules；
+     * 每次调用都生成新的 {@link SecurityRuleView} 列表，避免外部持有
+     * 可变引用的同时仍能反映当前的 enabled 状态。
+     * </p>
+     */
+    public List<SecurityRuleView> getImmutableRulesSnapshot() {
+        List<SecurityRuleView> snapshot = new ArrayList<>(rules.size());
+        for (RiskRule r : rules) {
+            snapshot.add(SecurityRuleView.builder()
+                    .ruleId(r.getId())
+                    .name(r.getId())
+                    .description(r.getReason())
+                    .regex(r.getPatternString())
+                    .targetTypes(r.getTargetTypes())
+                    .riskLevel(r.getRiskLevel())
+                    .decision(r.getDecision())
+                    .reason(r.getReason())
+                    .safeSuggestion(r.getSafeSuggestion())
+                    .enabled(r.isEnabled())
+                    .priority(r.getPriority())
+                    .build());
+        }
+        return Collections.unmodifiableList(snapshot);
+    }
+
     // ==================== 内部方法 ====================
 
     /**

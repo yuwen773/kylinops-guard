@@ -3,6 +3,8 @@ package com.kylinops.audit;
 import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
@@ -38,4 +40,13 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long>,
 
     /** 模糊搜索用户输入 */
     List<AuditLog> findByUserInputContainingIgnoreCase(String keyword);
+
+    /**
+     * 分页查询指定决策的审计日志（按 createdAt DESC）。
+     * <p>
+     * 用于 Security Center 的拦截事件列表；
+     * 调用方负责 Pageable 的 size clamp。
+     * </p>
+     */
+    Page<AuditLog> findByRiskDecision(RiskDecision riskDecision, Pageable pageable);
 }
