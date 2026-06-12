@@ -1,0 +1,23 @@
+# Frontend build / cache artifacts
+node_modules
+dist
+dist-ssr
+coverage
+.vite
+.cache
+playwright-report
+test-results
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea
+.vscode
+*.local
+
+# Vue / TS build info
+*.tsbuildinfo
