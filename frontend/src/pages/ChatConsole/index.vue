@@ -19,16 +19,19 @@
 // verdict — never by silently lowering it.
 
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import RiskLevelTag from '@/components/RiskLevelTag/index.vue';
 import ToolCallCard from '@/components/ToolCallCard/index.vue';
 import ExecutionConfirmCard from '@/components/ExecutionConfirmCard/index.vue';
 import { sendChat } from '@/api/chat';
 import { confirmAction } from '@/api/actions';
 import { getAuditDetail } from '@/api/audit';
+import { generateReport } from '@/api/reports';
 import { ApiError } from '@/api/client';
 import type { AgentResult, ToolCallDto } from '@/types/agent';
 import type { ToolCallDisplayStatus } from '@/types/safety';
 import type { AuditLogDetail } from '@/types/audit';
+import type { ReportDetail } from '@/types/report';
 
 // One history entry represents either a user turn or an Agent reply.
 // We keep them in the same ordered array so the UI can interleave them
@@ -107,6 +110,19 @@ const turns = ref<ChatTurn[]>([]);
 const sessionId = ref<string | undefined>(undefined);
 const draft = ref('');
 const inFlight = ref(false);
+const router = useRouter();
+// The most recent successful chat response's audit id. This is the
+// source the report-center "生成报告" button hangs off — we never let
+// the user generate a report from a turn whose audit we cannot cite.
+// Updated on every successful /api/chat/send response and reset when
+// the session is fresh and we have not yet sent anything.
+const lastAuditId = ref<string | undefined>(undefined);
+// In-flight guard for the report-generation round-trip. Independent of
+// `inFlight` (which gates chat sends) so a chat and a report generation
+// cannot fire at the same time and confuse the operator.
+const reportGenerating = ref(false);
+// Last report-generation error, surfaced inline on the chat console.
+const reportError = ref<string | null>(null);
 
 // The contextual "restart nginx" button only appears after a successful
 // service diagnosis. We surface it when the most recent agent turn
@@ -185,6 +201,17 @@ const send = async (content: string) => {
     // conversation against it. If the backend omitted it, keep the
     // existing one (defensive — no UI fallback that fabricates ids).
     if (result.sessionId) sessionId.value = result.sessionId;
+
+    // Capture the most recent audit id so the operator can pivot to the
+    // report center with one click. We do NOT enable the report button
+    // until the backend has actually returned a non-empty auditId —
+    // generating a report without a source audit is forbidden (the
+    // backend's ReportGenerateRequest requires at least one of
+    // auditId / sessionId, and the audit id is the only one that ties
+    // the report back to a specific request lifecycle).
+    if (result.auditId) {
+      lastAuditId.value = result.auditId;
+    }
 
     // If the result is L2 CONFIRM with a non-empty pendingAction, seed
     // the per-turn confirm state. The actual confirm/cancel network
@@ -346,6 +373,53 @@ const handleCancel = async (actionId: string) => {
     turn.confirm.errorMessage = e?.message ?? '取消失败';
   } finally {
     turn.confirm.inFlight = false;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Report generation — Task 13.
+//
+// Eligibility:
+//   * The button is rendered only when `lastAuditId` is set (a previous
+//     chat turn returned a real audit id). The backend will refuse to
+//     generate without one, so a disabled-or-hidden button is the only
+//     honest UI.
+//   * The button is disabled while a chat send OR a report generation
+//     is in flight — duplicate clicks cannot enqueue a second request.
+//
+// Flow:
+//   1. Call POST /api/reports/generate with { auditId: lastAuditId }.
+//      reportType is intentionally omitted — the backend derives it
+//      from the source audit when missing.
+//   2. On success, push the router to /reports?reportId=... so the
+//      ReportCenter auto-opens the detail drawer for the new report.
+//   3. On failure, surface a Chinese error inline; do NOT clear
+//      `lastAuditId` — the user can retry the same source.
+// ---------------------------------------------------------------------------
+
+const canGenerateReport = computed(() => !!lastAuditId.value);
+
+const handleGenerateReport = async () => {
+  const sourceAuditId = lastAuditId.value;
+  if (!sourceAuditId) return;
+  if (reportGenerating.value || inFlight.value) return;
+  reportGenerating.value = true;
+  reportError.value = null;
+  try {
+    const detail: ReportDetail = await generateReport({
+      auditId: sourceAuditId,
+    });
+    // Push to the report center with the new reportId in the query so
+    // the detail drawer auto-opens.
+    await router.push({
+      path: '/reports',
+      query: { reportId: detail.reportId },
+    });
+  } catch (err) {
+    const e = err as ApiError;
+    reportError.value = e?.message ?? '生成报告失败';
+  } finally {
+    reportGenerating.value = false;
   }
 };
 </script>
@@ -553,6 +627,17 @@ const handleCancel = async (actionId: string) => {
       />
       <div class="chat-input-actions">
         <el-button
+          v-if="canGenerateReport"
+          type="success"
+          plain
+          :loading="reportGenerating"
+          :disabled="reportGenerating || inFlight"
+          data-testid="chat-generate-report"
+          @click="handleGenerateReport"
+        >
+          生成报告
+        </el-button>
+        <el-button
           type="primary"
           :loading="inFlight"
           :disabled="inFlight || !draft.trim()"
@@ -562,6 +647,13 @@ const handleCancel = async (actionId: string) => {
           发送
         </el-button>
       </div>
+      <p
+        v-if="reportError"
+        class="chat-report-error"
+        data-testid="chat-report-error"
+      >
+        生成报告失败：{{ reportError }}
+      </p>
     </section>
   </el-card>
 </template>
@@ -758,6 +850,16 @@ const handleCancel = async (actionId: string) => {
 .chat-input-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+.chat-report-error {
+  margin: 0.5rem 0 0 0;
+  padding: 0.5rem 0.75rem;
+  background: #fef0f0;
+  border-radius: 4px;
+  color: #c45656;
+  font-size: 0.85rem;
 }
 </style>

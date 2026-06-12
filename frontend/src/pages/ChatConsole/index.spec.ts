@@ -6,9 +6,11 @@ import ChatConsole from './index.vue';
 import * as chatApi from '@/api/chat';
 import * as actionsApi from '@/api/actions';
 import * as auditApi from '@/api/audit';
+import * as reportsApi from '@/api/reports';
 import { ApiError } from '@/api/client';
 import type { AgentResult, PendingActionDto } from '@/types/agent';
 import type { AuditLogDetail } from '@/types/audit';
+import type { ReportDetail } from '@/types/report';
 
 enableAutoUnmount(afterEach);
 
@@ -32,6 +34,11 @@ function buildRouter(): Router {
         name: 'audit',
         component: { template: '<div data-testid="audit-page" />' },
       },
+      {
+        path: '/reports',
+        name: 'reports',
+        component: { template: '<div data-testid="reports-page" />' },
+      },
     ],
   });
 }
@@ -44,6 +51,25 @@ function mountPage() {
       global: { plugins: [router, ElementPlus] },
     }),
   );
+}
+
+/**
+ * Variant of mountPage that returns the router alongside the wrapper so
+ * tests can spy on router.push. Use only for tests that need to inspect
+ * navigation side-effects (e.g. Task 13's report-generation flow).
+ */
+function mountPageWithRouter(): Promise<{
+  wrapper: ReturnType<typeof mount>;
+  router: Router;
+}> {
+  const router = buildRouter();
+  router.push('/chat');
+  return router.isReady().then(() => ({
+    wrapper: mount(ChatConsole, {
+      global: { plugins: [router, ElementPlus] },
+    }),
+    router,
+  }));
 }
 
 describe('ChatConsole — quick actions', () => {
@@ -699,5 +725,196 @@ describe('ChatConsole — L2 confirmation (Task 5)', () => {
     expect(
       wrapper.find(`[data-testid="execution-confirm-${L2_PENDING.actionId}"]`).exists(),
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 13 — report generation closed loop.
+//
+// Contract:
+//   * The "生成报告" button is only rendered when a previous chat turn
+//     returned a non-empty auditId. No audit => no button (no silent
+//     fabrication).
+//   * Clicking the button calls generateReport({ auditId: lastAuditId })
+//     EXACTLY — no reportType / sessionId / extra fields forwarded.
+//   * On success the router is pushed to /reports?reportId=... so the
+//     ReportCenter detail drawer auto-opens.
+//   * On failure a Chinese error is shown inline; lastAuditId is NOT
+//     cleared so the user can retry.
+// ---------------------------------------------------------------------------
+
+describe('ChatConsole — report generation (Task 13)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does NOT render the generate-report button before any chat turn has resolved', async () => {
+    const wrapper = await mountPage();
+    expect(wrapper.find('[data-testid="chat-generate-report"]').exists()).toBe(false);
+  });
+
+  it('renders the generate-report button after a chat turn returns an auditId', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue({
+      sessionId: 's-gen',
+      answer: '健康巡检完成',
+      intentType: 'HEALTH_CHECK',
+      riskLevel: 'L0',
+      riskDecision: 'ALLOW',
+      needConfirmation: false,
+      auditId: 'audit-gen-001',
+      toolCalls: [],
+    });
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-health"]').trigger('click');
+    await flushPromises();
+
+    const btn = wrapper.find('[data-testid="chat-generate-report"]');
+    expect(btn.exists()).toBe(true);
+    expect(btn.text()).toContain('生成报告');
+  });
+
+  it('clicking generate-report calls generateReport with EXACTLY { auditId }', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue({
+      sessionId: 's-gen',
+      answer: '健康巡检完成',
+      riskLevel: 'L0',
+      riskDecision: 'ALLOW',
+      needConfirmation: false,
+      auditId: 'audit-gen-002',
+      toolCalls: [],
+    });
+    const reportDetail: ReportDetail = {
+      reportId: 'rpt-new-001',
+      title: '系统健康检查报告',
+      reportType: 'HEALTH',
+      riskLevel: 'L0',
+      sessionId: 's-gen',
+      auditId: 'audit-gen-002',
+      bodyMarkdown: '## 健康摘要',
+      createdAt: '2026-06-12T13:00:00',
+    };
+    const generateSpy = vi
+      .spyOn(reportsApi, 'generateReport')
+      .mockResolvedValue(reportDetail);
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-health"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('[data-testid="chat-generate-report"]').trigger('click');
+    await flushPromises();
+
+    expect(generateSpy).toHaveBeenCalledTimes(1);
+    const payload = generateSpy.mock.calls[0]?.[0];
+    expect(payload).toEqual({ auditId: 'audit-gen-002' });
+    expect(Object.keys(payload!).sort()).toEqual(['auditId']);
+  });
+
+  it('after a successful generateReport, router.push is called with /reports?reportId=...', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue({
+      sessionId: 's-gen',
+      riskLevel: 'L0',
+      riskDecision: 'ALLOW',
+      needConfirmation: false,
+      auditId: 'audit-gen-003',
+      toolCalls: [],
+    });
+    vi.spyOn(reportsApi, 'generateReport').mockResolvedValue({
+      reportId: 'rpt-new-002',
+      title: 't',
+      reportType: 'AUDIT',
+    });
+
+    const { wrapper, router } = await mountPageWithRouter();
+    const pushSpy = vi.spyOn(router, 'push');
+
+    await wrapper.find('[data-testid="quick-action-health"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('[data-testid="chat-generate-report"]').trigger('click');
+    await flushPromises();
+
+    expect(pushSpy).toHaveBeenCalled();
+    const call = pushSpy.mock.calls.find((c) => {
+      const arg = c[0] as { path?: string; query?: Record<string, string> } | string;
+      if (typeof arg === 'string') return false;
+      return arg?.path === '/reports' && arg?.query?.reportId === 'rpt-new-002';
+    });
+    expect(
+      call,
+      'expected router.push({ path: "/reports", query: { reportId: "rpt-new-002" } })',
+    ).toBeTruthy();
+  });
+
+  it('disables the generate-report button while a previous report generation is in flight', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue({
+      sessionId: 's-gen',
+      riskLevel: 'L0',
+      riskDecision: 'ALLOW',
+      needConfirmation: false,
+      auditId: 'audit-gen-004',
+      toolCalls: [],
+    });
+    let resolveGen: (value: ReportDetail) => void = () => {};
+    const pending = new Promise<ReportDetail>((res) => {
+      resolveGen = res;
+    });
+    const generateSpy = vi
+      .spyOn(reportsApi, 'generateReport')
+      .mockReturnValue(pending);
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-health"]').trigger('click');
+    await flushPromises();
+
+    const btn = wrapper.find('[data-testid="chat-generate-report"]');
+    await btn.trigger('click');
+    await flushPromises();
+
+    // Re-query after the click — the local in-flight guard should disable it.
+    const btnAfter = wrapper.find('[data-testid="chat-generate-report"]');
+    expect(btnAfter.attributes('disabled')).toBeDefined();
+
+    // A second click while pending must NOT enqueue another request.
+    await btnAfter.trigger('click');
+    await flushPromises();
+    expect(generateSpy).toHaveBeenCalledTimes(1);
+
+    resolveGen({
+      reportId: 'rpt-new-003',
+      title: 't',
+      reportType: 'AUDIT',
+    });
+    await flushPromises();
+  });
+
+  it('on generateReport failure shows a Chinese error and keeps the button available for retry', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue({
+      sessionId: 's-gen',
+      riskLevel: 'L0',
+      riskDecision: 'ALLOW',
+      needConfirmation: false,
+      auditId: 'audit-gen-005',
+      toolCalls: [],
+    });
+    vi.spyOn(reportsApi, 'generateReport').mockRejectedValue(
+      new ApiError({ code: 500, message: '后端服务暂时不可用', data: null }),
+    );
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-health"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('[data-testid="chat-generate-report"]').trigger('click');
+    await flushPromises();
+
+    const errorEl = wrapper.find('[data-testid="chat-report-error"]');
+    expect(errorEl.exists()).toBe(true);
+    expect(errorEl.text()).toContain('后端服务暂时不可用');
+
+    // The button remains available for retry — lastAuditId is preserved.
+    const btn = wrapper.find('[data-testid="chat-generate-report"]');
+    expect(btn.exists()).toBe(true);
+    expect(btn.attributes('disabled')).toBeUndefined();
   });
 });
