@@ -81,16 +81,25 @@ public class AgentOrchestrator {
     private final MessageRepository messageRepository;
 
     /**
-     * 并行工具执行线程池
+     * 并行工具执行线程池。
+     * <p>
+     * 设计要点：
+     * <ul>
+     *   <li>corePool=4：日常系统健康检查（6 工具并行）足以覆盖；空闲线程 60s 后回收</li>
+     *   <li>maxPool=16：覆盖未来 8-12 工具扩展 + 并发 chat 请求突发</li>
+     *   <li>ArrayBlockingQueue(64)：有界缓冲，避免 OOM；容量 = 8 工具 × 8 并发请求</li>
+     *   <li>CallerRunsPolicy：队列满时由提交线程同步执行，保证任务不丢、不抛 RejectedExecutionException</li>
+     * </ul>
      */
     private final ExecutorService parallelExecutor = new ThreadPoolExecutor(
-            4, 8, 60L, TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
+            4, 16, 60L, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(64),
             r -> {
                 Thread t = new Thread(r, "agent-parallel-");
                 t.setDaemon(true);
                 return t;
-            });
+            },
+            new ThreadPoolExecutor.CallerRunsPolicy());
 
     // ==================== 主流程 ====================
 
