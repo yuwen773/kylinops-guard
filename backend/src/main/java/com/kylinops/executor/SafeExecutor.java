@@ -125,34 +125,52 @@ public class SafeExecutor {
 
     /**
      * 临时文件清理预览 — P0 仅返回候选文件，不执行删除。
+     * <p>
+     * 候选列表来自 plan.getTarget()（不再硬编码）。P0 阶段不接真实 du/scandir，
+     * 因此 sizeBytes 标 null 并在 note 中说明。Phase 3 接入真实扫描后填充 sizeBytes。
+     * </p>
      */
     private ExecutionResult executeTempCleanPreview(ExecutionPlan plan, ExecutionPolicy policy) {
-        if (isWindows()) {
-            return ExecutionResult.degraded("safe_temp_clean_preview",
-                    "临时文件清理预览需要 Linux 环境（当前为 Windows 环境）");
+        String target = plan.getTarget();
+        boolean hasTarget = target != null && !target.isBlank();
+
+        List<Map<String, Object>> candidates;
+        String note;
+        if (hasTarget) {
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("path", target);
+            entry.put("sizeBytes", null); // P0 阶段不扫描
+            entry.put("note", "P0 阶段未扫描真实大小");
+            candidates = List.of(entry);
+            note = "预览模式 — 候选为用户指定的 target，未做真实大小扫描";
+        } else {
+            candidates = List.of();
+            note = "预览模式 — 未提供 target，candidates 为空（待 Phase 3 接入自动扫描）";
         }
 
         Map<String, Object> data = new HashMap<>();
         data.put("actionType", "temp_clean_preview");
-        data.put("candidates", List.of(
-                Map.of("path", "/tmp/cache-demo/", "sizeBytes", 52428800, "note", "可清理的缓存目录"),
-                Map.of("path", "/tmp/temp-files/", "sizeBytes", 10485760, "note", "临时文件目录")
-        ));
-        data.put("totalSizeBytes", 62914560);
-        data.put("note", "预览模式 — 仅展示可清理文件，未执行删除");
+        data.put("candidates", candidates);
+        data.put("totalSizeBytes", null); // P0 阶段不聚合；Phase 3 接入 du 后填实
+        data.put("note", note);
 
-        return ExecutionResult.ok(data, "临时文件清理预览完成，共 2 个候选路径");
+        if (isWindows()) {
+            return ExecutionResult.okWithDegraded(data,
+                    "临时文件清理预览完成（Windows 降级，未执行真实扫描）",
+                    "临时文件清理预览需要 Linux 环境（当前为 Windows 环境）");
+        }
+
+        return ExecutionResult.ok(data, "临时文件清理预览完成");
     }
 
     /**
      * 日志截断预览 — P0 仅返回截断计划。
+     * <p>
+     * target 来自 plan.getTarget()（不再硬编码 /var/log/app.log）。
+     * currentSizeBytes 标 null：P0 阶段不假装知道真实大小，Phase 3 接入 du 后填实。
+     * </p>
      */
     private ExecutionResult executeLogTruncatePreview(ExecutionPlan plan, ExecutionPolicy policy) {
-        if (isWindows()) {
-            return ExecutionResult.degraded("safe_log_truncate_preview",
-                    "日志截断预览需要 Linux 环境（当前为 Windows 环境）");
-        }
-
         String target = plan.getTarget();
         if (target != null && !target.isBlank()) {
             // 检查敏感路径
@@ -165,17 +183,26 @@ public class SafeExecutor {
 
         Map<String, Object> data = new HashMap<>();
         data.put("actionType", "log_truncate_preview");
-        data.put("target", target != null ? target : "/var/log/app.log");
-        data.put("currentSizeBytes", 209715200);
-        data.put("truncatedSizeBytes", 104857600);
-        data.put("note", "预览模式 — 仅展示拟截断信息，未执行实际截断");
+        data.put("target", target); // 直接使用 plan.getTarget()，可能为 null
+        data.put("currentSizeBytes", null); // P0 阶段未做真实扫描；不返回 209715200 这种假数据
+        data.put("truncatedSizeBytes", null); // P0 阶段未做真实截断计划
+        data.put("note", "预览模式 — P0 阶段未做真实扫描；待 Phase 3 接入 du 后填实 currentSizeBytes");
 
-        return ExecutionResult.ok(data, "日志截断预览完成，拟释放约 100MB 空间");
+        if (isWindows()) {
+            return ExecutionResult.okWithDegraded(data,
+                    "日志截断预览完成（Windows 降级，未执行真实扫描）",
+                    "日志截断预览需要 Linux 环境（当前为 Windows 环境）");
+        }
+
+        return ExecutionResult.ok(data, "日志截断预览完成");
     }
 
     /**
-     * 文件清理预览。
-     * 敏感路径直接阻断。
+     * 文件清理预览。敏感路径直接阻断。
+     * <p>
+     * 候选列表来自 plan.getTarget()（不再硬编码 /var/log/app.log）。
+     * P0 阶段不接真实扫描，sizeBytes 标 null。
+     * </p>
      */
     private ExecutionResult executeFileCleanPreview(ExecutionPlan plan, ExecutionPolicy policy) {
         String target = plan.getTarget();
@@ -190,19 +217,33 @@ public class SafeExecutor {
             }
         }
 
-        if (isWindows()) {
-            return ExecutionResult.degraded("safe_file_clean_preview",
-                    "文件清理预览需要 Linux 环境（当前为 Windows 环境）");
+        boolean hasTarget = target != null && !target.isBlank();
+        List<Map<String, Object>> candidates;
+        String note;
+        if (hasTarget) {
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("path", target);
+            entry.put("sizeBytes", null); // P0 阶段不扫描
+            entry.put("type", "user_specified");
+            entry.put("note", "P0 阶段未扫描真实大小");
+            candidates = List.of(entry);
+            note = "预览模式 — 候选为用户指定的 target，未做真实大小扫描";
+        } else {
+            candidates = List.of();
+            note = "预览模式 — 未提供 target，candidates 为空（待 Phase 3 接入自动扫描）";
         }
 
         Map<String, Object> data = new HashMap<>();
         data.put("actionType", "file_clean_preview");
-        data.put("candidates", List.of(
-                Map.of("path", "/var/log/app.log", "sizeBytes", 209715200, "type", "log"),
-                Map.of("path", "/tmp/cache-demo/", "sizeBytes", 52428800, "type", "cache")
-        ));
-        data.put("note", "预览模式 — 仅展示待清理文件，未执行删除");
+        data.put("candidates", candidates);
+        data.put("note", note);
 
-        return ExecutionResult.ok(data, "文件清理预览完成，共 2 个候选文件/目录");
+        if (isWindows()) {
+            return ExecutionResult.okWithDegraded(data,
+                    "文件清理预览完成（Windows 降级，未执行真实扫描）",
+                    "文件清理预览需要 Linux 环境（当前为 Windows 环境）");
+        }
+
+        return ExecutionResult.ok(data, "文件清理预览完成");
     }
 }

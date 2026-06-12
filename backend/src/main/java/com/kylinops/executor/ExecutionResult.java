@@ -64,4 +64,17 @@ public class ExecutionResult {
                 "执行降级: " + reason,
                 "当前环境无法执行 " + actionType, 0);
     }
+
+    /**
+     * 降级但仍返回数据（用于预览类动作：结构化数据保留，仅在 errorMessage/summary 标注降级原因）。
+     * <p>
+     * 用于 P0 阶段：例如 Windows 环境无法执行 du/find，但预览的目标注入/字段结构仍应返回。
+     * 这样上层（Agent / 前端）拿到的 data 永远保持新契约，跨平台一致。
+     * </p>
+     */
+    public static ExecutionResult okWithDegraded(Object data, String summary, String reason) {
+        return new ExecutionResult(true, data,
+                "执行降级: " + reason,
+                summary, 0);
+    }
 }
