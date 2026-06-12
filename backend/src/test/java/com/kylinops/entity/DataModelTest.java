@@ -15,6 +15,7 @@ import com.kylinops.common.enums.ToolCallStatus;
 import com.kylinops.common.enums.ToolStatus;
 import com.kylinops.report.Report;
 import com.kylinops.report.ReportRepository;
+import com.kylinops.report.ReportType;
 import com.kylinops.security.RiskCheckRecord;
 import com.kylinops.security.RiskCheckRecordRepository;
 import com.kylinops.tool.ToolCallRecord;
@@ -396,11 +397,13 @@ class DataModelTest {
     void shouldSaveAndFindReport() {
         // given
         Report report = new Report();
+        report.setReportId(java.util.UUID.randomUUID().toString());
         report.setSessionId("test-session-uuid");
-        report.setType("SYSTEM_CHECK");
+        report.setAuditId("test-audit-uuid");
+        report.setReportType(ReportType.HEALTH);
         report.setTitle("系统健康检查报告");
-        report.setContent("# 系统健康检查报告\n\n## 概述\n系统运行正常。");
-        report.setSummary("系统运行正常，CPU/内存/磁盘均正常。");
+        report.setRiskLevel(RiskLevel.L0);
+        report.setBodyMarkdown("# 系统健康检查报告\n\n## 概述\n系统运行正常。");
 
         // when
         Report saved = reportRepository.save(report);
@@ -408,21 +411,14 @@ class DataModelTest {
         // then
         assertThat(saved.getId()).isNotNull();
         assertThat(saved.getReportId()).isNotNull();
-        assertThat(saved.getGeneratedAt()).isNotNull();
-        assertThat(saved.getType()).isEqualTo("SYSTEM_CHECK");
+        assertThat(saved.getCreatedAt()).isNotNull();
+        assertThat(saved.getReportType()).isEqualTo(ReportType.HEALTH);
 
         // 按 reportId 查询
         Optional<Report> found = reportRepository.findByReportId(saved.getReportId());
         assertThat(found).isPresent();
         assertThat(found.get().getTitle()).contains("健康检查");
-
-        // 按类型查询
-        var reports = reportRepository.findByTypeOrderByGeneratedAtDesc("SYSTEM_CHECK");
-        assertThat(reports).hasSize(1);
-
-        // 关键词搜索
-        var keywordReports = reportRepository.findByTitleContainingIgnoreCase("健康");
-        assertThat(keywordReports).hasSize(1);
+        assertThat(found.get().getBodyMarkdown()).contains("系统运行正常");
     }
 
     // ———————— 7. 全链路审计追踪 ————————
