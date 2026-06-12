@@ -41,5 +41,9 @@ logs/
 .omc/
 docs/superpowers/
 
+# Isolated workspaces (per superpowers:using-git-worktrees)
+.worktrees/
+worktrees/
+
 # Maven build artifacts (classpath dumps, etc.)
 backend/cp.txt
