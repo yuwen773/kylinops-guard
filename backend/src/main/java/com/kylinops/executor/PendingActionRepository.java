@@ -61,4 +61,26 @@ public interface PendingActionRepository extends JpaRepository<PendingAction, Lo
                             @Param("waitingStatus") PendingActionStatus waitingStatus,
                             @Param("expiredStatus") PendingActionStatus expiredStatus,
                             @Param("now") LocalDateTime now);
+
+    /**
+     * 原子 claim 等待中的待确认动作（WAITING + 未过期 → EXECUTING/CANCELLED/CONFIRMED）。
+     * <p>
+     * 单条 SQL 同时校验 status 和 expiresAt，避免「先读后写」的 TOCTOU 空窗。
+     * 任意并发调用方最多有一个返回 1。
+     * </p>
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query("""
+            update PendingAction p
+               set p.status = :targetStatus,
+                   p.updatedAt = :now
+             where p.actionId = :actionId
+               and p.status = :waitingStatus
+               and p.expiresAt > :now
+            """)
+    int claimWaitingAction(@Param("actionId") String actionId,
+                           @Param("waitingStatus") PendingActionStatus waitingStatus,
+                           @Param("targetStatus") PendingActionStatus targetStatus,
+                           @Param("now") LocalDateTime now);
 }

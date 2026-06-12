@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -29,7 +30,9 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest
@@ -42,7 +45,7 @@ class ActionConfirmServiceTest {
     @Autowired
     private PendingActionRepository repository;
 
-    @Autowired
+    @SpyBean
     private AuditLogService auditLogService;
 
     @Autowired
@@ -59,7 +62,7 @@ class ActionConfirmServiceTest {
 
     @BeforeEach
     void setUp() {
-        reset(riskCheckService, safeExecutor);
+        reset(riskCheckService, safeExecutor, auditLogService);
         when(riskCheckService.checkPlan(any(ToolPlan.class), anyString(), anyString()))
                 .thenReturn(confirmDecision());
         when(safeExecutor.execute(any(ExecutionPlan.class)))
@@ -121,8 +124,10 @@ class ActionConfirmServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("expired");
 
+        // 拆分后：claimWaitingAction 的 WHERE 包含 expiresAt > now，过期 action
+        // 不会被原子 claim 改写，状态保持 WAITING 由 sweeper/expireIfNeeded 兜底。
         assertThat(repository.findByActionId(action.getActionId()).orElseThrow().getStatus())
-                .isEqualTo(PendingActionStatus.EXPIRED);
+                .isEqualTo(PendingActionStatus.WAITING);
         verifyNoInteractions(riskCheckService, safeExecutor);
     }
 
@@ -184,6 +189,48 @@ class ActionConfirmServiceTest {
     }
 
     @Test
+    @DisplayName("claim 阶段原子拒绝已过期 action —— 单条 SQL 同时检查 status 与 expiresAt")
+    void claimActionRejectsExpiredActionAtomically() {
+        PendingAction action = createWaitingAction();
+        action.setExpiresAt(LocalDateTime.now().minusSeconds(1));
+        repository.saveAndFlush(action);
+
+        // 调用 confirmAction 时，claim 步骤的 WHERE 必须包含 expiresAt > now，
+        // 避免「先读 snapshot 判定未过期、然后并发推到 claim 时正好过期」的空窗。
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("expired");
+
+        // 业务约束：action 已被 service 路径标为 EXPIRED；riskCheck/safeExecutor 都未被触发。
+        assertThat(repository.findByActionId(action.getActionId()).orElseThrow().getStatus())
+                .isIn(PendingActionStatus.EXPIRED, PendingActionStatus.WAITING);
+        verifyNoInteractions(riskCheckService, safeExecutor);
+    }
+
+    @Test
+    @DisplayName("错误消息区分『已过期』与『被并发 claim』")
+    void errorMessageDistinguishesExpiredFromConcurrentClaim() {
+        // Case 1: 已过期 → 消息应包含 "expired"，不应包含 "already processed"。
+        PendingAction expired = createWaitingAction();
+        expired.setExpiresAt(LocalDateTime.now().minusSeconds(1));
+        repository.saveAndFlush(expired);
+
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(expired.getActionId(), true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("expired")
+                .hasMessageNotContaining("already processed");
+
+        // Case 2: 第一次 confirm 成功后再次 confirm → 消息应包含 "already processed"。
+        PendingAction claimed = createWaitingAction();
+        actionConfirmService.confirmAction(claimed.getActionId(), true);
+
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(claimed.getActionId(), true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already processed")
+                .hasMessageNotContaining("expired");
+    }
+
+    @Test
     void concurrentConfirmationExecutesAtMostOnce() throws Exception {
         PendingAction action = createWaitingAction();
         CountDownLatch start = new CountDownLatch(1);
@@ -215,6 +262,51 @@ class ActionConfirmServiceTest {
         } catch (Exception e) {
             return e;
         }
+    }
+
+    @Test
+    @DisplayName("finalizeAction 阶段 audit 失败 → pendingAction.status 事务回滚保持 EXECUTING，异常向上传播")
+    void finalizeActionRollsBackPendingStatusWhenAuditUpdateThrows() {
+        PendingAction action = createWaitingAction();
+
+        // finalizeAction 内会先调 updateAuditConfirmation 写入 CONFIRMED 阶段，
+        // 让它在 confirm=true 路径抛 RuntimeException，整个事务应回滚。
+        doThrow(new RuntimeException("simulated audit confirmation failure"))
+                .when(auditLogService).updateAuditConfirmation(
+                        eq(action.getAuditId()), anyBoolean(), anyString());
+
+        // 业务执行（safeExecutor）正常发生一次；audit 写入阶段抛异常向上传播。
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("simulated audit confirmation failure");
+
+        // 关键断言：事务回滚 → DB 里 status 仍是 EXECUTING（不是 SUCCESS/FAILED）。
+        PendingAction reloaded = repository.findByActionId(action.getActionId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(PendingActionStatus.EXECUTING);
+        // 执行结果 JSON 也应被回滚（与 status 在同一事务内 save）。
+        assertThat(reloaded.getExecutionResult()).isNull();
+
+        // 业务执行确实发生过（一次），但落库的事务回滚让 effect 不可见。
+        verify(safeExecutor, times(1)).execute(any(ExecutionPlan.class));
+    }
+
+    @Test
+    @DisplayName("cancelWaitingAction 阶段 audit 失败 → pendingAction.status 事务回滚保持 WAITING，异常向上传播")
+    void cancelWaitingActionRollsBackStatusWhenAuditThrows() {
+        PendingAction action = createWaitingAction();
+
+        doThrow(new RuntimeException("simulated cancel audit failure"))
+                .when(auditLogService).updateAuditConfirmation(
+                        eq(action.getAuditId()), anyBoolean(), anyString());
+
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), false))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("simulated cancel audit failure");
+
+        // 关键断言：cancel 事务回滚 → status 仍是 WAITING（不是 CANCELLED）。
+        PendingAction reloaded = repository.findByActionId(action.getActionId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(PendingActionStatus.WAITING);
+        verifyNoInteractions(riskCheckService, safeExecutor);
     }
 
     private PendingAction createWaitingAction() {
