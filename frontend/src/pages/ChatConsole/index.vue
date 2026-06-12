@@ -1,29 +1,34 @@
 <script setup lang="ts">
-// ChatConsole — Phase 2 read-only demo console.
+// ChatConsole — Phase 2 demo console with L2 confirmation closed loop.
 //
 // Responsibilities:
 //   * Render the conversation history (user prompts + Agent replies).
 //   * Provide the five demo quick-action buttons mandated by 演示视频脚本 §3.2.
 //   * Display the AgentResult verdict verbatim: riskLevel, riskDecision,
 //     auditId, toolCalls, errorMessage.
-//   * Block dangerous inputs at the UI level by DISPLAYING the backend
-//     verdict — never by silently lowering it.
-//   * Surface a contextual nginx restart button after a service-diagnosis
-//     turn. Confirming /api/actions/confirm is owned by Task 5 — the
-//     button here only fills the input field, it does NOT call any API.
+//   * For L2 (CONFIRM) results, render ExecutionConfirmCard. Clicking
+//     确认执行 / 取消 routes through /api/actions/confirm with EXACTLY
+//     { actionId, confirm } — no toolName, command, target, or params
+//     are forwarded. The frontend never auto-confirms.
+//   * After a successful confirmation, re-fetch /api/audit/logs/{auditId}
+//     and display the persisted final state. On failure, the card stays
+//     unresolved and the user sees a Chinese error with an audit-detail
+//     link.
 //
-// NON-GOALS (intentionally deferred):
-//   * /api/actions/confirm round-trip        — Task 5
-//   * /api/reports/generate                  — Task 6 / 12
-//   * Multi-turn conversation memory in UI   — out of scope for Phase 2
-//   * Auto-confirming L2 / softening L3/L4   — explicitly forbidden
+// Block dangerous inputs at the UI level by DISPLAYING the backend
+// verdict — never by silently lowering it.
+
 import { computed, ref } from 'vue';
 import RiskLevelTag from '@/components/RiskLevelTag/index.vue';
 import ToolCallCard from '@/components/ToolCallCard/index.vue';
+import ExecutionConfirmCard from '@/components/ExecutionConfirmCard/index.vue';
 import { sendChat } from '@/api/chat';
+import { confirmAction } from '@/api/actions';
+import { getAuditDetail } from '@/api/audit';
 import { ApiError } from '@/api/client';
 import type { AgentResult, ToolCallDto } from '@/types/agent';
 import type { ToolCallDisplayStatus } from '@/types/safety';
+import type { AuditLogDetail } from '@/types/audit';
 
 // One history entry represents either a user turn or an Agent reply.
 // We keep them in the same ordered array so the UI can interleave them
@@ -33,6 +38,33 @@ interface ChatTurn {
   text: string;
   result?: AgentResult;
   errorText?: string;
+  // L2 confirmation state for this turn. Populated only when the
+  // backend returned needConfirmation=true and a non-empty pendingAction.
+  confirm?: ConfirmState;
+}
+
+// Per-turn L2 confirmation state.
+interface ConfirmState {
+  actionId: string;
+  summary: string;
+  detail?: string;
+  // inFlight is set the moment the user clicks either button; the
+  // ExecutionConfirmCard has its own internal in-flight guard, but we
+  // also gate the network call from here so even if the card were
+  // re-mounted we would never issue a duplicate /api/actions/confirm.
+  inFlight: boolean;
+  // The terminal state of this action. Present only after the
+  // /api/actions/confirm + /api/audit/logs round-trip resolved.
+  // 'confirmed' | 'cancelled' | 'error' | 'pending'
+  status: 'pending' | 'confirmed' | 'cancelled' | 'error';
+  // Backend's confirmationStatus, displayed verbatim on success.
+  confirmationStatus?: string;
+  // Backend's finalAnswer, displayed verbatim on success.
+  finalAnswer?: string;
+  // Chinese error message on failure; the card stays unresolved.
+  errorMessage?: string;
+  // Audit id captured from the original /api/chat/send response.
+  auditId?: string;
 }
 
 // Demo inputs — copied verbatim from 演示视频脚本 v0.1 §3.2 (and the
@@ -115,6 +147,28 @@ const formatDuration = (ms?: number): string | undefined => {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
 };
 
+// Build the human-readable summary shown on the ExecutionConfirmCard.
+// The backend's PendingAction.description is the preferred source; we
+// fall back to toolName for older payloads.
+const buildConfirmSummary = (result: AgentResult): string => {
+  const pa = result.pendingAction;
+  if (pa?.description && pa.description.trim()) return pa.description;
+  if (pa?.toolName) return `执行 ${pa.toolName} 操作`;
+  return '该操作需要用户确认';
+};
+
+const buildConfirmDetail = (result: AgentResult): string | undefined => {
+  const pa = result.pendingAction;
+  if (!pa) return undefined;
+  const lines: string[] = [];
+  if (pa.toolName) lines.push(`工具：${pa.toolName}`);
+  if (pa.actionId) lines.push(`动作 ID：${pa.actionId}`);
+  if (pa.params && Object.keys(pa.params).length > 0) {
+    lines.push(`参数：${JSON.stringify(pa.params)}`);
+  }
+  return lines.length > 0 ? lines.join('\n') : undefined;
+};
+
 const send = async (content: string) => {
   const text = (content ?? '').trim();
   if (!text || inFlight.value) return;
@@ -131,7 +185,28 @@ const send = async (content: string) => {
     // conversation against it. If the backend omitted it, keep the
     // existing one (defensive — no UI fallback that fabricates ids).
     if (result.sessionId) sessionId.value = result.sessionId;
-    turns.value.push({ kind: 'agent', text: '', result });
+
+    // If the result is L2 CONFIRM with a non-empty pendingAction, seed
+    // the per-turn confirm state. The actual confirm/cancel network
+    // round-trip is owned by handleConfirm / handleCancel.
+    const pa = result.pendingAction;
+    const hasPending =
+      result.needConfirmation === true &&
+      result.riskDecision === 'CONFIRM' &&
+      !!pa &&
+      !!pa.actionId;
+    const confirm: ConfirmState | undefined = hasPending
+      ? {
+          actionId: pa!.actionId,
+          summary: buildConfirmSummary(result),
+          detail: buildConfirmDetail(result),
+          inFlight: false,
+          status: 'pending',
+          auditId: result.auditId,
+        }
+      : undefined;
+
+    turns.value.push({ kind: 'agent', text: '', result, confirm });
   } catch (err) {
     const e = err as ApiError;
     turns.value.push({
@@ -167,6 +242,111 @@ const onNginxRestart = () => {
 const auditHref = (auditId: string | undefined): string | undefined => {
   if (!auditId) return undefined;
   return `/audit?auditId=${encodeURIComponent(auditId)}`;
+};
+
+// Find the most recent turn whose confirm state matches the given
+// actionId. Used to look up the per-turn in-flight guard.
+const findTurnForAction = (actionId: string): ChatTurn | undefined => {
+  for (let i = turns.value.length - 1; i >= 0; i--) {
+    const t = turns.value[i];
+    if (t.kind === 'agent' && t.confirm && t.confirm.actionId === actionId) {
+      return t;
+    }
+  }
+  return undefined;
+};
+
+const applyAuditDetail = (turn: ChatTurn, detail: AuditLogDetail) => {
+  if (!turn.confirm) return;
+  // Persist the backend's verdict verbatim — never derive a softer
+  // status locally. Both the human-readable status and the final
+  // answer come straight from the audit log.
+  const status = (detail.confirmationStatus ?? '').toUpperCase();
+  let next: ConfirmState['status'] = 'pending';
+  if (status === 'CONFIRMED' || status === 'EXECUTED' || status === 'SUCCESS') {
+    next = 'confirmed';
+  } else if (status === 'CANCELLED' || status === 'REJECTED' || status === 'CANCELED') {
+    next = 'cancelled';
+  } else if (status === 'FAILED' || status === 'ERROR' || status === 'TIMEOUT') {
+    next = 'error';
+  } else if (status) {
+    // Unknown status — keep it visible as 'confirmed' with the raw
+    // status string so nothing is silently dropped.
+    next = 'confirmed';
+  }
+  turn.confirm.status = next;
+  turn.confirm.confirmationStatus = detail.confirmationStatus;
+  turn.confirm.finalAnswer = detail.finalAnswer ?? detail.message;
+};
+
+const handleConfirm = async (actionId: string) => {
+  const turn = findTurnForAction(actionId);
+  if (!turn || !turn.confirm) return;
+  // The ExecutionConfirmCard has its own in-flight guard, but we also
+  // gate from here to prevent duplicate requests even if the card
+  // were re-mounted. A second click during the round-trip is a no-op.
+  if (turn.confirm.inFlight) return;
+  turn.confirm.inFlight = true;
+  turn.confirm.errorMessage = undefined;
+
+  try {
+    // The payload is EXACTLY { actionId, confirm }. We never forward
+    // toolName / command / target / params — the backend re-reads them
+    // from the persisted PendingAction row.
+    await confirmAction({ actionId, confirm: true });
+
+    // On success, re-fetch the audit log to render the persisted final
+    // state. We do NOT derive the final status locally — the backend
+    // is the source of truth.
+    const auditId = turn.confirm.auditId;
+    if (auditId) {
+      const detail = await getAuditDetail(auditId);
+      applyAuditDetail(turn, detail);
+    } else {
+      // No auditId — the chat response was missing it. We mark the
+      // confirm as success since the confirm call itself succeeded,
+      // but we do not fabricate a final answer.
+      turn.confirm.status = 'confirmed';
+    }
+  } catch (err) {
+    const e = err as ApiError;
+    // Card stays unresolved (status === 'pending') and the error is
+    // shown inline. The audit link is always available for the user
+    // to dig into the backend's view of truth.
+    turn.confirm.status = 'pending';
+    turn.confirm.errorMessage = e?.message ?? '确认失败';
+  } finally {
+    turn.confirm.inFlight = false;
+  }
+};
+
+const handleCancel = async (actionId: string) => {
+  const turn = findTurnForAction(actionId);
+  if (!turn || !turn.confirm) return;
+  if (turn.confirm.inFlight) return;
+  turn.confirm.inFlight = true;
+  turn.confirm.errorMessage = undefined;
+
+  try {
+    // Same wire-contract lock as confirm: exactly { actionId, confirm }.
+    await confirmAction({ actionId, confirm: false });
+
+    // Refresh the audit log so the persisted "cancelled" state is shown
+    // verbatim rather than derived locally.
+    const auditId = turn.confirm.auditId;
+    if (auditId) {
+      const detail = await getAuditDetail(auditId);
+      applyAuditDetail(turn, detail);
+    } else {
+      turn.confirm.status = 'cancelled';
+    }
+  } catch (err) {
+    const e = err as ApiError;
+    turn.confirm.status = 'pending';
+    turn.confirm.errorMessage = e?.message ?? '取消失败';
+  } finally {
+    turn.confirm.inFlight = false;
+  }
 };
 </script>
 
@@ -284,6 +464,70 @@ const auditHref = (auditId: string | undefined): string | undefined => {
                 :duration-ms="formatDuration(call.durationMs)"
               />
             </div>
+
+            <!-- L2 confirmation card. Rendered only for CONFIRM responses
+                 with a non-empty pendingAction. -->
+            <ExecutionConfirmCard
+              v-if="turn.confirm && turn.result.riskDecision === 'CONFIRM'"
+              class="chat-confirm"
+              :action-id="turn.confirm.actionId"
+              :summary="turn.confirm.summary"
+              :risk-level="turn.result.riskLevel ?? 'L2'"
+              :decision="turn.result.riskDecision"
+              :detail="turn.confirm.detail"
+              @confirm="handleConfirm"
+              @cancel="handleCancel"
+            />
+
+            <!-- Persisted final state, shown after a successful
+                 /api/actions/confirm + /api/audit/logs round-trip. -->
+            <div
+              v-if="turn.confirm && (turn.confirm.status === 'confirmed' || turn.confirm.status === 'cancelled')"
+              class="chat-confirm-final"
+              :data-testid="`execution-final-${turn.confirm.actionId}`"
+            >
+              <span class="chat-confirm-final-label">
+                {{ turn.confirm.status === 'confirmed' ? '操作已确认' : '操作已取消' }}
+              </span>
+              <span
+                v-if="turn.confirm.confirmationStatus"
+                class="chat-confirm-final-status"
+              >
+                状态：{{ turn.confirm.confirmationStatus }}
+              </span>
+              <p
+                v-if="turn.confirm.finalAnswer"
+                class="chat-confirm-final-answer"
+              >
+                {{ turn.confirm.finalAnswer }}
+              </p>
+              <router-link
+                v-if="turn.confirm.auditId"
+                :to="auditHref(turn.confirm.auditId)!"
+                class="chat-confirm-final-link"
+                :data-testid="`execution-final-audit-link-${turn.confirm.actionId}`"
+              >
+                查看审计详情
+              </router-link>
+            </div>
+
+            <!-- Failure state: card stays unresolved, Chinese error is
+                 shown, audit link is always available. -->
+            <p
+              v-if="turn.confirm && turn.confirm.errorMessage"
+              class="chat-confirm-error"
+              :data-testid="`execution-confirm-error-${turn.confirm.actionId}`"
+            >
+              操作未完成：{{ turn.confirm.errorMessage }}
+              <router-link
+                v-if="turn.confirm.auditId"
+                :to="auditHref(turn.confirm.auditId)!"
+                :data-testid="`execution-confirm-audit-link-${turn.confirm.actionId}`"
+                class="chat-confirm-error-link"
+              >
+                查看审计详情
+              </router-link>
+            </p>
 
             <div
               v-if="turn.result.auditId"
@@ -442,6 +686,57 @@ const auditHref = (auditId: string | undefined): string | undefined => {
 
 .chat-tools {
   margin-top: 0.5rem;
+}
+
+.chat-confirm {
+  margin-top: 0.5rem;
+}
+
+.chat-confirm-final {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #f0f9eb;
+  border-radius: 4px;
+  color: #67c23a;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.chat-confirm-final-label {
+  font-weight: 600;
+}
+
+.chat-confirm-final-status {
+  font-size: 0.85rem;
+  color: #5daf34;
+}
+
+.chat-confirm-final-answer {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #303133;
+  white-space: pre-wrap;
+}
+
+.chat-confirm-final-link {
+  font-size: 0.85rem;
+}
+
+.chat-confirm-error {
+  margin: 0.5rem 0 0 0;
+  padding: 0.5rem 0.75rem;
+  background: #fef0f0;
+  border-radius: 4px;
+  color: #c45656;
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.chat-confirm-error-link {
+  font-size: 0.85rem;
 }
 
 .chat-audit-id {

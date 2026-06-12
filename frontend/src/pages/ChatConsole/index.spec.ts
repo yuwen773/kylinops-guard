@@ -4,8 +4,11 @@ import { createRouter, createMemoryHistory, type Router } from 'vue-router';
 import ElementPlus from 'element-plus';
 import ChatConsole from './index.vue';
 import * as chatApi from '@/api/chat';
+import * as actionsApi from '@/api/actions';
+import * as auditApi from '@/api/audit';
 import { ApiError } from '@/api/client';
-import type { AgentResult } from '@/types/agent';
+import type { AgentResult, PendingActionDto } from '@/types/agent';
+import type { AuditLogDetail } from '@/types/audit';
 
 enableAutoUnmount(afterEach);
 
@@ -386,5 +389,315 @@ describe('ChatConsole — contextual nginx restart', () => {
     await wrapper.find('[data-testid="quick-action-danger"]').trigger('click');
     await flushPromises();
     expect(wrapper.find('[data-testid="quick-action-nginx-restart"]').exists()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 5 — L2 confirmation closed loop.
+// The ChatConsole must:
+//   * render ExecutionConfirmCard when /api/chat/send returns
+//     needConfirmation=true and a non-empty pendingAction;
+//   * call /api/actions/confirm with EXACTLY { actionId, confirm } and
+//     nothing else (no toolName, no command, no target, no params);
+//   * disable the in-flight ExecutionConfirmCard so duplicate clicks
+//     cannot fire a second request;
+//   * on success, re-fetch /api/audit/logs/{auditId} and display the
+//     persisted final state;
+//   * on failure, keep the card visible (unresolved) and show a Chinese
+//     error + an audit-detail link.
+// ---------------------------------------------------------------------------
+
+const L2_PENDING: PendingActionDto = {
+  actionId: 'act-restart-nginx-001',
+  toolName: 'safe_service_restart',
+  params: { serviceName: 'nginx' },
+  description: '通过安全执行器重启 nginx 服务',
+};
+
+const L2_RESULT: AgentResult = {
+  sessionId: 's-l2',
+  answer: '该操作需用户确认。',
+  intentType: 'SERVICE_OPERATION',
+  riskLevel: 'L2',
+  riskDecision: 'CONFIRM',
+  needConfirmation: true,
+  pendingAction: L2_PENDING,
+  auditId: 'audit-l2-001',
+  toolCalls: [
+    { toolName: 'service_status_tool', status: 'success', summary: 'nginx inactive' },
+  ],
+};
+
+const L2_AUDIT_DETAIL: AuditLogDetail = {
+  auditId: 'audit-l2-001',
+  sessionId: 's-l2',
+  riskLevel: 'L2',
+  riskDecision: 'CONFIRM',
+  status: 'CONFIRMED',
+  confirmationRequired: true,
+  confirmationStatus: 'CONFIRMED',
+  finalAnswer: '操作已确认完成',
+  toolCalls: [],
+  riskChecks: [],
+  pendingAction: {
+    actionId: 'act-restart-nginx-001',
+    actionType: 'safe_service_restart',
+    toolName: 'safe_service_restart',
+    status: 'CONFIRMED',
+  },
+};
+
+describe('ChatConsole — L2 confirmation (Task 5)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('renders ExecutionConfirmCard when needConfirmation=true and pendingAction is present', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue(L2_RESULT);
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    await flushPromises();
+
+    const card = wrapper.find(
+      `[data-testid="execution-confirm-${L2_PENDING.actionId}"]`,
+    );
+    expect(card.exists()).toBe(true);
+    // The card is rendered with the L2 verdict and pending-action summary.
+    expect(wrapper.text()).toContain('待确认操作');
+    expect(wrapper.text()).toContain(L2_PENDING.description!);
+  });
+
+  it('clicking 确认执行 calls confirmAction with EXACTLY { actionId, confirm: true }', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue(L2_RESULT);
+    const confirmSpy = vi
+      .spyOn(actionsApi, 'confirmAction')
+      .mockResolvedValue({
+        actionId: L2_PENDING.actionId,
+        auditId: L2_RESULT.auditId,
+        status: 'CONFIRMED',
+      });
+    vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue(L2_AUDIT_DETAIL);
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    await flushPromises();
+
+    const confirmBtn = wrapper.find(
+      `[data-testid="execution-confirm-confirm-${L2_PENDING.actionId}"]`,
+    );
+    expect(confirmBtn.exists()).toBe(true);
+    await confirmBtn.trigger('click');
+    await flushPromises();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    const payload = confirmSpy.mock.calls[0]?.[0];
+    // The payload must be EXACTLY { actionId, confirm: true } — no extras.
+    expect(payload).toEqual({ actionId: L2_PENDING.actionId, confirm: true });
+    expect(Object.keys(payload!).sort()).toEqual(['actionId', 'confirm']);
+  });
+
+  it('clicking 取消 calls confirmAction with EXACTLY { actionId, confirm: false }', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue(L2_RESULT);
+    const confirmSpy = vi
+      .spyOn(actionsApi, 'confirmAction')
+      .mockResolvedValue({
+        actionId: L2_PENDING.actionId,
+        auditId: L2_RESULT.auditId,
+        status: 'CANCELLED',
+      });
+    vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue({
+      ...L2_AUDIT_DETAIL,
+      confirmationStatus: 'CANCELLED',
+      status: 'CANCELLED',
+    });
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    await flushPromises();
+
+    const cancelBtn = wrapper.find(
+      `[data-testid="execution-confirm-cancel-${L2_PENDING.actionId}"]`,
+    );
+    expect(cancelBtn.exists()).toBe(true);
+    await cancelBtn.trigger('click');
+    await flushPromises();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    const payload = confirmSpy.mock.calls[0]?.[0];
+    expect(payload).toEqual({ actionId: L2_PENDING.actionId, confirm: false });
+    expect(Object.keys(payload!).sort()).toEqual(['actionId', 'confirm']);
+  });
+
+  it('disables the ExecutionConfirmCard while a confirmation is in flight (no duplicate click)', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue(L2_RESULT);
+    let resolveConfirm: (value: { actionId: string; status: string }) => void = () => {};
+    const pending = new Promise<{ actionId: string; status: string }>((res) => {
+      resolveConfirm = res;
+    });
+    const confirmSpy = vi
+      .spyOn(actionsApi, 'confirmAction')
+      .mockReturnValue(pending as never);
+    vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue(L2_AUDIT_DETAIL);
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    await flushPromises();
+
+    const confirmBtn = wrapper.find(
+      `[data-testid="execution-confirm-confirm-${L2_PENDING.actionId}"]`,
+    );
+    const cancelBtn = wrapper.find(
+      `[data-testid="execution-confirm-cancel-${L2_PENDING.actionId}"]`,
+    );
+
+    await confirmBtn.trigger('click');
+    await flushPromises();
+
+    // Re-query after the click — the local in-flight guard disabled both.
+    const confirmAfter = wrapper.find(
+      `[data-testid="execution-confirm-confirm-${L2_PENDING.actionId}"]`,
+    );
+    const cancelAfter = wrapper.find(
+      `[data-testid="execution-confirm-cancel-${L2_PENDING.actionId}"]`,
+    );
+    expect(confirmAfter.attributes('disabled')).toBeDefined();
+    expect(cancelAfter.attributes('disabled')).toBeDefined();
+
+    // A second click on the (now disabled) confirm button must not enqueue
+    // a duplicate request.
+    await confirmAfter.trigger('click');
+    await flushPromises();
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+
+    // Resolve the pending confirm so the test cleans up.
+    resolveConfirm({ actionId: L2_PENDING.actionId, status: 'CONFIRMED' });
+    await flushPromises();
+  });
+
+  it('re-fetches /api/audit/logs/{auditId} after a successful confirm and displays the persisted status', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue(L2_RESULT);
+    vi.spyOn(actionsApi, 'confirmAction').mockResolvedValue({
+      actionId: L2_PENDING.actionId,
+      auditId: L2_RESULT.auditId,
+      status: 'CONFIRMED',
+    });
+    const auditSpy = vi
+      .spyOn(auditApi, 'getAuditDetail')
+      .mockResolvedValue(L2_AUDIT_DETAIL);
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    await flushPromises();
+
+    await wrapper
+      .find(`[data-testid="execution-confirm-confirm-${L2_PENDING.actionId}"]`)
+      .trigger('click');
+    await flushPromises();
+
+    // The card must have triggered a follow-up audit detail fetch with the
+    // exact auditId from the L2 response — nothing else.
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledWith(L2_RESULT.auditId);
+
+    // The persisted status is shown: confirmationStatus + finalAnswer.
+    const finalStatus = wrapper.find(
+      `[data-testid="execution-final-${L2_PENDING.actionId}"]`,
+    );
+    expect(finalStatus.exists()).toBe(true);
+    expect(wrapper.text()).toContain('CONFIRMED');
+    expect(wrapper.text()).toContain('操作已确认完成');
+  });
+
+  it('on confirm failure keeps the card unresolved and shows a Chinese error + audit link', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue(L2_RESULT);
+    vi.spyOn(actionsApi, 'confirmAction').mockRejectedValue(
+      new ApiError({ code: 500, message: '后端服务暂时不可用', data: null }),
+    );
+    // getAuditDetail must NOT be called on failure — the persisted state
+    // is unchanged.
+    const auditSpy = vi
+      .spyOn(auditApi, 'getAuditDetail')
+      .mockResolvedValue(L2_AUDIT_DETAIL);
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    await flushPromises();
+
+    await wrapper
+      .find(`[data-testid="execution-confirm-confirm-${L2_PENDING.actionId}"]`)
+      .trigger('click');
+    await flushPromises();
+
+    // Card remains visible (unresolved): both buttons still present.
+    const card = wrapper.find(
+      `[data-testid="execution-confirm-${L2_PENDING.actionId}"]`,
+    );
+    expect(card.exists()).toBe(true);
+    expect(
+      wrapper.find(`[data-testid="execution-confirm-confirm-${L2_PENDING.actionId}"]`).exists(),
+    ).toBe(true);
+
+    // Chinese error message + an audit link back to the detail page.
+    const error = wrapper.find(
+      `[data-testid="execution-confirm-error-${L2_PENDING.actionId}"]`,
+    );
+    expect(error.exists()).toBe(true);
+    expect(error.text()).toContain('后端服务暂时不可用');
+    const link = wrapper.find(
+      `[data-testid="execution-confirm-audit-link-${L2_PENDING.actionId}"]`,
+    );
+    expect(link.exists()).toBe(true);
+    expect(link.attributes('href')).toBe(
+      `/audit?auditId=${encodeURIComponent(L2_RESULT.auditId!)}`,
+    );
+
+    // The audit detail fetch was NOT made on failure (no auto-retry / no
+    // auto-refresh that could mask the unresolved state).
+    expect(auditSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-confirm L2 after the chat response resolves (no automatic retry)', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue(L2_RESULT);
+    const confirmSpy = vi
+      .spyOn(actionsApi, 'confirmAction')
+      .mockResolvedValue({
+        actionId: L2_PENDING.actionId,
+        auditId: L2_RESULT.auditId,
+        status: 'CONFIRMED',
+      });
+    vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue(L2_AUDIT_DETAIL);
+
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    // Multiple flushes simulate the chat settling, the user reading, and
+    // any async side effects. The card must not auto-fire confirmAction.
+    await flushPromises();
+    await flushPromises();
+    await flushPromises();
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    // Sending a second chat turn must not auto-confirm the first L2 either.
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValueOnce(L2_RESULT);
+    await wrapper.find('[data-testid="quick-action-disk"]').trigger('click');
+    await flushPromises();
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not render ExecutionConfirmCard for non-CONFIRM responses', async () => {
+    vi.spyOn(chatApi, 'sendChat').mockResolvedValue({
+      ...L2_RESULT,
+      riskDecision: 'ALLOW',
+      needConfirmation: false,
+      pendingAction: undefined,
+    });
+    const wrapper = await mountPage();
+    await wrapper.find('[data-testid="quick-action-service"]').trigger('click');
+    await flushPromises();
+
+    expect(
+      wrapper.find(`[data-testid="execution-confirm-${L2_PENDING.actionId}"]`).exists(),
+    ).toBe(false);
   });
 });
