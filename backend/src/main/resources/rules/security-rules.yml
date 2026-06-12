@@ -13,10 +13,13 @@
 
 rules:
   # ==================== L4 — 绝对禁止命令 ====================
+  # 匹配策略：自然语言前缀必须命中，危险 token 出现在输入任意位置即视为匹配。
+  # 使用 \b 词边界 + (?!\S) 路径结束负向先行（要求目标路径后跟空白或结尾），
+  # 避免对 "rm -rf /tmp" 这类安全路径产生误判。
 
   - id: block_rm_rf_root
     targetTypes: [ "command" ]
-    pattern: "^rm\\s+-[rfv]{1,3}\\s+/*$"
+    pattern: "\\brm\\s+-[rfv]{1,3}\\s+/(?!\\S)"
     riskLevel: L4
     decision: BLOCK
     reason: "绝对禁止的根目录递归删除操作"
@@ -26,7 +29,7 @@ rules:
 
   - id: block_rm_rf_root_star
     targetTypes: [ "command" ]
-    pattern: "^rm\\s+-[rfv]{1,3}\\s+/\\*+$"
+    pattern: "\\brm\\s+-[rfv]{1,3}\\s+/\\*+(?!\\S)"
     riskLevel: L4
     decision: BLOCK
     reason: "绝对禁止的根目录全部文件递归删除操作"
@@ -36,7 +39,7 @@ rules:
 
   - id: block_rm_rf_protected_dirs
     targetTypes: [ "command" ]
-    pattern: "^rm\\s+-[rfv]{1,3}\\s+/(etc|usr|bin|sbin|boot|dev|proc|sys)(/.*|$)"
+    pattern: "\\brm\\s+-[rfv]{1,3}\\s+/(?:etc|usr|bin|sbin|boot|dev|proc|sys)(?:/.*)?(?!\\S)"
     riskLevel: L4
     decision: BLOCK
     reason: "禁止删除系统关键目录"
@@ -46,7 +49,7 @@ rules:
 
   - id: block_rm_rf_sensitive_dirs
     targetTypes: [ "command" ]
-    pattern: "^rm\\s+-[rfv]{1,3}\\s+/(var/lib(/.*)?|root(/.*)?)$"
+    pattern: "\\brm\\s+-[rfv]{1,3}\\s+/(?:var/lib|root)(?:/.*)?(?!\\S)"
     riskLevel: L4
     decision: BLOCK
     reason: "禁止删除敏感数据目录（数据库、用户数据）"
@@ -56,7 +59,7 @@ rules:
 
   - id: block_chmod_777_root
     targetTypes: [ "command" ]
-    pattern: "^chmod\\s+-?r?\\s*777\\s+/"
+    pattern: "\\bchmod\\s+-?r?\\s*777\\s+/"
     riskLevel: L4
     decision: BLOCK
     reason: "禁止将根目录权限设置为 777"
@@ -66,7 +69,7 @@ rules:
 
   - id: block_chown_recursive
     targetTypes: [ "command" ]
-    pattern: "^chown\\s+-[Rr]"
+    pattern: "\\bchown\\s+-[Rr]"
     riskLevel: L4
     decision: BLOCK
     reason: "禁止递归变更文件所有者"
@@ -76,7 +79,7 @@ rules:
 
   - id: block_mkfs
     targetTypes: [ "command" ]
-    pattern: "^mkfs"
+    pattern: "\\bmkfs"
     riskLevel: L4
     decision: BLOCK
     reason: "禁止格式化文件系统"
@@ -86,7 +89,7 @@ rules:
 
   - id: block_fdisk
     targetTypes: [ "command" ]
-    pattern: "^fdisk"
+    pattern: "\\bfdisk"
     riskLevel: L4
     decision: BLOCK
     reason: "禁止磁盘分区操作"
@@ -96,7 +99,7 @@ rules:
 
   - id: block_dd_if
     targetTypes: [ "command" ]
-    pattern: "^dd\\s+if="
+    pattern: "\\bdd\\s+if="
     riskLevel: L4
     decision: BLOCK
     reason: "禁止 dd 直接磁盘写入操作"

@@ -168,6 +168,107 @@ class RiskRuleEngineTest {
         assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
     }
 
+    // ==================== 自然语言前缀变体（F-001 回归） ====================
+
+    @Test
+    @DisplayName("「请帮我执行 rm -rf /」→ L4 / BLOCK")
+    void prefixedRmRfRoot() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "请帮我执行 rm -rf /", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+    }
+
+    @Test
+    @DisplayName("「rm -rf / 谢谢」尾随自然语言 → L4 / BLOCK")
+    void trailingTextRmRfRoot() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "rm -rf / 谢谢", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+    }
+
+    @Test
+    @DisplayName("「现在请 chmod -R 777 /」前缀自然语言 → L4 / BLOCK")
+    void prefixedChmod777Root() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "现在请 chmod -R 777 /", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+    }
+
+    @Test
+    @DisplayName("「请帮我执行 rm -rf /etc」前缀自然语言 → L4 / BLOCK")
+    void prefixedRmRfEtc() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "请帮我执行 rm -rf /etc", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+    }
+
+    @Test
+    @DisplayName("「请帮我执行 rm -rf /var/lib/mysql」前缀自然语言 → L4 / BLOCK")
+    void prefixedRmRfVarLibMysql() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "请帮我执行 rm -rf /var/lib/mysql", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+    }
+
+    @Test
+    @DisplayName("「请帮我执行 rm -rf /*」前缀自然语言 → L4 / BLOCK")
+    void prefixedRmRfRootStar() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "请帮我执行 rm -rf /*", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+    }
+
+    @Test
+    @DisplayName("「你可以帮我 dd if=/dev/sda of=/dev/sdb 吗」前缀自然语言 → L4 / BLOCK")
+    void prefixedDdIf() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "你可以帮我 dd if=/dev/sda of=/dev/sdb 吗", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+    }
+
+    @Test
+    @DisplayName("「可以重启 nginx 吗」安全内容 → ALLOW")
+    void safeRestartNginx() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "可以重启 nginx 吗", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L0);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.ALLOW);
+    }
+
+    @Test
+    @DisplayName("「请帮我看看 df -h」安全内容 → ALLOW")
+    void safeDfH() {
+        RiskEvaluationContext ctx = new RiskEvaluationContext(
+                "command", "请帮我看看 df -h", null, null);
+        RiskCheckResult result = engine.evaluate(ctx);
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L0);
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.ALLOW);
+    }
+
     // ==================== 安全内容 ====================
 
     @Test
