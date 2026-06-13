@@ -44,8 +44,8 @@ test.describe('Live backend smoke @ E2E_LIVE=true', () => {
     // We use the page's request context so the proxy is in play.
     const res = await request.get('/api/health');
     expect(res.status()).toBe(200);
-    const body = (await res.json()) as { status?: string };
-    expect(body.status).toBe('UP');
+    const body = (await res.json()) as { data?: { status?: string } };
+    expect(body.data?.status).toBe('UP');
   });
 
   test('POST /api/chat/send dangerous command returns L4 BLOCK', async ({ page }) => {
