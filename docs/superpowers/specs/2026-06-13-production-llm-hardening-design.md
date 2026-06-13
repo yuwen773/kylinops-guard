@@ -182,15 +182,19 @@ LLM 不可以：
 ### 6.3 回复生成流程
 
 1. 工具执行和风险决策完成。
-2. 通过 `LlmContextSanitizer` 按工具类型执行字段白名单、脱敏和长度限制。
-3. 日志、进程参数、文件名和命令输出一律视为不可信数据，用明确的数据边界包裹，并禁止模型服从其中的指令。
-4. 单次模型上下文默认不超过 32KB；单工具摘要默认不超过 4KB，具体上限可配置。
-5. 提示词明确要求仅总结所给事实，并忽略工具输出中的指令性内容。
-6. 模型回复经过事实校验：不得出现输入上下文不存在的数值、服务状态或执行结论；校验失败时回退模板。
-7. LLM 失败时使用现有 `AgentResponseBuilder` 模板。
-8. API 仍返回结构化 toolCalls、riskDecision 和 auditId，不能仅依赖自然语言答复。
+2. 仅当本次请求产生至少一个真实 ToolResult 时，才允许调用 LLM 生成回复。
+3. BLOCK、CONFIRM、GENERAL_CHAT、UNKNOWN 和无工具结果场景始终使用确定性模板。
+4. 通过 `LlmContextSanitizer` 按工具类型执行字段白名单、脱敏和长度限制。
+5. 日志、进程参数、文件名和命令输出一律视为不可信数据，用明确的数据边界包裹，并禁止模型服从其中的指令。
+6. 单次模型上下文默认不超过 32KB；单工具摘要默认不超过 4KB，具体上限可配置。
+7. 提示词明确要求仅总结所给事实，并忽略工具输出中的指令性内容。
+8. 模型回复经过事实校验：不得出现输入上下文不存在的数值、服务状态或执行结论；校验失败时回退模板。
+9. LLM 失败时使用现有 `AgentResponseBuilder` 模板。
+10. API 仍返回结构化 toolCalls、riskDecision 和 auditId，不能仅依赖自然语言答复。
 
 首期为每类工具定义可外发字段白名单。例如磁盘工具只允许挂载点、容量、使用率和截断标记；日志工具只允许脱敏后的摘要和有限样本，不允许完整原始日志。
+
+每个注册工具必须存在显式 `LlmToolContextPolicy`。缺少策略时该工具结果不得外发给模型，整次回复回退确定性模板。测试必须枚举 ToolRegistry，断言所有生产工具均有对应策略。
 
 ### 6.4 供应商与配置
 
@@ -231,7 +235,7 @@ kylinops:
 - 登录成功必须更换 Session ID，防止会话固定。
 - 会话空闲超时默认 30 分钟，绝对有效期默认 8 小时，均可配置。
 - 浏览器 Cookie 使用 `HttpOnly`、`Secure`（生产）、`SameSite=Strict`、`Path=/`。
-- `/api/health/live` 和登录接口允许匿名访问。
+- `/api/health`、`/api/health/live` 和登录接口允许匿名访问。
 - 其余 `/api/**` 默认要求认证。
 - 未认证返回 401；已认证但无权访问返回 403；两者均使用统一 ApiResponse 和 traceId。
 
@@ -248,7 +252,8 @@ kylinops:
 
 ### 7.3 Web 防护
 
-- 状态变更接口启用 Spring Security CSRF。登录成功响应和 `GET /api/auth/session` 提供 Token，前端使用 `X-CSRF-TOKEN` 请求头提交。
+- 登录接口显式豁免 CSRF；登录成功后，已认证的 `GET /api/auth/session` 返回 CSRF Token。
+- 除登录外的所有状态变更接口启用 Spring Security CSRF，前端使用 `X-CSRF-TOKEN` 请求头提交。
 - 开发 profile 的 CORS 仅允许 `localhost:5173` 和 `127.0.0.1:5173`。
 - 生产通过 Nginx 同源访问，默认不开放跨域。
 - 登录限流默认每 IP 每分钟 10 次；Chat API 默认每认证会话每分钟 30 次。
@@ -262,8 +267,12 @@ kylinops:
 - 创建请求审计失败时，请求返回 503，不能进入 ToolPlanning、ToolExecutor 或 SafeExecutor。
 - 工具执行前的风险审计状态写入失败时，请求返回 503，不能执行工具。
 - L2 确认时，确认状态和执行前审计更新失败时，不能调用 SafeExecutor。
+- 调用 SafeExecutor 前持久化不可变 `ExecutionAttempt`，包含 attemptId、auditId、actionId、动作摘要和 `STARTED` 状态。
+- SafeExecutor 完成后更新 attempt 结果和审计；任一结果持久化失败时 API 返回 503 和 `INDETERMINATE`，不得向客户端返回成功。
+- `INDETERMINATE` attempt 由启动恢复任务和管理员诊断接口依据实际服务状态进行对账，不能自动重复执行动作。
 - 执行完成后的审计收尾失败必须记录高优先级告警，但不得伪造成功审计状态。
 - 增加 Repository 故障注入测试，断言审计失败时 ToolExecutor/SafeExecutor 调用次数为 0。
+- 增加副作用完成后结果持久化失败测试，断言返回 `INDETERMINATE`、不自动重试，并可被对账任务发现。
 
 ## 8. 命令执行可靠性
 
@@ -284,8 +293,9 @@ kylinops:
 - 等待队列上限：32，采用拒绝策略，不在请求线程执行命令。
 - 流消费线程池与进程调度线程池分离，流消费容量至少为进程上限的 2 倍。
 - stdout/stderr 每路最多 1,000 行或 1MB，任一先到即标记截断。
-- 进程超时后先 `destroy()`，等待 500ms，再 `destroyForcibly()`。
-- 后代进程清理总期限 2 秒。
+- 进程超时后立即终止后代进程和主进程；先 `destroy()`，最多等待 250ms，再 `destroyForcibly()`。
+- 清理宽限包含在线程返回预算内，最长 1 秒。
+- 方法最迟在“声明的进程超时 + 1 秒”内返回结构化超时结果。
 - 队列满时返回结构化 `failed` 结果，错误码为 `TOOL_EXECUTOR_OVERLOADED`，HTTP 主流程不崩溃。
 
 这些默认值通过配置覆盖，但生产必须设置有限值，不能使用无界队列。
@@ -311,7 +321,8 @@ kylinops:
 
 ### 9.2 Flyway
 
-- 初始迁移覆盖当前 JPA 实体表和索引。
+- 冻结 V1 为接入 Flyway 前的 legacy Schema，只覆盖当前已有 JPA 实体表和索引。
+- 新增认证归属、ExecutionAttempt 等字段和表从 V2 开始迁移。
 - 后续 Schema 变更只通过版本化迁移。
 - SQL 使用 H2 PostgreSQL Mode 和 PostgreSQL 都支持的公共语法。
 - CI 分别验证 H2 迁移和 PostgreSQL 迁移。
@@ -322,12 +333,13 @@ kylinops:
 提供两条明确路径：
 
 1. 无需保留演示数据：备份旧文件后删除旧 H2 数据库，由 Flyway 从 V1 创建新库。
-2. 需要保留数据：先使用固定版本脚本校验现有 Schema 与 V1 基线一致，再执行受控 `baseline`，随后运行增量迁移。
+2. 需要保留数据：先使用固定版本脚本校验现有 Schema 与冻结的 V1 legacy Schema 一致，再将数据库受控 baseline 到 V1，随后执行 V2+ 增量迁移。
 
 要求：
 
 - 迁移前备份 H2 文件并记录校验和。
 - baseline 版本和描述固定，禁止对未知 Schema 自动 baseline。
+- 已有数据库不得执行 V1 建表脚本；新数据库从 V1 开始，legacy 数据库从校验后的 V1 baseline 开始。
 - 校验不一致时启动失败并提示人工迁移。
 - 提供回滚步骤：停止服务、恢复备份文件和旧版本 JAR。
 - 自动化测试必须覆盖代表性旧 H2 文件升级，而不只验证空数据库。
@@ -419,6 +431,8 @@ LoongArch 目标机持续验证：
 - HybridIntentService 的规则优先、增强和降级。
 - HybridResponseService 的事实约束和模板回退。
 - 工具输出间接 Prompt 注入和模型虚构事实拒绝。
+- ToolRegistry 中每个生产工具都有 LlmToolContextPolicy。
+- BLOCK、CONFIRM 和无 ToolResult 场景不会调用回复 LLM。
 - 密码校验、锁定、Cookie 和 CSRF。
 - PendingAction 跨认证会话确认阻断，聊天 sessionId 不得建立归属。
 - 命令并发流读取和超时。
@@ -436,6 +450,7 @@ LoongArch 目标机持续验证：
 - 应用异常不向客户端泄露内部信息。
 - `/api/health` 保持兼容，live/ready 语义分别验证。
 - prod 缺少任一必填密钥或数据库配置时启动失败。
+- SafeExecutor 已产生副作用但结果落库失败时返回 INDETERMINATE，且不会自动重试。
 
 ### 13.3 E2E 与真机验收
 
@@ -470,13 +485,13 @@ LoongArch 目标机持续验证：
 - 基于 ToolResult 的总结。
 - 超时、限流、无效输出和服务故障降级。
 
-### 阶段 4：LoongArch 验收与收尾，2-3 天
+### 阶段 4：LoongArch 验收与收尾，2 天
 
 - systemd、Nginx、PostgreSQL 和密钥配置。
 - 真机核心场景、恢复和有限并发测试。
 - 回填部署、功能、性能和安全验收证据。
 
-总计 12-13 个工作日，预留 2-3 个工作日缓冲，控制在三周内。阶段 1 的数据库迁移验证与命令执行器测试可并行；阶段 3 的两个供应商契约测试可并行。PDF 导出、完整指标平台和非关键 UI 润色列为 stretch，不影响本期完成判定。
+总计 12 个工作日，预留最多 3 个工作日缓冲，严格控制在 15 个工作日内。阶段 1 的数据库迁移验证与命令执行器测试可并行；阶段 3 的两个供应商契约测试可并行。PDF 导出、完整指标平台和非关键 UI 润色列为 stretch，不影响本期完成判定。
 
 ## 15. 完成标准
 
