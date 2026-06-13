@@ -161,7 +161,7 @@ $ E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts
 - H2 File Mode 在 Kylin 默认文件系统（可能是 xfs / ext4）上的 IO 性能
 - Playwright Chromium 在 LoongArch 上的可用性（通常需要 `loongarch64-linux` 专用构建）
 
-详见 [`../deploy/KYLIN-LOONGARCH-VALIDATION.md`](../deploy/KYLIN-LOONGARCH-VALIDATION.md)（Task 20）。
+详见 [`../deploy/kylin-loongarch-deploy-guide.md`](../deploy/kylin-loongarch-deploy-guide.md)（Task 20）。
 
 ---
 
