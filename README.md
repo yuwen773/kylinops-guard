@@ -127,8 +127,14 @@ curl http://localhost:8080/api/health
 ### Phase 3 — 执行器与报告 (Task 06→12) — 已实现
 SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_preview` 已实现，真实删除仍 deferred）。
 
-### Phase 4 — 交付材料 (Task 18→21) — 待启动
-演示脚本、部署文档、环境验证、最终整合。
+### Phase 4 — 交付材料 (Task 18→21) — 已完成 (2026-06-13)
+
+- **Task 18**：5 个演示场景 markdown（[`test-scenarios/`](test-scenarios/)）+ `deploy/scripts/seed-demo.sh` + `seed-demo-cleanup.sh` + `docs/demo/demo-script-v0.1.md`
+- **Task 19**：3 份测试文档（[`security-test-cases.md`](docs/test/security-test-cases.md)、[`functional-test-report.md`](docs/test/functional-test-report.md)、[`performance-test-plan.md`](docs/test/performance-test-plan.md)）
+- **Task 20**：[`docs/deploy/kylin-loongarch-deploy-guide.md`](docs/deploy/kylin-loongarch-deploy-guide.md) + [`environment-checklist.md`](docs/deploy/environment-checklist.md)
+- **Task 21**：8 份标准化提交通道（[`docs/product/`](docs/product/)、[`docs/design/`](docs/design/)、[`docs/test/functional-test-report.md`](docs/test/functional-test-report.md)、[`docs/test/performance-test-report.md`](docs/test/performance-test-report.md)、[`docs/deploy/install-and-deploy-guide.md`](docs/deploy/install-and-deploy-guide.md)、[`docs/demo/demo-video-script.md`](docs/demo/demo-video-script.md)、[`docs/demo/ppt-outline.md`](docs/demo/ppt-outline.md)）
+
+**Phase 3 缺口核对**（[`docs/phase3-audit.md`](docs/phase3-audit.md)）：Task 06 三个扩展工具（service_log_tool / zombie_process_scan_tool / port_conflict_check_tool）正式豁免，不影响 4 个 P0 演示场景。
 
 ## 四演示场景
 
@@ -163,6 +169,25 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 - ✅ L2 操作必须确认，L3/L4 必须阻断
 - ✅ 全量审计日志
 - ✅ Markdown 渲染 `html:false`，禁止 raw HTML
+
+## 交付索引（初赛提交清单）
+
+| 类别 | 文档 | 状态 |
+| --- | --- | --- |
+| 需求分析 | [`docs/product/software-requirements-analysis.md`](docs/product/software-requirements-analysis.md) | ✅ |
+| 架构设计 | [`docs/design/software-design-document.md`](docs/design/software-design-document.md) | ✅ |
+| 产品手册 | [`docs/product/product-manual.md`](docs/product/product-manual.md) | ✅ |
+| 功能测试报告 | [`docs/test/functional-test-report.md`](docs/test/functional-test-report.md) | ✅ |
+| 性能测试报告 | [`docs/test/performance-test-report.md`](docs/test/performance-test-report.md) | ✅ |
+| 部署与安装 | [`docs/deploy/install-and-deploy-guide.md`](docs/deploy/install-and-deploy-guide.md) | ✅ |
+| 演示视频脚本 | [`docs/demo/demo-video-script.md`](docs/demo/demo-video-script.md) | ✅ |
+| PPT 大纲 | [`docs/demo/ppt-outline.md`](docs/demo/ppt-outline.md) | ✅ |
+| 5 个演示场景 | [`test-scenarios/`](test-scenarios/) | ✅ |
+| Kylin/LoongArch 部署 | [`docs/deploy/kylin-loongarch-deploy-guide.md`](docs/deploy/kylin-loongarch-deploy-guide.md) | ✅ |
+| 环境验证清单 | [`docs/deploy/environment-checklist.md`](docs/deploy/environment-checklist.md) | ✅ |
+| Phase 3 豁免决策 | [`docs/phase3-audit.md`](docs/phase3-audit.md) | ✅ |
+
+**测试基线**：后端 280/280 + 前端 163/163 + E2E ≥ 16 = **≥ 459 测试全绿**。
 
 ## License
 
