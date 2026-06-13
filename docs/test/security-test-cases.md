@@ -108,4 +108,4 @@ E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts
 | H2 File Mode 在 LoongArch 文件系统上的行为 | 待验证 | 需在目标机执行完整 `mvn test` 并对比结果 |
 | Playwright Chromium 在 LoongArch 上的可用性 | 待验证 | LoongArch 通常使用 `loongarch64-linux` 浏览器二进制 |
 
-详见 [`docs/deploy/KYLIN-LOONGARCH-VALIDATION.md`](../deploy/KYLIN-LOONGARCH-VALIDATION.md)（Task 20）。
+详见 [`docs/deploy/kylin-loongarch-deploy-guide.md`](../deploy/kylin-loongarch-deploy-guide.md)（Task 20）。
