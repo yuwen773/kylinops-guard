@@ -91,6 +91,8 @@ jobs:
     name: Package deploy tarball
     needs: [backend, frontend]
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
