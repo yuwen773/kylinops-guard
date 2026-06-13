@@ -154,4 +154,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: kylinops-guard.tar.gz
-          generate_release_notes: true
+          # 不启用 generate_release_notes（需要额外 API scope）
+          generate_release_notes: false
