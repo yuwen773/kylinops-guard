@@ -47,3 +47,6 @@ worktrees/
 
 # Maven build artifacts (classpath dumps, etc.)
 backend/cp.txt
+
+# LoongArch VM 申请说明（可能含个人账号信息）
+2026中国软件杯大赛-龙芯虚拟机申请与登录说明.pdf

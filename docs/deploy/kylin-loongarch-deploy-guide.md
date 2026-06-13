@@ -338,7 +338,134 @@ Playwright 官方镜像无 LoongArch Chromium 构建。**降级方案**：跳过
 
 ---
 
-## 12. LoongArch 验证清单
+## 12. CI/CD 自动化更新（推荐）
+
+> 本节在第一次手动部署完成后使用。后续每次代码迭代只需一行命令即可更新 VM 上的后端 + 前端。
+
+### 12.1 工作流概述
+
+```
+ GitHub (push master)         龙芯 VM (Web 终端)
+ ┌──────────────────┐         ┌──────────────────────┐
+ │ CI 自动运行:      │         │ ./update.sh 一键:    │
+ │  mvn test (280)  │  tarball │  下载最新 Release    │
+ │  npm test (163)  │ ───────→ │  停止旧后端          │
+ │  mvn package     │  (curl)  │  替换 JAR + dist     │
+ │  npm run build   │          │  启动新后端          │
+ │  → tarball       │          │  验证 /api/health    │
+ └──────────────────┘         └──────────────────────┘
+```
+
+在 VM 上**不需要 Maven / Node / git**，只需要 `java 17+`、`curl`、`tar`。
+
+### 12.2 GitHub Releases 发布
+
+每次打 tag（`git tag v0.5.0 && git push origin v0.5.0`）时，CI 自动：
+1. 跑后端 280 测试 + 前端 163 单元测试
+2. 编译 `kylin-ops-guard.jar` + 构建 `dist/`
+3. 打包为 `kylinops-guard.tar.gz`
+4. 上传到 GitHub Releases（永久存储，公开下载无需认证）
+
+Release 页面：https://github.com/yuwen773/kylinops-guard-/releases
+
+### 12.3 一键更新命令
+
+```bash
+# 更新到最新 Release
+bash deploy/scripts/update.sh
+
+# 更新到指定版本
+bash deploy/scripts/update.sh --tag v0.4-manual-acceptance
+
+# 模拟运行（只看计划不执行）
+bash deploy/scripts/update.sh --dry-run
+
+# 回滚到上一个版本
+bash deploy/scripts/update.sh --rollback
+```
+
+### 12.4 更新脚本行为
+
+`update.sh` 会自动：
+1. 检查 JDK 17+ / curl / tar 依赖
+2. 从 GitHub API 查询最新 Release tag
+3. 下载 `kylinops-guard.tar.gz`
+4. 备份当前版本到 `backup/kylinops-guard.prev.tar.gz`
+5. 停止旧后端（按进程名匹配 `kylin-ops-guard`）
+6. 解压替换 JAR、前端 `dist/`、`deploy/` 脚本
+7. 调用 `start-backend.sh` 启动
+8. 轮询 `/api/health` 最多 15s 验证
+9. **失败时自动回滚**
+
+### 12.5 首次部署（手工，仅一次）
+
+第一次需要手工安装基础环境，之后全部走 `update.sh`：
+
+```bash
+# 1. 安装 JDK 17+（如尚未安装）
+sudo yum install -y java-17-openjdk-devel
+
+# 2. 安装 curl tar（通常已预装）
+sudo yum install -y curl tar
+
+# 3. 创建项目目录
+mkdir -p ~/kylinops-guard && cd ~/kylinops-guard
+
+# 4. 下载 deploy 脚本目录
+#    首次可用 git clone（如果 VM 有 git）或手动上传 deploy/ 目录
+git clone https://github.com/yuwen773/kylinops-guard-.git .
+#    或: 下载 Release tarball
+#    curl -fLSo kylinops-guard.tar.gz \
+#      https://github.com/yuwen773/kylinops-guard-/releases/latest/download/kylinops-guard.tar.gz
+#    tar xzf kylinops-guard.tar.gz
+
+# 5. 首次启动
+bash deploy/scripts/start-backend.sh
+
+# 6. 验证
+curl http://localhost:8080/api/health
+```
+
+### 12.6 迭代工作流
+
+```bash
+# 开发机: 改代码 → 提交 → 推送
+git add -A && git commit -m "feat: ..."
+git push origin master
+
+# CI 自动跑测试 + 构建（约 3-5 分钟）
+# 查看: https://github.com/yuwen773/kylinops-guard-/actions
+
+# 发布新版本（可选，不急着发布时可跳过）
+git tag v0.5.0 && git push origin v0.5.0
+
+# 龙芯 VM: 一键更新
+cd ~/kylinops-guard
+bash deploy/scripts/update.sh
+```
+
+### 12.7 不使用 CI 时的备选方案
+
+如果 VM 无法访问 GitHub API，可使用**直接下载 + 手动替换**：
+
+```bash
+# 开发机打 tarball（Windows Git Bash）
+cd D:/Work/code/kylin-ops
+tar czf kylinops-guard.tar.gz \
+  backend/target/kylin-ops-guard.jar \
+  frontend/dist/ \
+  deploy/scripts/
+
+# 通过云平台的"上传"功能上传到 VM
+# 然后在 VM 上:
+tar xzf kylinops-guard.tar.gz
+pkill -f kylin-ops-guard
+bash deploy/scripts/start-backend.sh
+```
+
+---
+
+## 13. LoongArch 验证清单
 
 > 以下步骤**必须**在 LoongArch64 真实硬件上执行，并回填实测结果。
 
@@ -383,9 +510,9 @@ time curl -X POST http://localhost:8080/api/chat/send \
 
 ---
 
-## 13. 麒麟 V11 验证清单
+## 14. 麒麟 V11 验证清单
 
-> 以下步骤在 Kylin Advanced Server V11 上执行（x86_64 或 LoongArch64 均可）。
+> 以下步骤在 Kylin Advanced Server V11 上执行（x86_64 或 LoongArch64 均可）。验证顺序：先执行 §13 的 LoongArch 清单，再执行本清单。
 
 ```bash
 # H. 系统标识
@@ -413,7 +540,7 @@ sudo firewall-cmd --reload
 
 ---
 
-## 14. 文档维护
+## 15. 文档维护
 
 - 文档版本：v0.1（与产品版本同步）
 - 修订触发：JDK 版本变化 / 部署路径变更 / 新增 systemd 集成
@@ -423,3 +550,5 @@ sudo firewall-cmd --reload
 ---
 
 **诚实声明重申**：本文档中所有"目标机待验证"项均未在 Kylin V11 / LoongArch64 真实硬件上跑通。文档提供完整部署路径与验证命令，但实测结果需目标机执行后回填。开发机（x86_64 + Windows）的所有验证数据已在 [`docs/test/functional-test-report-draft.md`](../test/functional-test-report-draft.md) 中记录。
+
+CI/CD 自动化更新流程（§12）需在 GitHub Release 创建后实测验证。`update.sh` 的 GitHub API tag 查询依赖 `python3`，如 VM 无 `python3` 需传入 `--tag` 参数手动指定版本。
