@@ -27,7 +27,7 @@
 - 用户可见文案中文；标识符与代码注释英文
 - 占位符使用 `<...>` 形式，**禁止**在此文件中编造具体测试数字
 
-### 1.1 2026-06-12 手工验收结论
+### 1.1 2026-06-12 首次手工验收结论（历史）
 
 **结论：FAIL，当前分支不满足 Phase 2 发布门禁。**
 
@@ -42,6 +42,58 @@
 | `npm run build` | FAIL | Vite 无法解析同一 `tsconfig.node.json` extends，未生成 `frontend/dist/` |
 | `npm run test:e2e` | NOT RUN | 本机无 Playwright Chromium；按验收决定不下载浏览器 |
 | live E2E / Live Demo Smoke | NOT RUN | 后端无法构建启动，且本机无 Playwright Chromium |
+
+### 1.2 2026-06-12 复验结论（修复后）
+
+**结论：原 5 个 FAIL 项中 4 项已修复，E2E 仍受 Playwright CDN 网络阻塞；后端 280 tests 全绿、npm build / npm ci 通过。前端 unit tests 仍有 26 个失败，当前尚未逐项完成“测试问题/实现问题”归因，因此 Phase 2 发布门禁保持 PARTIAL。**
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| forbidden endpoint 静态扫描 | PASS | 同 §2，0 真实端点命中 |
+| `mvn test` | **PASS** | `Tests run: 280, Failures: 0, Errors: 0, Skipped: 0` — BUILD SUCCESS |
+| `mvn clean package -DskipTests` | **PASS** | `backend/target/kylin-ops-guard.jar` 生成，BUILD SUCCESS（20.8s） |
+| 后端启动与 `/api/health` | **PASS** | 2026-06-13 实际启动 `backend/target/kylin-ops-guard.jar` 并请求 `http://127.0.0.1:8080/api/health`，返回 HTTP 200、`data.status = "UP"` |
+| `npm ci` | **PASS** | 删 `node_modules/` 后 `npm ci` 复现，230 packages / 1min，无 EUSAGE |
+| `npm run test:unit -- --run` | **PARTIAL** | 15 suite 收集解开；7 suite / 137 tests 通过；**8 suite / 26 tests fail**（尚待逐项归因，详见 §1.3） |
+| `npm run build` | **PASS** | `vue-tsc --noEmit && vite build` 通过，11.97s，`dist/` 产出；唯一警告是 chunk > 500 KB（Element Plus 体积，正常） |
+| `npm run test:e2e` | **NOT RUN** | `npx playwright install chromium` 从 cdn.playwright.dev 下载 181.9 MiB 反复在 ~30%~90% 阶段触发 `ERR_SSL_DECRYPTION_FAILED_OR_BAD_RECORD_MAC` / `ECONNRESET`；**网络阻塞，非代码问题**。npmmirror 镜像无该 build。**待用户在 LoongArch / 有 CDN 加速的环境执行** |
+| live E2E / Live Demo Smoke | **NOT RUN** | 依赖 E2E 跑通才可做；E2E 受 Playwright 下载阻塞。Vite build 通过，但 dev server proxy 尚未独立验证 |
+
+#### 1.2.1 修复明细
+
+| 文件 | 问题 | 修法 |
+|---|---|---|
+| `backend/src/main/java/com/kylinops/dashboard/DashboardService.java` | `Map<String, CompletableFuture<...>> futures = new HashMap<>()` 缺 `import java.util.HashMap` | 补 import |
+| `frontend/tsconfig.node.json` | `extends @vue/tsconfig/tsconfig.node.json` 在 `@vue/tsconfig@0.5.1` 中不存在 | 改 extends 为 `@vue/tsconfig/tsconfig.json`（generic base，保留 composite / types:["node"]） |
+| `frontend/package-lock.json` | 未生成 / 未提交 | `cd frontend && npm install` 生成（230 packages，esbuild postinstall 警告无关），纳入 git 跟踪 |
+
+#### 1.2.2 修复过程中发现并修复的额外 bug（修复报告 FAIL 项的副作用）
+
+| 文件 | 问题 | 修法 |
+|---|---|---|
+| `backend/src/test/java/com/kylinops/report/ReportServiceTest.java:256` | `@DisplayName` 字面量中夹未转义直引号 `含"数据不可用""`，导致 javac 字符串未闭合 | 装饰性引号改全角 `"数据不可用"`，保留外层 ASCII `"` 闭合 DisplayName |
+| `backend/src/test/java/com/kylinops/audit/AuditLogSummaryToolCallCountTest.java` | 缺 `ToolCallCountProjection` import（它是 `ToolCallRecordRepository` 内部 interface）；`ArgumentCaptor<Collection>` raw type 导致 `containsAll` 类型不匹配；测试用 `new ToolCallCountProjection(auditId, count)` 实例化 interface 非法 | import 改 inner-class 写法；`ArgumentCaptor<Collection<String>>` + `Collection<String>`；投影对象改 Mockito mock |
+| `backend/src/test/java/com/kylinops/tool/ToolControllerTest.java` | 4 处 `when(...).thenReturn(List.of(agg(...), ...))` 中 `agg()` 内部调 `Mockito.mock()` 触发"嵌套 stubbing"检测 | 把 `List.of(...)` 提到 `when()` 外面作为局部变量 |
+| `backend/src/test/java/com/kylinops/dashboard/DashboardServiceTest.java` | `service = new DashboardService(...)` 不触发 `@PostConstruct initExecutor()`，`collectionExecutor` 留 null → `CompletableFuture.supplyAsync` NPE | `@BeforeEach` 显式 `service.initExecutor()`；新增 `@AfterEach` 调 `service.shutdownExecutor()` 收尾 |
+| `backend/src/test/java/com/kylinops/report/ReportServiceTest.java` | Mockito `ReportRepository` 不触发 JPA `@PrePersist`，导致测试返回对象的 `createdAt` / `updatedAt` 未初始化 | 保存桩显式调用实体 `onCreate()` 模拟持久化生命周期；生产代码继续由 JPA 回调统一维护时间戳 |
+| `frontend/src/pages/ChatConsole/index.vue` | 父组件将 `durationMs` 格式化为字符串后传给要求 `number` 的 `ToolCallCard`，导致 Vue prop 警告且耗时不显示 | 直接传递原始毫秒数，由 `ToolCallCard` 统一格式化；新增耗时显示回归断言 |
+
+### 1.3 26 个前端单元测试失败（原收集失败修复后暴露）
+
+tsconfig 修复前 15 suite 无法 collect（0 tests 跑过），修复后 8 suite / 26 tests 失败。失败被原 collection 问题遮蔽，但当前证据不足以将其全部归类为测试错误；需要逐项核对组件契约、挂载方式和断言。按 suite 分布：
+
+| suite | 失败数 | 主要原因 |
+|---|---|---|
+| `src/pages/ToolCenter/index.spec.ts` | 14 | 组件已声明 `tool-row-*` / `tool-schema-*` 等 testid，但 Element Plus `el-table` 的列插槽与展开行在 JSDOM 挂载结果中未按测试假设暴露；另有一处测试错误地查找固定值 `data-testid="tool-row"` |
+| `src/pages/ChatConsole/index.spec.ts` | 3 | `Cannot call X on an empty DOMWrapper` — 找的元素 selector 不存在 |
+| `src/pages/AuditLog/index.spec.ts` | 3 | 分页 `c.page === 1` 断言失败（实现 0-indexed）；keyword input selector 不存在；detail drawer 选择器不对 |
+| `src/pages/Dashboard/index.spec.ts` | 2 | `data-testid="status-metric-cpu_status_tool"` 不存在；threshold 文本节点选择器不对 |
+| `src/pages/SecurityCenter/index.spec.ts` | 1 | 同 AuditLog 分页 `c.page === 1` |
+| `src/pages/ReportCenter/index.spec.ts` | 1 | XSS 断言 `not.toContain('onerror')` 与实际 `&lt;img src=x onerror=...&gt;` 字面渲染冲突 |
+| `src/components/StatusMetricCard/index.spec.ts` | 1 | `el-tag--success` class 名断言失败 |
+| `src/components/ReportPreview/index.spec.ts` | 1 | 同 ReportCenter 的 onerror 字面 vs escaped 文本冲突 |
+
+**处置**：列为 Phase 2.1 follow-up，并保持 Phase 2 发布门禁为 PARTIAL。修复应基于逐项根因分析；不得仅为迎合选择器而无依据地修改生产组件。
 
 环境补充：
 - Node.js `v22.21.0`，npm `11.16.0`
@@ -92,7 +144,7 @@ rg -n '@RequestMapping\("/api/(exec|shell|command)' backend
 
 ```powershell
 cd backend
-mvn test
+mvn test  # 不要使用 -q；验收记录需要 Surefire 测试总数
 ```
 
 **预期**：
@@ -389,7 +441,9 @@ git commit -m "docs: 完成 Phase 2 演示闭环验收记录"
 
 ## 11. 验收结果回填区
 
-> 以下为 2026-06-12 实际执行结果。未执行项不得记为通过。
+> 2026-06-12 首次执行结果见 §1.1 与本节"首次"行；同日下午复验见 §1.2 与本节"复验"行。
+
+### 11.1 首次（FAIL，2026-06-12 上午）
 
 | 字段 | 实际值 | 备注 |
 |---|---|---|
@@ -409,6 +463,31 @@ git commit -m "docs: 完成 Phase 2 演示闭环验收记录"
 | 实际 commit SHA | `af1dd4bef39a0900b27f42a19b6c5363c8385cc4` | 验收开始时分支 HEAD |
 | Live smoke §5.5 全 PASS | `NO（未执行）` | 不得视为通过 |
 | LoongArch 实测环境 | `未执行` | 由 Task 20/21 后续回填 |
+
+### 11.2 复验（2026-06-12 下午）
+
+| 字段 | 实际值 | 备注 |
+|---|---|---|
+| 后端 `mvn test` 测试数 | `280` | Surefire 执行成功 |
+| 后端 `mvn test` failures | `0` | 全部通过 |
+| 后端 `mvn test` errors | `0` | 全部通过 |
+| 后端 `mvn test` skipped | `0` | 全部执行 |
+| 后端 jar 体积 | `约 49.54 MB` | Spring Boot fat JAR；精确字节数会因构建时间戳等元数据轻微漂移 |
+| 后端 jar 路径 | `backend/target/kylin-ops-guard.jar` | Spring Boot fat JAR |
+| 前端 `npm ci` | `PASS` | 删 `node_modules/` 后 230 packages / 1min 复现安装 |
+| 前端 `package-lock.json` 行数 / 字节 | `3,251 / 81,730` | 2026-06-13 独立复验 |
+| 前端 unit tests 文件数（suite） | `15（7 pass / 8 fail）` | tsconfig 修复后 collect 解开 |
+| 前端 unit tests 通过 | `137 / 163` | 26 个失败尚待逐项归因，详见 §1.3 |
+| 前端 build | `PASS` | `vue-tsc --noEmit && vite build` 11.97s |
+| 前端 build 产物 | `frontend/dist/` | `index.html` + hashed assets |
+| 前端 build 主 chunk 大小 | `1,033.79 kB / 341.24 kB(gzip)` | Element Plus 体积所致，warning 而非 error |
+| 前端 E2E 默认模式 spec 数 | `NOT RUN` | Playwright Chromium 下载未完成（CDN SSL 抽风：30%/50%/90% 多次断流） |
+| 前端 E2E live smoke spec 数 | `NOT RUN` | 同上 |
+| 浏览器 | `NOT INSTALLED` | Playwright npm 已装；Chromium 181.9 MiB 二进制未下载完成（受限于 Windows 主机到 cdn.playwright.dev 的网络） |
+| 实际 commit SHA | `TBD` | 修复尚未 commit |
+| Live smoke §5.5 全 PASS | `NO（未执行）` | 不得视为通过 |
+| LoongArch 实测环境 | `未执行` | 由 Task 20/21 后续回填 |
+| **结论** | **PARTIAL** | 原 5 FAIL 项中 4 项已修、E2E 受网络阻塞；前端仍有 26 个失败尚待逐项归因，列为 Phase 2.1 follow-up |
 
 ---
 
