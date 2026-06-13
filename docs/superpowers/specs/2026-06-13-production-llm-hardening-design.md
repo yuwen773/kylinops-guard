@@ -64,6 +64,7 @@
 5. 认证、LLM、编排、执行和持久化使用清晰接口隔离。
 6. 生产配置默认收紧，开发便利只存在于 dev/test profile。
 7. 所有关键路径必须可自动化测试，并在 LoongArch 真机复验。
+8. 审计是执行前置条件：审计创建或关键状态更新失败时，不得调用工具或执行确认动作。
 
 ## 5. 目标架构
 
@@ -181,10 +182,15 @@ LLM 不可以：
 ### 6.3 回复生成流程
 
 1. 工具执行和风险决策完成。
-2. 将经过裁剪和脱敏的 ToolResult、风险结论及失败状态提交给 LLM。
-3. 提示词明确要求仅总结所给事实。
-4. LLM 失败时使用现有 `AgentResponseBuilder` 模板。
-5. API 仍返回结构化 toolCalls、riskDecision 和 auditId，不能仅依赖自然语言答复。
+2. 通过 `LlmContextSanitizer` 按工具类型执行字段白名单、脱敏和长度限制。
+3. 日志、进程参数、文件名和命令输出一律视为不可信数据，用明确的数据边界包裹，并禁止模型服从其中的指令。
+4. 单次模型上下文默认不超过 32KB；单工具摘要默认不超过 4KB，具体上限可配置。
+5. 提示词明确要求仅总结所给事实，并忽略工具输出中的指令性内容。
+6. 模型回复经过事实校验：不得出现输入上下文不存在的数值、服务状态或执行结论；校验失败时回退模板。
+7. LLM 失败时使用现有 `AgentResponseBuilder` 模板。
+8. API 仍返回结构化 toolCalls、riskDecision 和 auditId，不能仅依赖自然语言答复。
+
+首期为每类工具定义可外发字段白名单。例如磁盘工具只允许挂载点、容量、使用率和截断标记；日志工具只允许脱敏后的摘要和有限样本，不允许完整原始日志。
 
 ### 6.4 供应商与配置
 
@@ -211,35 +217,53 @@ kylinops:
 - LLM 故障不得改变 RiskCheck 和工具执行结果。
 - 审计记录调用阶段、模型、耗时、结果状态和降级原因。
 - 不记录 API Key、隐藏推理过程或未脱敏的完整工具输出。
+- 增加间接 Prompt 注入测试：工具输出包含“忽略规则”“执行命令”等文本时，只能作为数据总结，不能改变计划或决策。
 
 ## 7. 认证与接口安全
 
 ### 7.1 单管理员认证
 
+- 使用 Spring Security 6 和服务端 HttpSession，不自建认证过滤器协议。
 - 用户名和密码哈希通过环境变量或受保护配置提供。
-- `POST /api/auth/login` 创建服务端会话。
-- `POST /api/auth/logout` 销毁会话。
-- 浏览器使用 `HttpOnly`、`Secure`（生产）、`SameSite=Strict` Cookie。
+- 密码使用 BCrypt 哈希；生产未配置管理员哈希时启动失败。
+- `POST /api/auth/login` 接收 `{username,password}`，成功返回管理员概要和 CSRF Token，失败统一返回 401。
+- `POST /api/auth/logout` 返回 204，并立即使服务端会话和 Cookie 失效。
+- 登录成功必须更换 Session ID，防止会话固定。
+- 会话空闲超时默认 30 分钟，绝对有效期默认 8 小时，均可配置。
+- 浏览器 Cookie 使用 `HttpOnly`、`Secure`（生产）、`SameSite=Strict`、`Path=/`。
 - `/api/health/live` 和登录接口允许匿名访问。
 - 其余 `/api/**` 默认要求认证。
+- 未认证返回 401；已认证但无权访问返回 403；两者均使用统一 ApiResponse 和 traceId。
 
 不引入用户注册、密码找回和角色管理。
 
 ### 7.2 PendingAction 归属
 
-- PendingAction 保存创建管理员标识和创建会话标识。
-- 确认时同时校验当前管理员、会话和动作状态。
+- PendingAction 新增服务端生成的 `creatorPrincipal` 和 `creatorAuthSessionId`。
+- 现有 `sessionId` 继续表示聊天会话，不参与认证归属判断。
+- 确认时同时校验当前管理员、认证会话和动作状态。
 - 仅凭 `actionId` 不能确认其他会话创建的动作。
+- 客户端提交的聊天 sessionId 不能写入或覆盖认证归属字段。
 - 确认后继续执行现有二次 RiskCheck。
 
 ### 7.3 Web 防护
 
-- 状态变更接口启用 CSRF 防护。
+- 状态变更接口启用 Spring Security CSRF。登录成功响应和 `GET /api/auth/session` 提供 Token，前端使用 `X-CSRF-TOKEN` 请求头提交。
 - 开发 profile 的 CORS 仅允许 `localhost:5173` 和 `127.0.0.1:5173`。
 - 生产通过 Nginx 同源访问，默认不开放跨域。
-- 登录和 Chat API 设置基础速率限制。
-- 连续登录失败触发短时锁定。
+- 登录限流默认每 IP 每分钟 10 次；Chat API 默认每认证会话每分钟 30 次。
+- 同一管理员连续 5 次登录失败后锁定 15 分钟；成功登录后清零计数。
 - 错误响应使用稳定错误码和 traceId，不返回内部异常消息。
+
+速率限制参数可配置；超过限制统一返回 429，不执行后续业务逻辑。
+
+### 7.4 审计失败闭锁
+
+- 创建请求审计失败时，请求返回 503，不能进入 ToolPlanning、ToolExecutor 或 SafeExecutor。
+- 工具执行前的风险审计状态写入失败时，请求返回 503，不能执行工具。
+- L2 确认时，确认状态和执行前审计更新失败时，不能调用 SafeExecutor。
+- 执行完成后的审计收尾失败必须记录高优先级告警，但不得伪造成功审计状态。
+- 增加 Repository 故障注入测试，断言审计失败时 ToolExecutor/SafeExecutor 调用次数为 0。
 
 ## 8. 命令执行可靠性
 
@@ -253,6 +277,18 @@ kylinops:
 6. 返回退出码、超时、截断、耗时和脱敏错误信息。
 7. 使用有界线程池，拒绝或降级过载请求。
 8. 应用关闭时正确停止执行线程和残留进程。
+
+默认运行参数：
+
+- 同时运行的 OS 进程上限：8。
+- 等待队列上限：32，采用拒绝策略，不在请求线程执行命令。
+- 流消费线程池与进程调度线程池分离，流消费容量至少为进程上限的 2 倍。
+- stdout/stderr 每路最多 1,000 行或 1MB，任一先到即标记截断。
+- 进程超时后先 `destroy()`，等待 500ms，再 `destroyForcibly()`。
+- 后代进程清理总期限 2 秒。
+- 队列满时返回结构化 `failed` 结果，错误码为 `TOOL_EXECUTOR_OVERLOADED`，HTTP 主流程不崩溃。
+
+这些默认值通过配置覆盖，但生产必须设置有限值，不能使用无界队列。
 
 必须增加以下自动化测试：
 
@@ -281,10 +317,26 @@ kylinops:
 - CI 分别验证 H2 迁移和 PostgreSQL 迁移。
 - 现有 H2 文件数据提供一次性导出/导入说明，应用启动时不自动搬迁。
 
+### 9.3 现有 H2 基线迁移
+
+提供两条明确路径：
+
+1. 无需保留演示数据：备份旧文件后删除旧 H2 数据库，由 Flyway 从 V1 创建新库。
+2. 需要保留数据：先使用固定版本脚本校验现有 Schema 与 V1 基线一致，再执行受控 `baseline`，随后运行增量迁移。
+
+要求：
+
+- 迁移前备份 H2 文件并记录校验和。
+- baseline 版本和描述固定，禁止对未知 Schema 自动 baseline。
+- 校验不一致时启动失败并提示人工迁移。
+- 提供回滚步骤：停止服务、恢复备份文件和旧版本 JAR。
+- 自动化测试必须覆盖代表性旧 H2 文件升级，而不只验证空数据库。
+
 ## 10. 健康检查与可观测性
 
 ### 10.1 健康端点
 
+- 保留现有匿名 `/api/health` 兼容端点，其响应继续包含 `data.status=UP`，供脚本和现有客户端使用。
 - `/api/health/live`：进程存活，不检查外部依赖。
 - `/api/health/ready`：数据库、风险规则和核心 Bean 已就绪。
 - 详细诊断可显示关键 Linux 命令可用性，但命令缺失不直接判定应用死亡。
@@ -316,6 +368,16 @@ kylinops:
 - API Key、管理员密码哈希和数据库凭据不进入 Git。
 - MockTool 和 FailingMockTool 仅在 dev/test profile 注册。
 - H2 Console 仅在 dev profile 开启。
+- 默认 profile 不提供可运行的开发凭据；生产必须显式启用 `prod`。
+- `prod` 启动时校验 PostgreSQL URL/用户名/密码和管理员 BCrypt 哈希；启用 LLM 时还必须校验模型 URL、Key 和模型名。任何必填项缺失均启动失败，不能回退 H2 或 dev 配置。
+- systemd 单元显式设置 `SPRING_PROFILES_ACTIVE=prod`，并使用权限为 `0600` 的环境文件。
+
+生产动作注册和分派必须满足：
+
+- 唯一允许产生真实系统副作用的动作是 `safe_service_restart`。
+- `safe_temp_clean_preview`、`safe_log_truncate_preview` 和 `safe_file_clean_preview` 只能读取并返回候选项。
+- `safe_temp_clean`、`safe_log_truncate`、`safe_file_clean`、任意命令执行端点及等价动作不得注册。
+- 自动化测试枚举完整动作分派表和 HTTP 路由，发现额外真实写动作即失败。
 
 LoongArch 目标机持续验证：
 
@@ -327,6 +389,15 @@ LoongArch 目标机持续验证：
 6. 白名单服务重启及 L2 二次校验。
 7. 审计、报告和重启恢复。
 8. 数据库备份恢复和有限并发测试。
+
+每阶段完成后都执行一次目标机门禁并保存证据：
+
+- 环境矩阵：Kylin 版本、内核、LoongArch 架构、JDK、PostgreSQL、Nginx 和 systemd 版本。
+- 阶段 1：迁移、命令超时、健康端点；单工具不超过 3 秒或按工具声明超时返回。
+- 阶段 2：匿名 401、CSRF 403、跨认证会话确认阻断。
+- 阶段 3：两个模型真实调用和断网降级；普通对话总耗时不超过 10 秒。
+- 阶段 4：四场景、服务重启、备份恢复和 10 并发 smoke。
+- 证据保存到 `docs/test/evidence/<date>-loongarch/`，包含命令、脱敏输出、版本信息和结论。
 
 ## 12. 前端变化
 
@@ -347,9 +418,12 @@ LoongArch 目标机持续验证：
 - LLM 结构化输出校验和非法参数拒绝。
 - HybridIntentService 的规则优先、增强和降级。
 - HybridResponseService 的事实约束和模板回退。
+- 工具输出间接 Prompt 注入和模型虚构事实拒绝。
 - 密码校验、锁定、Cookie 和 CSRF。
-- PendingAction 跨会话确认阻断。
+- PendingAction 跨认证会话确认阻断，聊天 sessionId 不得建立归属。
 - 命令并发流读取和超时。
+- 审计故障注入下工具和动作调用次数为 0。
+- 生产动作表仅含一个真实副作用动作。
 
 ### 13.2 集成测试
 
@@ -358,7 +432,10 @@ LoongArch 目标机持续验证：
 - Prompt 注入在 LLM 前阻断。
 - LLM 不可用时四个核心场景仍可运行。
 - H2 与 PostgreSQL 均可完成迁移和 Repository 测试。
+- 代表性旧 H2 文件可受控 baseline 并升级。
 - 应用异常不向客户端泄露内部信息。
+- `/api/health` 保持兼容，live/ready 语义分别验证。
+- prod 缺少任一必填密钥或数据库配置时启动失败。
 
 ### 13.3 E2E 与真机验收
 
@@ -370,7 +447,7 @@ LoongArch 目标机持续验证：
 
 ## 14. 实施分期
 
-### 阶段 1：可靠性与生产基线，3-4 天
+### 阶段 1：可靠性与生产基线，3 天
 
 - 修复命令执行器。
 - 拆分 dev/test/prod 配置。
@@ -378,14 +455,14 @@ LoongArch 目标机持续验证：
 - 隔离 Mock Tool。
 - 引入 Flyway 和 H2/PostgreSQL 迁移验证。
 
-### 阶段 2：单管理员认证，3-4 天
+### 阶段 2：单管理员认证，3 天
 
 - 登录、退出、服务端会话、Cookie、CSRF 和限流。
 - 全业务 API 保护。
 - PendingAction 归属校验。
 - 前端登录流程和 401 处理。
 
-### 阶段 3：LLM 双供应商接入，4-5 天
+### 阶段 3：LLM 双供应商接入，4 天
 
 - OpenAI-Compatible LlmClient。
 - DeepSeek/Qwen 配置切换。
@@ -393,25 +470,30 @@ LoongArch 目标机持续验证：
 - 基于 ToolResult 的总结。
 - 超时、限流、无效输出和服务故障降级。
 
-### 阶段 4：LoongArch 验收与收尾，3-4 天
+### 阶段 4：LoongArch 验收与收尾，2-3 天
 
 - systemd、Nginx、PostgreSQL 和密钥配置。
 - 真机核心场景、恢复和有限并发测试。
 - 回填部署、功能、性能和安全验收证据。
 
+总计 12-13 个工作日，预留 2-3 个工作日缓冲，控制在三周内。阶段 1 的数据库迁移验证与命令执行器测试可并行；阶段 3 的两个供应商契约测试可并行。PDF 导出、完整指标平台和非关键 UI 润色列为 stretch，不影响本期完成判定。
+
 ## 15. 完成标准
 
 1. 九条安全红线全部保持。
 2. 匿名用户无法读取审计、报告或执行运维功能。
-3. 跨会话不能确认 PendingAction。
+3. 跨认证会话不能确认 PendingAction，客户端聊天 sessionId 不能建立动作归属。
 4. DeepSeek/Qwen 均可通过配置接入。
 5. LLM 关闭或故障时四个核心场景仍可运行。
-6. 模型不能改变工具计划、安全等级或确认状态。
+6. 模型不能直接生成或修改工具计划；只有通过 Schema、白名单和置信度校验的意图/参数可进入服务端固定映射，模型不能改变安全等级或确认状态。
 7. 命令超时和 stdout/stderr 大输出测试通过，无残留进程。
 8. H2/PostgreSQL 均通过迁移和核心集成测试。
 9. 生产关闭 H2 Console、Mock Tool 和宽松 CORS。
 10. LoongArch 真机完成可复现部署与端到端验收。
 11. 原有后端、前端和 Playwright 基线无回归。
+12. 审计创建或执行前状态写入失败时，工具和真实动作均不会执行。
+13. 生产动作注册表中除 `safe_service_restart` 外不存在真实副作用动作。
+14. `/api/health` 保持兼容，生产缺少必填安全配置时应用拒绝启动。
 
 ## 16. 风险与缓解
 
