@@ -267,9 +267,11 @@ kylinops:
 - 创建请求审计失败时，请求返回 503，不能进入 ToolPlanning、ToolExecutor 或 SafeExecutor。
 - 工具执行前的风险审计状态写入失败时，请求返回 503，不能执行工具。
 - L2 确认时，确认状态和执行前审计更新失败时，不能调用 SafeExecutor。
-- 调用 SafeExecutor 前持久化不可变 `ExecutionAttempt`，包含 attemptId、auditId、actionId、动作摘要和 `STARTED` 状态。
-- SafeExecutor 完成后更新 attempt 结果和审计；任一结果持久化失败时 API 返回 503 和 `INDETERMINATE`，不得向客户端返回成功。
-- `INDETERMINATE` attempt 由启动恢复任务和管理员诊断接口依据实际服务状态进行对账，不能自动重复执行动作。
+- 调用 SafeExecutor 前追加不可变 `ExecutionAttempt`，包含 attemptId、auditId、actionId、动作摘要、开始时间和 `STARTED` 状态；该记录创建后不更新。
+- SafeExecutor 完成后追加不可变 `ExecutionOutcome`，状态只允许 `SUCCEEDED`、`FAILED` 或 `DEGRADED`，并与审计完成状态在同一数据库事务中提交。
+- Outcome 与审计事务失败时，原 `ExecutionAttempt` 保持无 Outcome 的 `STARTED` 状态，API 返回 503 和 `INDETERMINATE`，不得向客户端返回成功。
+- 执行动作时将 attemptId 写入结构化应用日志；服务重启同时采集 systemd InvocationID、ActiveEnterTimestamp 和对应 journal 时间窗，作为数据库之外的持久对账证据。
+- `INDETERMINATE` attempt 由启动恢复任务和管理员诊断接口结合 ExecutionAttempt、结构化日志和 systemd 证据对账，不能只依据当前服务状态，也不能自动重复执行动作。
 - 执行完成后的审计收尾失败必须记录高优先级告警，但不得伪造成功审计状态。
 - 增加 Repository 故障注入测试，断言审计失败时 ToolExecutor/SafeExecutor 调用次数为 0。
 - 增加副作用完成后结果持久化失败测试，断言返回 `INDETERMINATE`、不自动重试，并可被对账任务发现。
@@ -322,7 +324,7 @@ kylinops:
 ### 9.2 Flyway
 
 - 冻结 V1 为接入 Flyway 前的 legacy Schema，只覆盖当前已有 JPA 实体表和索引。
-- 新增认证归属、ExecutionAttempt 等字段和表从 V2 开始迁移。
+- 新增认证归属、ExecutionAttempt、ExecutionOutcome 等字段和表从 V2 开始迁移。
 - 后续 Schema 变更只通过版本化迁移。
 - SQL 使用 H2 PostgreSQL Mode 和 PostgreSQL 都支持的公共语法。
 - CI 分别验证 H2 迁移和 PostgreSQL 迁移。
@@ -450,7 +452,7 @@ LoongArch 目标机持续验证：
 - 应用异常不向客户端泄露内部信息。
 - `/api/health` 保持兼容，live/ready 语义分别验证。
 - prod 缺少任一必填密钥或数据库配置时启动失败。
-- SafeExecutor 已产生副作用但结果落库失败时返回 INDETERMINATE，且不会自动重试。
+- SafeExecutor 已产生副作用但 Outcome/审计事务失败时保留无 Outcome 的 STARTED attempt、返回 INDETERMINATE，且不会自动重试。
 
 ### 13.3 E2E 与真机验收
 
