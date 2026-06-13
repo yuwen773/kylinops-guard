@@ -23,9 +23,10 @@
 //   * No shell / command / target is forwarded. The page is read-only.
 
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { getAuditLogs, getAuditDetail, type AuditLogQuery } from '@/api/audit';
 import { ApiError } from '@/api/client';
+import { generateReport } from '@/api/reports';
 import RiskLevelTag from '@/components/RiskLevelTag/index.vue';
 import AuditTimeline, {
   type AuditTimelineEntry,
@@ -41,6 +42,7 @@ import type {
 import type { RiskDecision, RiskLevel } from '@/types/safety';
 
 const route = useRoute();
+const router = useRouter();
 
 const DEFAULT_SIZE = 20;
 
@@ -61,6 +63,30 @@ const drawerVisible = ref(false);
 const detailLoading = ref(false);
 const detailError = ref<string | null>(null);
 const detail = ref<AuditLogDetail | null>(null);
+const generatingReport = ref(false);
+const generateReportError = ref<string | null>(null);
+
+// Generate a report from the current audit detail and jump to /reports.
+// The whole flow is one-shot: success → navigate to the new report detail;
+// failure → inline error (no retry, no mutation of the audit).
+const handleGenerateReport = async () => {
+  if (!detail.value?.auditId || generatingReport.value) return;
+  generatingReport.value = true;
+  generateReportError.value = null;
+  try {
+    const report = await generateReport({ auditId: detail.value.auditId });
+    if (report?.reportId) {
+      router.push({ path: '/reports', query: { reportId: report.reportId } });
+    } else {
+      router.push('/reports');
+    }
+  } catch (e) {
+    generateReportError.value =
+      e instanceof ApiError ? e.message : (e as Error)?.message ?? '生成报告失败';
+  } finally {
+    generatingReport.value = false;
+  }
+};
 
 const hasAnyFilter = computed(
   () =>
@@ -622,7 +648,35 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
         <header class="audit-detail-header">
           <span class="audit-detail-title">审计详情</span>
           <code class="audit-detail-auditid">{{ detail.auditId }}</code>
+          <div class="audit-detail-actions">
+            <router-link
+              to="/security"
+              class="audit-detail-nav-link"
+              data-testid="audit-detail-security-link"
+            >
+              查看安全中心
+            </router-link>
+            <el-button
+              type="primary"
+              size="small"
+              :loading="generatingReport"
+              :disabled="generatingReport"
+              data-testid="audit-detail-generate-report"
+              @click="handleGenerateReport"
+            >
+              生成报告
+            </el-button>
+          </div>
         </header>
+
+        <el-alert
+          v-if="generateReportError"
+          class="audit-detail-generate-error"
+          type="error"
+          :closable="false"
+          show-icon
+          :title="generateReportError"
+        />
 
         <div class="audit-detail-meta">
           <RiskLevelTag
@@ -938,7 +992,7 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 .audit-detail-header {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
 }
 
 .audit-detail-title {
@@ -951,6 +1005,28 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
   font-size: 0.75rem;
   color: #909399;
   word-break: break-all;
+}
+
+.audit-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.audit-detail-nav-link {
+  color: var(--el-color-primary);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.audit-detail-nav-link:hover {
+  text-decoration: underline;
+}
+
+.audit-detail-generate-error {
+  margin-top: 0.5rem;
 }
 
 .audit-detail-meta {

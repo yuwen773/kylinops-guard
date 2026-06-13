@@ -501,14 +501,27 @@ const handleGenerateReport = async () => {
               class="chat-block"
               data-testid="chat-block"
             >
-              该请求已被安全规则阻断，请查看审计日志了解详情。
-              <router-link
+              <el-alert
                 v-if="turn.result.auditId"
-                :to="auditHref(turn.result.auditId)!"
-                data-testid="chat-block-audit-link"
+                type="error"
+                :closable="false"
+                show-icon
+                class="chat-block-alert"
               >
-                查看审计日志
-              </router-link>
+                <template #title>
+                  <span>该请求已被安全规则阻断</span>
+                  <el-link
+                    type="primary"
+                    :href="auditHref(turn.result.auditId)!"
+                    :underline="false"
+                    data-testid="chat-block-audit-link"
+                    class="chat-block-link"
+                  >
+                    查看审计日志 (auditId: {{ turn.result.auditId }})
+                  </el-link>
+                </template>
+              </el-alert>
+              <span v-else>该请求已被安全规则阻断</span>
             </p>
 
             <p
