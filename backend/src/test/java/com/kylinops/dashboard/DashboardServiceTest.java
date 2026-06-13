@@ -10,6 +10,7 @@ import com.kylinops.tool.ToolDefinition;
 import com.kylinops.tool.ToolExecutor;
 import com.kylinops.tool.ToolRegistry;
 import com.kylinops.tool.ToolResult;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,8 @@ class DashboardServiceTest {
     @BeforeEach
     void setUp() {
         service = new DashboardService(toolRegistry, toolExecutor, auditLogService);
+        // @PostConstruct does not run for manually constructed test instances.
+        service.initExecutor();
 
         // 构造 5 个只读 L0 工具定义（覆盖健康检查核心维度）
         readOnlyTools.add(buildDef("system_info_tool"));
@@ -71,6 +74,13 @@ class DashboardServiceTest {
         readOnlyTools.add(buildDef("memory_status_tool"));
         readOnlyTools.add(buildDef("disk_usage_tool"));
         readOnlyTools.add(buildDef("network_port_tool"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (service != null) {
+            service.shutdownExecutor();
+        }
     }
 
     private ToolDefinition buildDef(String name) {

@@ -7,6 +7,7 @@ import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.executor.PendingActionRepository;
 import com.kylinops.security.RiskCheckRecordRepository;
 import com.kylinops.tool.ToolCallRecordRepository;
+import com.kylinops.tool.ToolCallRecordRepository.ToolCallCountProjection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,7 +84,10 @@ class AuditLogSummaryToolCallCountTest {
         for (int i = 0; i < entities.size(); i++) {
             AuditLog entity = entities.get(i);
             long count = i + 1;
-            projections.add(new ToolCallCountProjection(entity.getAuditId(), count));
+            ToolCallCountProjection p = mock(ToolCallCountProjection.class);
+            when(p.getAuditId()).thenReturn(entity.getAuditId());
+            when(p.getCount()).thenReturn(count);
+            projections.add(p);
             expectedCounts.put(entity.getAuditId(), count);
         }
         when(toolCallRecordRepository.countByAuditIdInGrouped(anyCollection()))
@@ -106,10 +110,10 @@ class AuditLogSummaryToolCallCountTest {
                 .countByAuditIdInGrouped(anyCollection());
 
         // 单次调用的入参必须包含当前页全部 20 个 auditId
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<Collection> idsCaptor = ArgumentCaptor.forClass(Collection.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<String>> idsCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(toolCallRecordRepository).countByAuditIdInGrouped(idsCaptor.capture());
-        Collection<?> capturedIds = idsCaptor.getValue();
+        Collection<String> capturedIds = idsCaptor.getValue();
         assertThat(capturedIds)
                 .as("grouped aggregate 的入参应包含全部 auditId")
                 .hasSize(20)

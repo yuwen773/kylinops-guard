@@ -247,9 +247,9 @@ describe('ReportCenter — detail', () => {
     // No <script> / <img> element should have been parsed into the DOM.
     expect(body.find('script').exists()).toBe(false);
     expect(body.find('img').exists()).toBe(false);
-    // No inline event handler should be on any descendant.
-    const html = (body.element as HTMLElement).innerHTML;
-    expect(html).not.toContain('onerror');
+    // Escaped text may contain the word "onerror", but no DOM element may
+    // receive it as an executable attribute.
+    expect((body.element as HTMLElement).querySelector('[onerror]')).toBeNull();
     // And nothing executed.
     expect((globalThis as unknown as Record<string, unknown>).__pwned).toBeUndefined();
     expect((globalThis as unknown as Record<string, unknown>).__pwned2).toBeUndefined();

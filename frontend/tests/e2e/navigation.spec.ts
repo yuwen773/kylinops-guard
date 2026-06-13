@@ -57,7 +57,7 @@ function attachConsoleGuards(page: Page) {
  * generic 200 with null data — enough to keep the page from erroring.
  */
 function installApiMocks(page: Page) {
-  page.route('**/api/**', async (route) => {
+  page.route(/^https?:\/\/[^/]+\/api(?:\/|$)/, async (route) => {
     const url = route.request().url();
     const method = route.request().method();
 
@@ -99,6 +99,22 @@ function installApiMocks(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(mockApiResponse(rules)),
+      });
+    }
+
+    // GET /api/security/risk-levels
+    if (url.endsWith('/api/security/risk-levels') && method === 'GET') {
+      const levels = [
+        { level: 'L0', decision: 'ALLOW', description: '只读查询' },
+        { level: 'L1', decision: 'ALLOW', description: '放行并审计' },
+        { level: 'L2', decision: 'CONFIRM', description: '用户确认后执行' },
+        { level: 'L3', decision: 'BLOCK', description: '高风险阻断' },
+        { level: 'L4', decision: 'BLOCK', description: '绝对阻断' },
+      ];
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockApiResponse(levels)),
       });
     }
 

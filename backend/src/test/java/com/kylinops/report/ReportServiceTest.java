@@ -63,6 +63,14 @@ class ReportServiceTest {
 
     // ------------------- helpers -------------------
 
+    private void stubReportPersistence() {
+        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> {
+            Report report = invocation.getArgument(0);
+            report.onCreate();
+            return report;
+        });
+    }
+
     private AuditLogDetail fullDetail(String auditId, String sessionId) {
         return AuditLogDetail.builder()
                 .auditId(auditId)
@@ -141,7 +149,7 @@ class ReportServiceTest {
         AuditLogDetail detail = fullDetail(auditId, "session-1");
 
         when(auditLogService.getDetail(auditId)).thenReturn(Optional.of(detail));
-        when(reportRepository.save(any(Report.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubReportPersistence();
 
         ReportGenerateRequest req = ReportGenerateRequest.builder()
                 .auditId(auditId)
@@ -191,7 +199,7 @@ class ReportServiceTest {
                 .thenReturn(List.of(newerLog, olderLog));
         when(auditLogService.getDetail(newerAudit))
                 .thenReturn(Optional.of(fullDetail(newerAudit, sessionId)));
-        when(reportRepository.save(any(Report.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubReportPersistence();
 
         ReportGenerateRequest req = ReportGenerateRequest.builder()
                 .sessionId(sessionId)
@@ -253,11 +261,11 @@ class ReportServiceTest {
     }
 
     @Test
-    @DisplayName("缺失的源字段（userInput/tool output/risk/execution）→ Markdown 含"数据不可用"")
+    @DisplayName("缺失的源字段（userInput/tool output/risk/execution）→ Markdown 含“数据不可用”")
     void missingFieldsRenderAsUnavailable() {
         String auditId = UUID.randomUUID().toString();
         when(auditLogService.getDetail(auditId)).thenReturn(Optional.of(sparseDetail(auditId)));
-        when(reportRepository.save(any(Report.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubReportPersistence();
 
         ReportGenerateRequest req = ReportGenerateRequest.builder()
                 .auditId(auditId)
@@ -294,7 +302,7 @@ class ReportServiceTest {
     void persistedReportHasAllMandatoryFields() {
         String auditId = UUID.randomUUID().toString();
         when(auditLogService.getDetail(auditId)).thenReturn(Optional.of(fullDetail(auditId, "session-x")));
-        when(reportRepository.save(any(Report.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubReportPersistence();
 
         ReportGenerateRequest req = ReportGenerateRequest.builder()
                 .auditId(auditId)
@@ -315,6 +323,7 @@ class ReportServiceTest {
         assertThat(saved.getRiskLevel()).isEqualTo(RiskLevel.L0);
         assertThat(saved.getBodyMarkdown()).isNotBlank();
         assertThat(saved.getCreatedAt()).isNotNull();
+        assertThat(saved.getUpdatedAt()).isNotNull();
     }
 
     @Test

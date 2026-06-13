@@ -172,11 +172,12 @@ describe('AuditLog page — list + filters', () => {
   });
 
   it('triggers getAuditLogs with the new page number when paginating', async () => {
-    const spy = vi.spyOn(auditApi, 'getAuditLogs').mockResolvedValue(
-      buildPage({ totalElements: 60, totalPages: 3, number: 0 }),
-    );
-    const { wrapper } = await mountPage();
+    const { wrapper } = await mountPage({
+      pageData: buildPage({ totalElements: 60, totalPages: 3, number: 0 }),
+    });
     await flushPromises();
+    const spy = vi.mocked(auditApi.getAuditLogs);
+    spy.mockClear();
 
     // Element Plus pagination exposes a `.btn-next` button.
     const pag = wrapper.find('.el-pagination');
@@ -234,7 +235,7 @@ describe('AuditLog page — list + filters', () => {
     await flushPromises();
     spy.mockClear();
 
-    const input = wrapper.find('[data-testid="audit-filter-keyword"] input');
+    const input = wrapper.find('[data-testid="audit-filter-keyword"]');
     expect(input.exists()).toBe(true);
     await input.setValue('rm');
     await input.trigger('keydown', { key: 'Enter' });
@@ -280,7 +281,14 @@ describe('AuditLog page — detail drawer', () => {
   it('opens drawer and calls getAuditDetail when a row is clicked', async () => {
     const detailSpy = vi
       .spyOn(auditApi, 'getAuditDetail')
-      .mockResolvedValue(buildDetail());
+      .mockResolvedValue(buildDetail({
+        toolCalls: [{
+          toolCallId: 't-fail',
+          toolName: 'service_status_tool',
+          status: 'FAILED',
+          errorMessage: '服务状态读取失败',
+        }],
+      }));
     const { wrapper } = await mountPage({
       pageData: buildPage({ content: [buildSummary({ auditId: 'audit-click-1' })] }),
     });

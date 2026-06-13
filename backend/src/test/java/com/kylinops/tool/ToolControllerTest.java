@@ -172,11 +172,12 @@ class ToolControllerTest {
         // disk_usage_tool: 4 SUCCESS + 1 FAILED + 1 TIMEOUT + 0 BLOCKED = 6 terminal
         // successRate = 4/6 = 0.6666666666666666
         LocalDateTime last = LocalDateTime.of(2026, Month.JUNE, 12, 10, 0, 0);
+        java.util.List<ToolCallRecordRepository.ToolStatsProjection> partialAggs = List.of(
+                agg("disk_usage_tool", 6L, 6L, 4L, last),
+                agg("cpu_status_tool", 3L, 3L, 3L, last)
+        );
         when(toolCallRecordRepository.findStatsByToolNameIn(any()))
-                .thenReturn(List.of(
-                        agg("disk_usage_tool", 6L, 6L, 4L, last),
-                        agg("cpu_status_tool", 3L, 3L, 3L, last)
-                ));
+                .thenReturn(partialAggs);
 
         MvcResult res = mockMvc.perform(get("/api/tools"))
                 .andExpect(status().isOk())
@@ -201,10 +202,11 @@ class ToolControllerTest {
         // callCount=5 表示全部是非 terminal（PENDING/RUNNING），
         // terminalCount=0 → successRate=null
         LocalDateTime last = LocalDateTime.of(2026, Month.JUNE, 12, 10, 0, 0);
+        java.util.List<ToolCallRecordRepository.ToolStatsProjection> onlyNonTerminalAggs = List.of(
+                agg("journal_log_tool", 5L, 0L, 0L, last)
+        );
         when(toolCallRecordRepository.findStatsByToolNameIn(any()))
-                .thenReturn(List.of(
-                        agg("journal_log_tool", 5L, 0L, 0L, last)
-                ));
+                .thenReturn(onlyNonTerminalAggs);
 
         mockMvc.perform(get("/api/tools"))
                 .andExpect(status().isOk())
@@ -217,11 +219,12 @@ class ToolControllerTest {
     @Test
     @DisplayName("aggregate 缺失的工具（未被记录过）→ 默认 callCount=0, successRate=null")
     void missingInAggregateDefaultsToZero() throws Exception {
+        java.util.List<ToolCallRecordRepository.ToolStatsProjection> missingAggs = List.of(
+                agg("cpu_status_tool", 2L, 2L, 2L,
+                        LocalDateTime.of(2026, Month.JUNE, 12, 9, 0, 0))
+        );
         when(toolCallRecordRepository.findStatsByToolNameIn(any()))
-                .thenReturn(List.of(
-                        agg("cpu_status_tool", 2L, 2L, 2L,
-                                LocalDateTime.of(2026, Month.JUNE, 12, 9, 0, 0))
-                ));
+                .thenReturn(missingAggs);
 
         mockMvc.perform(get("/api/tools"))
                 .andExpect(status().isOk())
@@ -253,8 +256,9 @@ class ToolControllerTest {
         ToolDefinition def = defOf("cpu_status_tool");
         when(opsTool.definition()).thenReturn(def);
         when(toolRegistry.getTool("cpu_status_tool")).thenReturn(opsTool);
+        java.util.List<ToolCallRecordRepository.ToolStatsProjection> singleAggs = List.of(agg("cpu_status_tool", 4L, 4L, 4L, last));
         when(toolCallRecordRepository.findStatsByToolNameIn(any()))
-                .thenReturn(List.of(agg("cpu_status_tool", 4L, 4L, 4L, last)));
+                .thenReturn(singleAggs);
 
         mockMvc.perform(get("/api/tools/cpu_status_tool"))
                 .andExpect(status().isOk())

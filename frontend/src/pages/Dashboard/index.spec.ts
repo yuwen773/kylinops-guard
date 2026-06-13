@@ -147,12 +147,12 @@ describe('Dashboard — per-metric rendering', () => {
 
   it('renders one StatusMetricCard per backend metric', async () => {
     const { wrapper } = await mountPage();
-    expect(wrapper.find('[data-testid="status-metric-cpu_status_tool"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="status-metric-memory_status_tool"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="status-metric-disk_usage_tool"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="status-metric-service_status_tool"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="status-metric-network_port_tool"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="status-metric-journal_log_tool"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="dashboard-metric-cell-cpu_status_tool"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="dashboard-metric-cell-memory_status_tool"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="dashboard-metric-cell-disk_usage_tool"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="dashboard-metric-cell-service_status_tool"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="dashboard-metric-cell-network_port_tool"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="dashboard-metric-cell-journal_log_tool"]').exists()).toBe(true);
   });
 
   it('marks a failed metric as unavailable (independent failure display)', async () => {
@@ -268,7 +268,7 @@ describe('Dashboard — no hard-coded OS data', () => {
     const text = wrapper.text();
     // A common hard-coded trap: "CPU 12%". The fixture's CPU is 42.5, so
     // a literal "12" must not appear attached to the CPU title.
-    const cpuCard = wrapper.find('[data-testid="status-metric-cpu_status_tool"]');
+    const cpuCard = wrapper.find('[data-testid="dashboard-metric-cell-cpu_status_tool"]');
     expect(cpuCard.text()).not.toMatch(/\b12\s*%/);
     // The page must not mention arbitrary placeholder bytes (e.g. "16 GB").
     expect(text).not.toMatch(/\b16\s*GB\b/);

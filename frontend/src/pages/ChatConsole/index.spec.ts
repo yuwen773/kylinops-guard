@@ -172,7 +172,7 @@ describe('ChatConsole — in-flight guard', () => {
       const btn = wrapper.find(`[data-testid="quick-action-${action.id}"]`);
       expect(btn.attributes('disabled')).toBeDefined();
     }
-    const input = wrapper.find('[data-testid="chat-input-field"] textarea');
+    const input = wrapper.find('[data-testid="chat-input-field"]');
     expect(input.attributes('disabled')).toBeDefined();
 
     // Resolve so the test cleans up.
@@ -234,6 +234,8 @@ describe('ChatConsole — rendering', () => {
 
     expect(wrapper.find('[data-testid="tool-call-system_info_tool"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="tool-call-cpu_status_tool"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="tool-call-system_info_tool"]').text()).toContain('320 ms');
+    expect(wrapper.find('[data-testid="tool-call-cpu_status_tool"]').text()).toContain('410 ms');
   });
 
   it('renders RiskLevelTag with the backend decision verbatim', async () => {
@@ -337,7 +339,7 @@ describe('ChatConsole — rendering', () => {
     await flushPromises();
 
     // Set draft and submit so we can verify sessionId reuse path explicitly.
-    const textarea = wrapper.find('[data-testid="chat-input-field"] textarea');
+    const textarea = wrapper.find('[data-testid="chat-input-field"]');
     await textarea.setValue('请继续');
     await wrapper.find('[data-testid="chat-input-submit"]').trigger('click');
     await flushPromises();
@@ -398,7 +400,7 @@ describe('ChatConsole — contextual nginx restart', () => {
     await flushPromises();
     expect(spy).toHaveBeenCalledTimes(1); // still 1 — no extra send
 
-    const textarea = wrapper.find('[data-testid="chat-input-field"] textarea');
+    const textarea = wrapper.find('[data-testid="chat-input-field"]');
     expect((textarea.element as HTMLTextAreaElement).value).toBe('帮我重启 nginx 服务');
   });
 

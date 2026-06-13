@@ -5,6 +5,7 @@ import ToolCenterPage from './index.vue';
 import * as toolsApi from '@/api/tools';
 import { ApiError } from '@/api/client';
 import type { ToolDefinition } from '@/types/tool';
+import { resolve } from 'node:path';
 
 enableAutoUnmount(afterEach);
 
@@ -92,7 +93,7 @@ describe('Tool Center — initial load', () => {
 
   it('renders at least 8 tool rows from the API payload', async () => {
     const { wrapper } = await mountPage();
-    const rows = wrapper.findAll('[data-testid="tool-row"]');
+    const rows = wrapper.findAll('[data-testid^="tool-row-"]');
     expect(rows.length).toBeGreaterThanOrEqual(8);
   });
 
@@ -117,17 +118,16 @@ describe('Tool Center — risk / permission / status tags', () => {
 
   it('renders the risk level tag for each tool', async () => {
     const { wrapper } = await mountPage();
-    const cpuRow = wrapper.find('[data-testid="tool-row-cpu_status_tool"]');
-    expect(cpuRow.exists()).toBe(true);
-    expect(cpuRow.find('[data-testid="tool-risk-level-cpu_status_tool"]').exists()).toBe(true);
-    expect(cpuRow.text()).toContain('L0');
+    const tag = wrapper.find('[data-testid="tool-risk-level-cpu_status_tool"]');
+    expect(tag.exists()).toBe(true);
+    expect(tag.text()).toContain('L0');
   });
 
   it('renders the permission type tag for each tool', async () => {
     const { wrapper } = await mountPage();
-    const cpuRow = wrapper.find('[data-testid="tool-row-cpu_status_tool"]');
-    expect(cpuRow.find('[data-testid="tool-permission-cpu_status_tool"]').exists()).toBe(true);
-    expect(cpuRow.text()).toContain('READ');
+    const tag = wrapper.find('[data-testid="tool-permission-cpu_status_tool"]');
+    expect(tag.exists()).toBe(true);
+    expect(tag.text()).toContain('READ');
   });
 
   it('renders the status tag (ENABLED / DISABLED) for each tool', async () => {
@@ -138,8 +138,8 @@ describe('Tool Center — risk / permission / status tags', () => {
         ...buildTenTools().slice(2),
       ],
     });
-    expect(wrapper.find('[data-testid="tool-row-t_on"]').text()).toContain('启用');
-    expect(wrapper.find('[data-testid="tool-row-t_off"]').text()).toContain('停用');
+    expect(wrapper.find('[data-testid="tool-status-t_on"]').text()).toContain('启用');
+    expect(wrapper.find('[data-testid="tool-status-t_off"]').text()).toContain('停用');
   });
 });
 
@@ -150,46 +150,40 @@ describe('Tool Center — call statistics', () => {
 
   it('renders callCount for every tool', async () => {
     const { wrapper } = await mountPage();
-    const cpuRow = wrapper.find('[data-testid="tool-row-cpu_status_tool"]');
-    expect(cpuRow.text()).toContain('3');
-    const diskRow = wrapper.find('[data-testid="tool-row-disk_usage_tool"]');
-    expect(diskRow.text()).toContain('6');
+    expect(wrapper.find('[data-testid="tool-call-count-cpu_status_tool"]').text()).toContain('3');
+    expect(wrapper.find('[data-testid="tool-call-count-disk_usage_tool"]').text()).toContain('6');
   });
 
   it('renders successRate as percentage when not null', async () => {
     const { wrapper } = await mountPage();
-    const cpuRow = wrapper.find('[data-testid="tool-row-cpu_status_tool"]');
-    // 100% (1.0)
-    expect(cpuRow.text()).toMatch(/100\s*%/);
+    const rate = wrapper.find('[data-testid="tool-success-rate-cpu_status_tool"]');
+    expect(rate.text()).toMatch(/100(?:\.0+)?\s*%/);
   });
 
   it('renders successRate=null as "—" (never 0%, never 100%)', async () => {
     const { wrapper } = await mountPage();
-    const memRow = wrapper.find('[data-testid="tool-row-memory_status_tool"]');
-    expect(memRow.text()).toContain('—');
-    // must NOT contain 0% or 100% in the successRate cell
-    expect(memRow.text()).not.toMatch(/0\s*%/);
-    expect(memRow.text()).not.toMatch(/100\s*%/);
+    const rate = wrapper.find('[data-testid="tool-success-rate-memory_status_tool"]');
+    expect(rate.text()).toContain('—');
+    expect(rate.text()).not.toMatch(/0\s*%/);
+    expect(rate.text()).not.toMatch(/100\s*%/);
   });
 
   it('renders partial-success successRate (e.g. 66.67% for 4/6)', async () => {
     const { wrapper } = await mountPage();
-    const diskRow = wrapper.find('[data-testid="tool-row-disk_usage_tool"]');
-    // 4/6 ≈ 66.67%
-    expect(diskRow.text()).toMatch(/66\.7\s*%|66\.67\s*%/);
+    const rate = wrapper.find('[data-testid="tool-success-rate-disk_usage_tool"]');
+    expect(rate.text()).toMatch(/66\.7\s*%|66\.67\s*%/);
   });
 
   it('renders lastCalledAt as "从未调用" when null', async () => {
     const { wrapper } = await mountPage();
-    const memRow = wrapper.find('[data-testid="tool-row-memory_status_tool"]');
-    expect(memRow.text()).toContain('从未调用');
+    expect(wrapper.find('[data-testid="tool-last-called-memory_status_tool"]').text())
+      .toContain('从未调用');
   });
 
   it('renders lastCalledAt as formatted timestamp when non-null', async () => {
     const { wrapper } = await mountPage();
-    const cpuRow = wrapper.find('[data-testid="tool-row-cpu_status_tool"]');
-    // ISO timestamp must surface — the exact format may be zh-CN localized.
-    expect(cpuRow.text()).toMatch(/2026/);
+    expect(wrapper.find('[data-testid="tool-last-called-cpu_status_tool"]').text())
+      .toMatch(/2026/);
   });
 });
 
@@ -200,17 +194,19 @@ describe('Tool Center — expandable schema panel', () => {
 
   it('renders the inputSchema in the expandable panel', async () => {
     const { wrapper } = await mountPage();
-    const cpuPanel = wrapper.find('[data-testid="tool-schema-cpu_status_tool"]');
-    // Even collapsed, the schema data must be in the DOM. Element Plus
-    // renders the expandable row even when collapsed.
-    expect(cpuPanel.exists()).toBe(true);
-    expect(cpuPanel.text()).toContain('object');
+    await wrapper.find('.el-table__expand-icon').trigger('click');
+    await flushPromises();
+    const panel = wrapper.find('[data-testid="tool-schema-system_info_tool"]');
+    expect(panel.exists()).toBe(true);
+    expect(panel.text()).toContain('object');
   });
 
   it('renders the outputSchema in the expandable panel', async () => {
     const { wrapper } = await mountPage();
-    const cpuPanel = wrapper.find('[data-testid="tool-schema-cpu_status_tool"]');
-    expect(cpuPanel.text()).toContain('object');
+    await wrapper.find('.el-table__expand-icon').trigger('click');
+    await flushPromises();
+    const panel = wrapper.find('[data-testid="tool-schema-system_info_tool"]');
+    expect(panel.text()).toContain('object');
   });
 
   it('does NOT use v-html to render schema strings (defense in depth)', async () => {
@@ -227,6 +223,8 @@ describe('Tool Center — expandable schema panel', () => {
         ...buildTenTools().slice(1),
       ],
     });
+    await wrapper.find('.el-table__expand-icon').trigger('click');
+    await flushPromises();
     // The raw "<img>" substring must appear as text, not as a DOM <img> node.
     // Find an <img> element matching the malicious payload — there must be
     // none. We accept that Element Plus might render other imgs (icons) but
@@ -238,7 +236,8 @@ describe('Tool Center — expandable schema panel', () => {
       expect(onerror ?? '').not.toMatch(/alert/i);
     }
     // Sanity: the malicious substring is present in the DOM as text.
-    expect(wrapper.text()).toContain('<img');
+    expect(wrapper.find('[data-testid="tool-input-schema-malicious_tool"]').text())
+      .toContain('<img');
   });
 });
 
@@ -257,8 +256,8 @@ describe('Tool Center — no v-html anywhere', () => {
     // This is the contract: the page source MUST NOT contain "v-html".
     // If it does, this test fails and forces a refactor.
     const source = await import('node:fs').then((m) =>
-      m.promises.readFile(new URL('./index.vue', import.meta.url), 'utf8'),
+      m.promises.readFile(resolve(process.cwd(), 'src/pages/ToolCenter/index.vue'), 'utf8'),
     );
-    expect(source).not.toMatch(/v-html/);
+    expect(source).not.toMatch(/\bv-html\s*=/);
   });
 });

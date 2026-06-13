@@ -158,11 +158,6 @@ const toDisplayStatus = (raw: string | undefined): ToolCallDisplayStatus => {
   }
 };
 
-const formatDuration = (ms?: number): string | undefined => {
-  if (typeof ms !== 'number' || !Number.isFinite(ms)) return undefined;
-  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
-};
-
 // Build the human-readable summary shown on the ExecutionConfirmCard.
 // The backend's PendingAction.description is the preferred source; we
 // fall back to toolName for older payloads.
@@ -535,7 +530,7 @@ const handleGenerateReport = async () => {
                 :tool-name="call.toolName"
                 :status="toDisplayStatus(call.status)"
                 :output="call.summary"
-                :duration-ms="formatDuration(call.durationMs)"
+                :duration-ms="call.durationMs"
               />
             </div>
 

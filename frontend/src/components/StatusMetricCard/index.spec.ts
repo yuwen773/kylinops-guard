@@ -81,8 +81,8 @@ describe('StatusMetricCard', () => {
     ];
     expectations.forEach(([status, expected]) => {
       const wrapper = mountMetric({ status });
-      const tag = wrapper.find(`[data-testid="status-metric-tone-${status}"]`);
-      expect(tag.classes()).toContain(expected);
+      const tag = wrapper.findComponent({ name: 'ElTag' });
+      expect(tag.props('type')).toBe(expected.replace('el-tag--', ''));
     });
   });
 

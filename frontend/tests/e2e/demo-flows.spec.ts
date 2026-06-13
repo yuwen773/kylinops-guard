@@ -55,7 +55,7 @@ interface ChatRouteHandlers {
 
 function installChatMocks(page: Page, handlers: ChatRouteHandlers) {
   // Always intercept /api/** to keep noise off the page.
-  page.route('**/api/**', async (route) => {
+  page.route(/^https?:\/\/[^/]+\/api(?:\/|$)/, async (route) => {
     const url = route.request().url();
     const method = route.request().method();
 
@@ -306,7 +306,7 @@ test.describe('Demo scenario 3 — nginx CONFIRM flow', () => {
     await page.getByTestId('chat-input-submit').click();
 
     // L2 CONFIRM verdict + execution card must render.
-    await expect(page.getByTestId('risk-level-L2')).toBeVisible();
+    await expect(page.getByTestId('risk-level-L2').first()).toBeVisible();
     await expect(page.getByTestId('execution-confirm-action-nginx-001')).toBeVisible();
 
     // Click confirm; the action card emits `confirm` and the parent

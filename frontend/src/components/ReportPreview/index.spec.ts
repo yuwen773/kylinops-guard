@@ -63,8 +63,9 @@ describe('ReportPreview', () => {
     // should be parsed into the DOM.
     expect(node.find('img').exists()).toBe(false);
     expect(node.find('script').exists()).toBe(false);
-    // The body element itself does not contain an inline event handler.
-    expect((node.element as HTMLElement).outerHTML).not.toContain('onerror');
+    // Escaped text may contain the word "onerror", but no DOM element may
+    // receive it as an executable attribute.
+    expect((node.element as HTMLElement).querySelector('[onerror]')).toBeNull();
     // And globally, no DOM-side execution happened.
     expect((globalThis as unknown as Record<string, unknown>).__pwned).toBeUndefined();
   });

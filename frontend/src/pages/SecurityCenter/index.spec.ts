@@ -288,11 +288,11 @@ describe('SecurityCenter — BLOCK events section', () => {
   });
 
   it('re-calls getSecurityEvents with the new page when paginating', async () => {
-    const spy = vi.spyOn(securityApi, 'getSecurityEvents').mockResolvedValue(
-      buildEventPage({ totalElements: 60, totalPages: 3, number: 0 }),
-    );
-    const { wrapper } = await mountPage();
+    const { wrapper } = await mountPage({
+      events: buildEventPage({ totalElements: 60, totalPages: 3, number: 0 }),
+    });
     await flushPromises();
+    const spy = vi.mocked(securityApi.getSecurityEvents);
     spy.mockClear();
 
     const pag = wrapper.find('[data-testid="security-events-pagination"]');
