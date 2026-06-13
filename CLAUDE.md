@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Status
 
-**Phase 1 (后端安全闭环) 已完成并通过验收 — backend/ 包含 Agent 编排、安全校验、确认执行和审计链路。** The eight `*.md` files in the root are the v0.1 product/architecture/task specs (all in Chinese) that define what is to be built. The specs remain the source of truth; any code change that deviates from a spec must update the spec too.
+**Phase 1 (后端安全闭环) 与 Phase 2 (前端演示闭环) 均已完成并通过验收 — backend/ + frontend/ 已合入 master；后端 280/280 + 前端 163/163 测试全绿。** Phase 3（执行 + 报告模块）核心能力已实现，3 个 Task 06 扩展工具正式豁免（详见 `docs/phase3-audit.md`）。The eight `*.md` files in the root are the v0.1 product/architecture/task specs (all in Chinese) that define what is to be built. The specs remain the source of truth; any code change that deviates from a spec must update the spec too.
 
-**Next:** Phase 2 (前端演示闭环) — see §Development Order below.
+**Next:** Phase 4 (交付材料) — Task 18 → 19 → 20 → 21 — see §Development Order below.
 
 Before writing code, read these specs in this order — they are the source of truth and override assumptions from training data:
 
@@ -151,11 +151,20 @@ Spec-mandated task sequence (任务卡 §4, MVP 路线 §15). Don't reorder — 
   - 08: Agent orchestration layer (IntentClassifier, ToolPlanningService, AgentOrchestrator, AgentResponseBuilder + ChatController/ChatService)
   - 10/11: SafeExecutor + ActionConfirmService / confirmation execution endpoints
 
-- **Phase 2 — frontend demo loop:** Task 02 → 13 → 14 → 15 → 16 → 17
-- **Phase 3 — exec + reports:** Task 06 → 09 → 12
-- **Phase 4 — delivery materials:** Task 18 → 19 → 20 → 21
+- **Phase 2 — frontend demo loop (complete, 2026-06-12 验收):** Task 02 → 13 → 14 → 15 → 16 → 17
+  - 02: Vue 3 + Vite + Element Plus 工程骨架
+  - 13: ChatConsole — 自然语言 + 5 快捷按钮 + L2 确认卡片
+  - 14: ToolCenter / Dashboard / SecurityCenter / AuditLog / ReportCenter 五个页面
+  - 15: 演示脚本端到端覆盖（Playwright E2E + Vitest 单元）
+  - 16: 风险/审计通用组件 (RiskLevelTag / ToolCallCard / AuditTimeline / ExecutionConfirmCard / ReportPreview)
+  - 17: 安全闭环可视化（SecurityCenter 注入拦截事件 + AuditLog 详情回放）
+- **Phase 3 — exec + reports (核心已完成, 2026-06-13 核对):** Task 06 → 09 → 12
+  - 06: 10 个 L0 只读工具（覆盖 P0 8 个最低要求），3 个扩展工具正式豁免（`docs/phase3-audit.md`）
+  - 09: SafeExecutor + PendingAction + ActionConfirmController 闭环（L2 确认 → 执行/取消）
+  - 12: Report 模块 5 类报告 + Markdown + 前端查看
+- **Phase 4 — delivery materials (current):** Task 18 → 19 → 20 → 21
 
-Phase 1 provides an accepted end-to-end safety closed loop without the UI. `POST /api/chat/send` works, prompt injection is blocked, tool plans execute, responses are generated, and every request is audited.
+Phase 1+2 提供端到端安全闭环：自然语言 → Agent 编排 → MCP Tool → RiskCheck → L2 确认 → 执行 → 审计 → 报告，全链路通过前端可演示。`POST /api/chat/send`、5 个快捷按钮、4 个演示场景全部跑通。测试基线：后端 280/280 + 前端 163/163 + Playwright E2E mock+live 双模式。
 
 **Phase 1 安全闭环状态（2026-06-11 验收）：**
 安全闭环实现包括：
@@ -172,40 +181,42 @@ Phase 1 provides an accepted end-to-end safety closed loop without the UI. `POST
 - AuditSanitizer 脱敏工具
 - GET /api/audit/logs 组合筛选+GET /api/audit/logs/{auditId} 详情聚合
 
-**Phase 3 (deferred):** 真正的日志截断/文件删除实现；RBAC 和分布式任务队列。
+**Phase 3 状态（2026-06-13 核对）：** 核心能力已落地。3 个 Task 06 扩展工具（service_log_tool / zombie_process_scan_tool / port_conflict_check_tool）正式豁免 — 不影响 4 个 P0 演示场景，全部由现有 10 个 L0 工具覆盖。豁免依据见 `docs/phase3-audit.md`。**真正延后到 P2/P-1 的：** 真实日志截断/文件删除、RBAC、分布式任务队列 — 这些会扩大安全面或超出比赛交付价值。
 
 ## Build / Run
 
-Backend is live on master; frontend lives on `feature/phase2-frontend-demo`. Worktree path: `.worktrees/phase2-frontend-demo`.
+backend/ 与 frontend/ 均在 master。Worktree 仅在隔离修改时按需创建。
 
 ```bash
-# Backend — compile, test, package (run from worktree)
-cd "D:/Work/code/kylin-ops/.worktrees/phase2-frontend-demo"
-mvn -f backend/pom.xml test                         # 225+ on master; more on feature branch
-mvn -f backend/pom.xml clean package -DskipTests    # → backend/target/kylin-ops-guard.jar
+# Backend — compile, test, package
+cd backend
+mvn -B test                                         # 280/280 on master
+mvn -B clean package -DskipTests                    # → backend/target/kylin-ops-guard.jar
 java -jar backend/target/kylin-ops-guard.jar        # http://localhost:8080
 curl http://localhost:8080/api/health               # expect {"status":"UP"}
 curl -X POST http://localhost:8080/api/chat/send \
   -H "Content-Type: application/json" \
   -d '{"content":"你好"}'
 
-# Frontend (Phase 2 — worktree)
-cd "D:/Work/code/kylin-ops/.worktrees/phase2-frontend-demo/frontend"
+# Frontend
+cd frontend
 npm install
 npm run dev                                         # Vite dev server (127.0.0.1:5173, proxy /api → :8080)
-npm run test:unit -- --run
+npm run test:unit -- --run                          # 163/163 on master
 npm run build                                       # → frontend/dist
 npx playwright install chromium
 npm run test:e2e                                    # E2E with mock interception
 E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts
 
-# Environment validation on Kylin / LoongArch (after Task 20)
+# Environment validation on Kylin / LoongArch (Task 20)
 bash deploy/scripts/check-env.sh
 bash deploy/scripts/start-backend.sh
 bash deploy/scripts/start-frontend.sh
+# 演示数据 seeding (Task 18)
+sudo bash deploy/scripts/seed-demo.sh
 ```
 
-Full manual smoke + acceptance checklist: `docs/test/phase2-acceptance-guide.md`.
+Full manual smoke + acceptance checklist: `docs/test/phase2-acceptance-guide.md`（前端演示回归） 与 `docs/test/phase2-demo-acceptance.md`（4 个演示场景录像脚本）。
 
 Performance budgets to hit (PRD §12.3): single tool ≤ 3s, risk check ≤ 1s, full health check ≤ 30s, normal chat ≤ 10s, report gen ≤ 5s.
 
