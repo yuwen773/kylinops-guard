@@ -366,7 +366,7 @@ Playwright 官方镜像无 LoongArch Chromium 构建。**降级方案**：跳过
 3. 打包为 `kylinops-guard.tar.gz`
 4. 上传到 GitHub Releases（永久存储，公开下载无需认证）
 
-Release 页面：https://github.com/yuwen773/kylinops-guard-/releases
+Release 页面：https://github.com/yuwen773/kylinops-guard/releases
 
 ### 12.3 一键更新命令
 
@@ -413,10 +413,10 @@ mkdir -p ~/kylinops-guard && cd ~/kylinops-guard
 
 # 4. 下载 deploy 脚本目录
 #    首次可用 git clone（如果 VM 有 git）或手动上传 deploy/ 目录
-git clone https://github.com/yuwen773/kylinops-guard-.git .
+git clone https://github.com/yuwen773/kylinops-guard.git .
 #    或: 下载 Release tarball
 #    curl -fLSo kylinops-guard.tar.gz \
-#      https://github.com/yuwen773/kylinops-guard-/releases/latest/download/kylinops-guard.tar.gz
+#      https://github.com/yuwen773/kylinops-guard/releases/latest/download/kylinops-guard.tar.gz
 #    tar xzf kylinops-guard.tar.gz
 
 # 5. 首次启动
@@ -434,7 +434,7 @@ git add -A && git commit -m "feat: ..."
 git push origin master
 
 # CI 自动跑测试 + 构建（约 3-5 分钟）
-# 查看: https://github.com/yuwen773/kylinops-guard-/actions
+# 查看: https://github.com/yuwen773/kylinops-guard/actions
 
 # 发布新版本（可选，不急着发布时可跳过）
 git tag v0.5.0 && git push origin v0.5.0

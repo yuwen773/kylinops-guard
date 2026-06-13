@@ -28,7 +28,7 @@ set -euo pipefail
 
 # ---- 仓库配置 ----
 REPO_OWNER="yuwen773"
-REPO_NAME="kylinops-guard-"
+REPO_NAME="kylinops-guard"
 RELEASE_API="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
 DOWNLOAD_BASE="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
 
