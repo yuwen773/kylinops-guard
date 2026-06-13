@@ -138,10 +138,7 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 
 ## 四演示场景
 
-1. **系统健康检查** — 多 Tool 发散 → 健康评分 + 报告
-2. **磁盘诊断** — 根因分析 + 安全清理建议 (需 CONFIRM)
-3. **服务诊断 + L2 确认** — nginx 检查 + 安全重启流程
-4. **危险命令阻断** — rm -rf / + Prompt Injection → BLOCK + 审计
+四个 P0 场景的输入/预期/验收点（系统健康检查、磁盘诊断、服务诊断+L2、危险命令拦截）见 [`CLAUDE.md` §Four Demo Scenarios](CLAUDE.md#four-demo-scenarios-the-architecture-must-support-these)。验收记录与 Windows / LoongArch 区分见 [`docs/test/phase2-demo-acceptance.md`](docs/test/phase2-demo-acceptance.md)。
 
 ## Phase 2 — 六页面前端
 
@@ -153,9 +150,6 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 | SecurityCenter | `/security` | 风险规则目录 + 拦截事件流（GET-only） |
 | AuditLog | `/audit` | 审计筛选 + 详情回放（关联 `auditId`） |
 | ReportCenter | `/reports` | 报告列表 + `sourceAuditId` 反查回审计 |
-
-详细验收记录、四演示场景 manual smoke 清单与 Windows / LoongArch 区分，参见
-[`docs/test/phase2-demo-acceptance.md`](docs/test/phase2-demo-acceptance.md)。
 
 ## 安全红线
 

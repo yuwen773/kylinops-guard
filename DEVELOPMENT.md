@@ -1,6 +1,8 @@
 # 开发规范 v0.1
 
 > 麒麟安全智能运维 Agent 开发规范文档
+>
+> **优先级**：本文件是面向人类开发者的编码规范参考。**安全红线、架构强制点** 见 [`CLAUDE.md` §Hard Rules](CLAUDE.md) —— 那部分 agent 必须读，本文件不重复。
 
 ## 1. 代码规范
 
@@ -31,16 +33,7 @@
 
 ## 2. 安全规范
 
-详见 CLAUDE.md §Hard Rules，此处列出关键约束：
-
-1. **不实现原始命令执行端点**
-2. **用户输入绝不直接拼接 Shell**
-3. **所有 Tool 必须在 ToolRegistry 注册**
-4. **RiskCheck 必须在执行前进行**
-5. **L3/L4 操作无条件阻断**
-6. **Prompt Injection 检查必须先于意图识别**
-7. **最小权限执行**
-8. **全链路审计**
+8 条安全红线全部见 [`CLAUDE.md` §Hard Rules](CLAUDE.md#hard-rules-from-开发任务卡--2--技术栈方案--14)。
 
 ## 3. 测试规范
 
@@ -48,6 +41,7 @@
 - 集成测试覆盖所有 REST 端点
 - 安全测试覆盖所有 L3/L4 阻断场景
 - 使用 JUnit 5 + AssertJ + Mockito
+- 端到端：Playwright mock + live 双模式
 
 ## 4. Git 规范
 

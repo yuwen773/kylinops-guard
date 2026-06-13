@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Status
 
-**Phase 1 (后端安全闭环) 与 Phase 2 (前端演示闭环) 均已完成并通过验收 — backend/ + frontend/ 已合入 master；后端 280/280 + 前端 163/163 测试全绿。** Phase 3（执行 + 报告模块）核心能力已实现，3 个 Task 06 扩展工具正式豁免（详见 `docs/phase3-audit.md`）。The eight `*.md` files in the root are the v0.1 product/architecture/task specs (all in Chinese) that define what is to be built. The specs remain the source of truth; any code change that deviates from a spec must update the spec too.
+**Phase 1–4 全部完成并通过验收** — 后端 280/280 + 前端 163/163 + Playwright mock:13 + live:3 全绿。Phase 3 三个 Task 06 扩展工具已正式豁免（`docs/phase3-audit.md`）。CI/CD 已上线：`.github/workflows/ci.yml` 自动跑测试 + 打包 Release + VM `update.sh` 一键更新。LoongArch 64 端到端验证：`docs/test/phase2-demo-acceptance.md §6.2`（待最终回填）。
 
-**Next:** Phase 4 (交付材料) — Task 18 → 19 → 20 → 21 — see §Development Order below.
+The eight `*.md` files at the repo root are v0.1 product/architecture/task specs (all in Chinese) — the source of truth. Any code change that deviates from a spec must update the spec too.
 
-Before writing code, read these specs in this order — they are the source of truth and override assumptions from training data:
+Before writing code, read these specs in this order — they override assumptions from training data:
 
 1. `麒麟安全智能运维 Agent PRD v0.1.md` — what to build
 2. `麒麟安全智能运维 Agent 技术栈选型与架构落地方案 v0.1.md` — locked tech stack and Coding Agent constraints (§14)
@@ -17,7 +17,7 @@ Before writing code, read these specs in this order — they are the source of t
 5. `MVP 功能优先级与版本路线 v0.1.md` — what is P0 (must) vs P1 (nice) vs P-1 (forbidden)
 6. `演示视频脚本 v0.1.md` — the 6:30 demo video script; constrains the ChatConsole UI (quick-action buttons), defines required seed data, and is the implicit acceptance test for the whole project
 
-(`麒麟安全智能运维 Agent P0 开发启动包 v0.1.md` is currently empty — 0 bytes — ignore until populated. `麒麟安全智能运维 Agent 产品定义 v0.1.md` overlaps heavily with PRD and Architecture; skip on a second pass.)
+(`麒麟安全智能运维 Agent P0 开发启动包 v0.1.md` is empty — 0 bytes — ignore. `麒麟安全智能运维 Agent 产品定义 v0.1.md` overlaps with PRD/Architecture; skip on second pass.)
 
 The product name is **麒麟安全智能运维 Agent** (codename: *KylinOps Guard* / *麒麟智维盾*). It is a competition entry targeting Kylin Advanced Server V11 on LoongArch.
 
@@ -165,23 +165,6 @@ Spec-mandated task sequence (任务卡 §4, MVP 路线 §15). Don't reorder — 
 - **Phase 4 — delivery materials (current):** Task 18 → 19 → 20 → 21
 
 Phase 1+2 提供端到端安全闭环：自然语言 → Agent 编排 → MCP Tool → RiskCheck → L2 确认 → 执行 → 审计 → 报告，全链路通过前端可演示。`POST /api/chat/send`、5 个快捷按钮、4 个演示场景全部跑通。测试基线：后端 280/280 + 前端 163/163 + Playwright E2E mock+live 双模式。
-
-**Phase 1 安全闭环状态（2026-06-11 验收）：**
-安全闭环实现包括：
-- 配置化风险规则引擎 (RiskRuleEngine) + P0 规则 YAML 文件
-- 前置风险校验服务 (RiskCheckService.checkPlan) — 执行前决策
-- Prompt Injection 检测器讨论语境豁免（无误拦截）
-- 持久化待确认动作 (PendingAction) + 生命周期管理
-- 白名单安全执行器 (SafeExecutor) — 仅支持预定义动作
-- /api/actions/confirm 确认/取消 API — 不接受命令注入
-- AgentOrchestrator 编排顺序修复：审计→注入检测→规划→风险校验→执行
-- 健康检查 6 工具并行批次修复 (order=0)
-- service_status_tool, journal_log_tool 已实现并注册
-- 审计模型扩展 (matchedRules, confirmation, executionResult 等)
-- AuditSanitizer 脱敏工具
-- GET /api/audit/logs 组合筛选+GET /api/audit/logs/{auditId} 详情聚合
-
-**Phase 3 状态（2026-06-13 核对）：** 核心能力已落地。3 个 Task 06 扩展工具（service_log_tool / zombie_process_scan_tool / port_conflict_check_tool）正式豁免 — 不影响 4 个 P0 演示场景，全部由现有 10 个 L0 工具覆盖。豁免依据见 `docs/phase3-audit.md`。**真正延后到 P2/P-1 的：** 真实日志截断/文件删除、RBAC、分布式任务队列 — 这些会扩大安全面或超出比赛交付价值。
 
 ## Build / Run
 
