@@ -6,7 +6,7 @@
 > **起始提交**：`528e510f3de4c0c96891c6dfb73a55cf4240f448`
 > **起始分支**：`feature/phase2-frontend-demo`
 > **目标提交**：`docs: 完成 Phase 2 演示闭环验收记录`
-> **验收日期**：2026-06-12
+> **验收日期**：2026-06-12；最终复验：2026-06-13
 > **v0.3-frontend-demo tag**：⚠️ **未创建** — 须经全局审查通过后方可打 tag
 
 ---
@@ -94,6 +94,21 @@ tsconfig 修复前 15 suite 无法 collect（0 tests 跑过），修复后 8 sui
 | `src/components/ReportPreview/index.spec.ts` | 1 | 同 ReportCenter 的 onerror 字面 vs escaped 文本冲突 |
 
 **处置**：列为 Phase 2.1 follow-up，并保持 Phase 2 发布门禁为 PARTIAL。修复应基于逐项根因分析；不得仅为迎合选择器而无依据地修改生产组件。
+
+### 1.4 2026-06-13 最终复验结论
+
+**结论：Phase 2 在 Windows 开发主机上的发布门禁为 PASS。§1.2、§1.3 记录的是修复过程中的历史状态，其中 26 个前端单元测试失败、Playwright 未安装和 E2E 未执行均已消解。LoongArch64 目标机验证仍属于 Phase 4 Task 20/21，不在本结论内。**
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| `mvn test` | **PASS** | `Tests run: 280, Failures: 0, Errors: 0, Skipped: 0`，BUILD SUCCESS |
+| `npm run test:unit -- --run` | **PASS** | 15 suites / 163 tests 全部通过 |
+| `npm run test:e2e` | **PASS** | 默认 mock 模式 13 passed / 3 live skipped / 0 failed |
+| `E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts` | **PASS** | 真后端 smoke 3 passed / 0 failed，覆盖健康接口、L4 BLOCK 和审计深链 |
+| `npm run build` | **PASS** | `vue-tsc --noEmit && vite build` 成功；仅保留 chunk size warning |
+| 后端启动与 `/api/health` | **PASS** | HTTP 200，统一响应中的 `data.status = "UP"` |
+| live health 契约修复 | **PASS** | `722e6d8` 修正测试从错误的 `body.status` 读取为 `body.data.status` |
+| **Windows 发布门禁** | **PASS** | 后端、unit、默认 E2E、live E2E、生产构建均通过 |
 
 环境补充：
 - Node.js `v22.21.0`，npm `11.16.0`
@@ -488,6 +503,20 @@ git commit -m "docs: 完成 Phase 2 演示闭环验收记录"
 | Live smoke §5.5 全 PASS | `NO（未执行）` | 不得视为通过 |
 | LoongArch 实测环境 | `未执行` | 由 Task 20/21 后续回填 |
 | **结论** | **PARTIAL** | 原 5 FAIL 项中 4 项已修、E2E 受网络阻塞；前端仍有 26 个失败尚待逐项归因，列为 Phase 2.1 follow-up |
+
+### 11.3 最终复验（2026-06-13）
+
+| 字段 | 实际值 | 备注 |
+|---|---|---|
+| 后端 `mvn test` | `280 / 0 / 0 / 0` | tests / failures / errors / skipped |
+| 前端 unit tests | `163 passed` | 15 suites 全绿 |
+| 前端 E2E 默认模式 | `13 passed / 3 skipped / 0 failed` | 3 条 skipped 为显式 opt-in 的 live spec |
+| 前端 E2E live smoke | `3 passed / 0 failed` | 真实命中 `127.0.0.1:8080` 后端 |
+| 前端 build | `PASS` | `vue-tsc --noEmit && vite build` |
+| Playwright Chromium | `INSTALLED` | Windows 主机实际执行成功 |
+| 代码基线 commit SHA | `722e6d8` | 包含 live health 响应契约修复 |
+| LoongArch 实测环境 | `未执行` | 保留给 Phase 4 Task 20/21 |
+| **结论** | **PASS（Windows）** | Phase 2 收尾完成；不代表 LoongArch64 已验证 |
 
 ---
 
