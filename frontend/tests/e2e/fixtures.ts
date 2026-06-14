@@ -35,6 +35,7 @@ import type { DashboardOverview } from '../../src/types/dashboard';
 import type { ToolDefinition } from '../../src/types/tool';
 import type { ReportDetail, ReportSummary, ReportPage } from '../../src/types/report';
 import type { RiskDecision, RiskLevel } from '../../src/types/safety';
+import type { AuthSession } from '../../src/types/auth';
 
 // ---------------------------------------------------------------------------
 // ApiResponse envelope — mirrors com.kylinops.common.ApiResponse.
@@ -600,6 +601,34 @@ export function mockToolDefinitionList(): ToolDefinition[] {
     'service_status_tool',
     'journal_log_tool',
   ].map(mockToolDefinition);
+}
+
+// ---------------------------------------------------------------------------
+// AuthSession (POST /api/auth/login + GET /api/auth/session response.data).
+// Field names mirror com.kylinops.auth.AuthSessionResponse.
+// ---------------------------------------------------------------------------
+
+export interface AuthSessionFixtureOptions {
+  username?: string;
+  csrfToken?: string;
+  /** ISO-8601 string; defaults to a deterministic near-now value. */
+  loginAt?: string;
+  /** ISO-8601 string; defaults to loginAt + 8h. */
+  expiresAt?: string;
+  idleTimeout?: number;
+}
+
+const DEFAULT_LOGIN_AT = '2026-06-14T08:00:00Z';
+const DEFAULT_EXPIRES_AT = '2026-06-14T16:00:00Z';
+
+export function mockAuthSession(opts: AuthSessionFixtureOptions = {}): AuthSession {
+  return {
+    username: opts.username ?? 'admin',
+    csrfToken: opts.csrfToken ?? 'csrf-token-fixture-001',
+    loginAt: opts.loginAt ?? DEFAULT_LOGIN_AT,
+    expiresAt: opts.expiresAt ?? DEFAULT_EXPIRES_AT,
+    idleTimeout: opts.idleTimeout ?? 1800,
+  };
 }
 
 // ---------------------------------------------------------------------------
