@@ -17,3 +17,27 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+server:
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: KYLINOPS_SESSION
+        http-only: true
+        same-site: strict
+        path: /
+        secure: false   # dev HTTP 本地
+
+# ============================================================
+# P2-T2 单管理员登录 — dev 默认 BCrypt
+# password-hash 对应明文 "test-admin-pwd"
+# 生成命令：htpasswd -bnBC 10 "" "test-admin-pwd" | tr -d ':\n'
+# ============================================================
+kylinops:
+  auth:
+    username: ${KYLINOPS_ADMIN_USERNAME:admin}
+    password-hash: ${KYLINOPS_ADMIN_PASSWORD_HASH:$2a$10$ZZ80ReuZWzJ89A5VNHOMPOR4bEI22exOhHGtgeplOkwBwXGvQNAGS}
+    idle-timeout: 30m
+    absolute-timeout: 8h
+    max-failures: 5
+    lock-duration: 15m

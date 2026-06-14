@@ -22,3 +22,26 @@ spring:
   h2:
     console:
       enabled: false
+server:
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: KYLINOPS_SESSION
+        http-only: true
+        same-site: strict
+        path: /
+        secure: true   # prod 强制 HTTPS-only
+
+# ============================================================
+# P2-T2 单管理员登录 — prod 必须通过环境变量注入 hash（fail-closed）
+# KYLINOPS_ADMIN_PASSWORD_HASH 不能为空，否则 fail-closed validator 阻止启动
+# ============================================================
+kylinops:
+  auth:
+    username: ${KYLINOPS_ADMIN_USERNAME:admin}
+    password-hash: ${KYLINOPS_ADMIN_PASSWORD_HASH}    # 无默认值：env 缺失时 fail-closed 阻止启动
+    idle-timeout: 30m
+    absolute-timeout: 8h
+    max-failures: 5
+    lock-duration: 15m

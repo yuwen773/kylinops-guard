@@ -71,3 +71,16 @@ kylinops:
       - redis
       - ssh
       - docker
+  auth:
+    # 单管理员登录 — username 来自环境变量，默认 admin
+    username: ${KYLINOPS_ADMIN_USERNAME:admin}
+    # BCrypt hash — dev/test profile 在 application-{dev,test}.yml 中给出占位 hash
+    # 部署时必须显式注入 KYLINOPS_ADMIN_PASSWORD_HASH（fail-closed validator 检查）
+    password-hash: ${KYLINOPS_ADMIN_PASSWORD_HASH:}
+    idle-timeout: 30m
+    absolute-timeout: 8h
+    max-failures: 5
+    lock-duration: 15m
+    # /api/chat/send 限流：每会话每窗口最多请求数
+    chat-rate-limit: 30
+    chat-rate-window: 1m
