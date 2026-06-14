@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +24,13 @@ import java.util.stream.Collectors;
  * <p>
  * 捕获所有 Controller 层未处理的异常，转换为统一的 {@link ApiResponse} 格式返回。
  * </p>
+ *
+ * <h3>安全原则</h3>
+ * <ul>
+ *   <li>500 内部错误不泄漏异常详情，仅返回通用信息 + traceId</li>
+ *   <li>traceId 通过 {@link UUID#randomUUID()} 生成，与日志关联</li>
+ *   <li>4xx 错误可返回明确原因（输入校验等），不敏感</li>
+ * </ul>
  */
 @Slf4j
 @RestControllerAdvice
@@ -126,11 +134,17 @@ public class GlobalExceptionHandler {
 
     /**
      * 兜底 — 未捕获的异常
+     * <p>
+     * 安全脱敏：不返回异常详情（ex.getMessage()），仅返回通用信息 + traceId。
+     * 完整异常栈记录在日志中，traceId 可用于关联。
+     * </p>
      */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleUnhandledException(Exception ex) {
-        log.error("未捕获异常: ", ex);
-        return ApiResponse.error(500, "服务器内部错误: " + ex.getMessage());
+        String traceId = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 12);
+        log.error("未捕获异常 [traceId={}]: ", traceId, ex);
+        return ApiResponse.<Void>error(500, "服务器内部错误，请稍后重试")
+                .traceId(traceId);
     }
 }
