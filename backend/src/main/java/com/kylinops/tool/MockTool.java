@@ -3,8 +3,8 @@ package com.kylinops.tool;
 import com.kylinops.common.enums.PermissionType;
 import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.common.enums.ToolStatus;
-import jakarta.persistence.Column;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -19,6 +19,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@Profile({"dev", "test"})
 public class MockTool implements OpsTool {
 
     private static final String TOOL_NAME = "mock_tool";

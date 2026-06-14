@@ -1,5 +1,6 @@
 # ============================================================
-# 麒麟安全智能运维 Agent — Application Configuration
+# 麒麟安全智能运维 Agent — 共享配置（所有 Profile）
+# Profile 特定配置见 application-{dev,test,prod}.yml
 # ============================================================
 
 server:
@@ -20,28 +21,6 @@ spring:
   application:
     name: kylin-ops-guard
 
-  # H2 File Mode (P0)
-  datasource:
-    url: jdbc:h2:file:./data/kylinops;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    driver-class-name: org.h2.Driver
-    username: kylinops
-    password: kylinops
-  # Flyway 由 test profile 显式启用；默认 dev profile 仍由 JPA ddl-auto: update 维护 schema。
-  # Phase 1 Task 3 拆分 dev/test/postgres profile 后会改为 dev 默认启用 Flyway。
-  flyway:
-    enabled: false
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
-  # JPA / Hibernate
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    open-in-view: false
-
   # Jackson serialization
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -50,11 +29,13 @@ spring:
 
   # Multipart 上限：用于文件上传端点（非 chat 路径）。chat 走 JSON @RequestBody，
   # 由 ChatRequest.content @Size(16384) 在应用层校验，与 multipart 配置无关。
-  # max-request-size = 整个 multipart 请求体上限；max-file-size = 单个文件上限。
   servlet:
     multipart:
       max-request-size: 32MB
       max-file-size: 32MB
+
+  jpa:
+    open-in-view: false
 
 # ============================================================
 # Application custom configuration

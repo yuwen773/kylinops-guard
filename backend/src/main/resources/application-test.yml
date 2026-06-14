@@ -1,9 +1,8 @@
-# Test profile 覆盖（叠加在 src/main/resources/application-test.yml 之上）
-# 仅在 @ActiveProfiles("test") 的测试类中生效。
+# ============================================================
+# Test Profile — H2 内存数据库 + Flyway 迁移验证
+# ============================================================
 spring:
   datasource:
-    # 测试用 H2 内存 —— 与 application-test.yml 一致，此处显式声明以
-    # 覆盖任何 CI 环境变量或父配置中的引用。
     url: jdbc:h2:mem:kylinops-test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
     driver-class-name: org.h2.Driver
     username: sa
@@ -14,8 +13,9 @@ spring:
     baseline-on-migrate: true
     placeholder-replacement: true
     placeholders:
+      # H2 兼容：CLOB 而非 TEXT
       lob_type: CLOB
   jpa:
     hibernate:
       ddl-auto: validate
-    open-in-view: false
+    show-sql: false
