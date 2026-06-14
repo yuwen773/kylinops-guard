@@ -4,6 +4,7 @@ import com.kylinops.agent.ToolPlanningService.ExecutionMode;
 import com.kylinops.agent.ToolPlanningService.ToolPlan;
 import com.kylinops.agent.ToolPlanningService.ToolStep;
 import com.kylinops.agent.intelligence.HybridIntentService;
+import com.kylinops.agent.intelligence.HybridResponseService;
 import com.kylinops.agent.intelligence.IntentResolution;
 import com.kylinops.audit.AuditLogService;
 import com.kylinops.chat.Message;
@@ -79,6 +80,7 @@ public class AgentOrchestrator {
     private final ToolExecutor toolExecutor;
     private final RiskCheckService riskCheckService;
     private final AgentResponseBuilder responseBuilder;
+    private final HybridResponseService hybridResponseService;
     private final AuditLogService auditLogService;
     private final ActionConfirmService actionConfirmService;
     private final SessionRepository sessionRepository;
@@ -240,9 +242,12 @@ public class AgentOrchestrator {
             }
 
             // ── Step 8: 生成回复 ──
+            // P3-T4: HybridResponseService 接管生成回复
+            // - BLOCK/CONFIRM/GENERAL_CHAT/UNKNOWN/空 results → 立即走 AgentResponseBuilder (fail-closed)
+            // - ALLOW + 非空 results → 尝试 LLM 增强（校验失败回退模板）
             String answer = isDiscussionContext(request.getUserInput())
                     ? buildDiscussionAnswer(request.getUserInput())
-                    : responseBuilder.build(intent, toolResults, decision,
+                    : hybridResponseService.build(intent, toolResults, decision,
                             riskResult.getReason(), riskLevel);
 
             // ── Step 9: 创建助手消息 ──

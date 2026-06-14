@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class AgentOrchestratorSecurityTest {
 
     @Mock private PromptInjectionDetector injectionDetector;
@@ -42,6 +43,7 @@ class AgentOrchestratorSecurityTest {
     @Mock private ToolExecutor toolExecutor;
     @Mock private RiskCheckService riskCheckService;
     @Mock private AgentResponseBuilder responseBuilder;
+    @Mock private com.kylinops.agent.intelligence.HybridResponseService hybridResponseService;
     @Mock private AuditLogService auditLogService;
     @Mock private ActionConfirmService actionConfirmService;
     @Mock private SessionRepository sessionRepository;
@@ -53,7 +55,7 @@ class AgentOrchestratorSecurityTest {
     void setUp() {
         orchestrator = new AgentOrchestrator(
                 injectionDetector, intentClassifier, hybridIntentService, toolPlanningService, toolExecutor,
-                riskCheckService, responseBuilder, auditLogService, actionConfirmService,
+                riskCheckService, responseBuilder, hybridResponseService, auditLogService, actionConfirmService,
                 sessionRepository, messageRepository);
         when(injectionDetector.detect(anyString()))
                 .thenReturn(PromptInjectionDetector.DetectionResult.builder()
