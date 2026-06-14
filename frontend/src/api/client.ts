@@ -1,5 +1,10 @@
-import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosHeaders, type AxiosInstance, type AxiosRequestConfig } from 'axios';
 import type { ApiResponse } from '@/types/api';
+import {
+  clearSession,
+  getCsrfToken,
+  triggerUnauthenticatedRedirect,
+} from '@/auth/session';
 
 /**
  * Custom error thrown by the unified API client. The frontend treats every
@@ -104,11 +109,48 @@ function buildClient(): AxiosInstance {
     baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
     timeout: 15_000,
     headers: { 'Content-Type': 'application/json' },
+    // Required: the backend session lives in a JSESSIONID cookie, and the
+    // dev server proxies `/api` to a different origin. Without
+    // `withCredentials: true` the browser would drop the cookie and the
+    // safety/audit loop would lose identity.
+    withCredentials: true,
   });
 
+  // ── Request interceptor: CSRF token injection ──────────────────────────
+  // Spring Security's default CsrfFilter expects the token in the
+  // `X-CSRF-TOKEN` header for any mutating request (POST/PUT/DELETE/PATCH).
+  // The token is sourced from the in-memory session (last filled by GET
+  // /api/auth/session or POST /api/auth/login). Safe methods (GET/HEAD/
+  // OPTIONS) intentionally skip injection — they would only widen the
+  // CSRF token's exposure surface.
+  instance.interceptors.request.use((config) => {
+    const method = (config.method ?? 'get').toUpperCase();
+    if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
+      const token = getCsrfToken();
+      if (token) {
+        // Use AxiosHeaders.set so we preserve interop with the headers
+        // object regardless of whether the caller passed plain object or
+        // AxiosHeaders.
+        const headers = AxiosHeaders.from(config.headers as AxiosHeaders);
+        headers.set('X-CSRF-TOKEN', token);
+        config.headers = headers;
+      }
+    }
+    return config;
+  });
+
+  // ── Response interceptor: 401 → drop session + redirect to /login ─────
+  // On any 401 (unauthenticated or session expired) we clear the in-memory
+  // auth state and trigger the redirect hook. The error still propagates as
+  // ApiError so the caller can render a message; the redirect just makes
+  // sure the user lands back on /login.
   instance.interceptors.response.use(
     (response) => response,
     (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        clearSession();
+        triggerUnauthenticatedRedirect();
+      }
       unwrapError(error);
     },
   );
