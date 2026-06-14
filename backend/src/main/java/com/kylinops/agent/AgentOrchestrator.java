@@ -3,6 +3,8 @@ package com.kylinops.agent;
 import com.kylinops.agent.ToolPlanningService.ExecutionMode;
 import com.kylinops.agent.ToolPlanningService.ToolPlan;
 import com.kylinops.agent.ToolPlanningService.ToolStep;
+import com.kylinops.agent.intelligence.HybridIntentService;
+import com.kylinops.agent.intelligence.IntentResolution;
 import com.kylinops.audit.AuditLogService;
 import com.kylinops.chat.Message;
 import com.kylinops.chat.MessageRepository;
@@ -72,6 +74,7 @@ public class AgentOrchestrator {
 
     private final PromptInjectionDetector injectionDetector;
     private final IntentClassifier intentClassifier;
+    private final HybridIntentService hybridIntentService;
     private final ToolPlanningService toolPlanningService;
     private final ToolExecutor toolExecutor;
     private final RiskCheckService riskCheckService;
@@ -152,16 +155,24 @@ public class AgentOrchestrator {
                 return handleInjectionBlock(request, session, auditId, injection);
             }
 
-            // ── Step 4: 意图识别 ──
-            IntentType intent = intentClassifier.classify(request.getUserInput());
-            log.info("意图识别: input='{}' → {}", truncate(request.getUserInput(), 40), intent);
+            // ── Step 4: 意图识别（HybridIntentService: 规则优先 + LLM 后备） ──
+            // P3-T2 接管意图识别入口；IntentClassifier 仍由 HybridIntentService 内部调用
+            // （保留 IntentClassifier 注入以维持向后兼容与单元测试可用性）。
+            IntentResolution intentResolution = hybridIntentService.resolve(request.getUserInput());
+            IntentType intent = intentResolution.getIntentType();
+            log.info("意图识别: source={}, intent={}, confidence={}, input='{}'",
+                    intentResolution.getSource(), intent, intentResolution.getConfidence(),
+                    truncate(request.getUserInput(), 40));
 
             // 更新审计日志的意图类型
             auditLogService.updateAuditLog(auditId, null, null,
                     null, null, null, intent);
 
             // ── Step 5: 工具规划 ──
-            Map<String, Object> params = extractParams(request.getUserInput(), intent);
+            // params 优先取 LLM 提取（allowlist 已过滤），未提供时回退规则正则（PID/serviceName/operation）
+            Map<String, Object> params = mergeParams(
+                    intentResolution.getParams(),
+                    extractParams(request.getUserInput(), intent));
             ToolPlan plan = toolPlanningService.createPlan(intent, params);
             log.info("工具计划: steps={}", plan.getSteps().size());
 
@@ -399,6 +410,24 @@ public class AgentOrchestrator {
     }
 
     // ==================== 参数提取 ====================
+
+    /**
+     * 合并 LLM 提取的参数与规则正则兜底参数。
+     * <p>LLM 提取的 key 优先级低于规则正则提取（规则正则更可信、确定性更高）。
+     * 仅在规则正则未提取到时使用 LLM 的值。</p>
+     */
+    private Map<String, Object> mergeParams(Map<String, Object> llmParams,
+                                            Map<String, Object> ruleParams) {
+        if (llmParams == null || llmParams.isEmpty()) {
+            return ruleParams;
+        }
+        if (ruleParams == null || ruleParams.isEmpty()) {
+            return llmParams;
+        }
+        Map<String, Object> merged = new HashMap<>(llmParams);
+        merged.putAll(ruleParams);
+        return merged;
+    }
 
     /**
      * 从用户输入中提取结构化的工具参数。
