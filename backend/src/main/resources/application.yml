@@ -26,6 +26,10 @@ spring:
     driver-class-name: org.h2.Driver
     username: kylinops
     password: kylinops
+  # Flyway 由 test profile 显式启用；默认 dev profile 仍由 JPA ddl-auto: update 维护 schema。
+  # Phase 1 Task 3 拆分 dev/test/postgres profile 后会改为 dev 默认启用 Flyway。
+  flyway:
+    enabled: false
   h2:
     console:
       enabled: true

@@ -51,6 +51,23 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Flyway (Phase 1 Runtime/Database: P1 切 PostgreSQL 时由迁移脚本管理 schema) -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL JDBC (P1) -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Lombok (optional, for cleaner POJOs) -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -74,6 +91,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Testcontainers PostgreSQL: 后续 Task 3 集成测试使用，本 Task 引入是为 Phase 1 数据库强化做准备 -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
