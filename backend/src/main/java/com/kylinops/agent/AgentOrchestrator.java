@@ -127,8 +127,23 @@ public class AgentOrchestrator {
             Message userMessage = createUserMessage(session, request.getUserInput(), auditId);
 
             // ── Step 2: 创建审计日志（先于一切，保证每请求有记录） ──
-            auditLogService.createAuditLog(auditId, session.getSessionId(),
-                    request.getUserInput(), IntentType.UNKNOWN, AuditStatus.RECEIVED);
+            // 审计创建失败 → 不进 tool chain → 直接返回 BLOCK（fail-closed）
+            try {
+                auditLogService.createAuditLog(auditId, session.getSessionId(),
+                        request.getUserInput(), IntentType.UNKNOWN, AuditStatus.RECEIVED);
+            } catch (Exception e) {
+                log.error("审计日志创建失败，阻断请求: auditId={}", auditId, e);
+                return AgentResult.builder()
+                        .sessionId(session.getSessionId())
+                        .answer("审计日志创建失败，请求被阻断。")
+                        .intentType(IntentType.UNKNOWN)
+                        .toolCalls(List.of())
+                        .riskLevel(RiskLevel.L4)
+                        .riskDecision("BLOCK")
+                        .auditId(auditId)
+                        .errorMessage("audit creation failed: " + e.getMessage())
+                        .build();
+            }
 
             // ── Step 3: Prompt 注入检测 ──
             PromptInjectionDetector.DetectionResult injection =
