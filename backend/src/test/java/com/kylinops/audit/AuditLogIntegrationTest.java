@@ -10,6 +10,7 @@ import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.executor.ActionConfirmService;
+import com.kylinops.executor.AuthenticatedOperator;
 import com.kylinops.executor.ExecutionPlan;
 import com.kylinops.executor.ExecutionResult;
 import com.kylinops.executor.PendingAction;
@@ -223,7 +224,8 @@ class AuditLogIntegrationTest {
         assertThat(waiting.getStatus()).isEqualTo(PendingActionStatus.WAITING);
         assertThat(waiting.getAuditId()).isEqualTo(auditId);
 
-        PendingAction executed = actionConfirmService.confirmAction(waiting.getActionId(), true);
+        PendingAction executed = actionConfirmService.confirmAction(
+                waiting.getActionId(), true, AuthenticatedOperator.ANONYMOUS);
 
         assertThat(executed.getStatus()).isEqualTo(PendingActionStatus.SUCCESS);
         assertThat(executed.getExecutionResult()).contains("restart complete");

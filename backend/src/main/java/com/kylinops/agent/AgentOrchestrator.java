@@ -13,6 +13,7 @@ import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.executor.ActionConfirmService;
+import com.kylinops.executor.AuthenticatedOperator;
 import com.kylinops.executor.PendingAction;
 import com.kylinops.executor.PendingActionStatus;
 import com.kylinops.security.PromptInjectionDetector;
@@ -188,6 +189,7 @@ public class AgentOrchestrator {
                     PendingAction pa = actionConfirmService.createAction(
                             auditId,
                             session.getSessionId(),
+                            request.getOperator() != null ? request.getOperator() : AuthenticatedOperator.ANONYMOUS,
                             plan.getAction().getActionType(),
                             plan.getAction().getTarget(),
                             plan.getAction().getParams(),
@@ -539,5 +541,7 @@ public class AgentOrchestrator {
         private String sessionId;
         private String userInput;
         private String requestId;
+        /** 已认证操作者身份（L2 归属校验用），由 ChatService 从 HTTP 请求上下文提取 */
+        private AuthenticatedOperator operator;
     }
 }

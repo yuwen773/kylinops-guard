@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kylinops.agent.ToolPlanningService.ToolPlan;
 import com.kylinops.agent.ToolPlanningService.ActionPlan;
 import com.kylinops.audit.AuditLogService;
+import com.kylinops.common.BusinessException;
 import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
@@ -61,7 +62,7 @@ public class ActionConfirmService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    public PendingAction createAction(String auditId, String sessionId,
+    public PendingAction createAction(String auditId, String sessionId, AuthenticatedOperator operator,
                                       String actionType, String toolName,
                                       Map<String, Object> params, RiskLevel riskLevel) {
         return transactionTemplate.execute(status -> {
@@ -75,6 +76,8 @@ public class ActionConfirmService {
             action.setActionId(UUID.randomUUID().toString());
             action.setAuditId(auditId);
             action.setSessionId(sessionId);
+            action.setCreatorPrincipal(operator.principal());
+            action.setCreatorAuthSessionId(operator.authSessionId());
             action.setActionType(actionType);
             action.setToolName(toolName);
             action.setParamsJson(toJson(params));
@@ -107,11 +110,11 @@ public class ActionConfirmService {
      * 后续清理。Phase 3 再考虑在 controller 层降级返回（带降级 audit 行）。
      * </p>
      */
-    public PendingAction confirmAction(String actionId, boolean confirm) {
+    public PendingAction confirmAction(String actionId, boolean confirm, AuthenticatedOperator operator) {
         if (!confirm) {
-            return cancelWaitingAction(actionId);
+            return cancelWaitingAction(actionId, operator);
         }
-        PendingAction claimed = claimForExecution(actionId);
+        PendingAction claimed = claimForExecution(actionId, operator);
         ExecutionOutcome outcome = executeConfirmedAction(claimed);
         return finalizeAction(claimed, outcome);
     }
@@ -127,13 +130,14 @@ public class ActionConfirmService {
      * audit 写入失败时异常向上传播，事务回滚让 status 保持 WAITING。
      * </p>
      */
-    public PendingAction cancelWaitingAction(String actionId) {
+    public PendingAction cancelWaitingAction(String actionId, AuthenticatedOperator operator) {
         return transactionTemplate.execute(status -> {
             LocalDateTime now = LocalDateTime.now();
-            int cancelled = repository.claimWaitingAction(
-                    actionId, PendingActionStatus.WAITING, PendingActionStatus.CANCELLED, now);
+            int cancelled = repository.claimOwnedWaitingAction(
+                    actionId, PendingActionStatus.WAITING, PendingActionStatus.CANCELLED, now,
+                    operator.principal(), operator.authSessionId());
             if (cancelled != 1) {
-                throw claimFailedError(actionId);
+                throw claimFailedWithOwnershipCheck(actionId, operator, now);
             }
             PendingAction cancelledAction = findByActionId(actionId);
             // 不再 try/catch：audit 失败 → 异常向上传播 → 事务回滚 → status 仍是 WAITING。
@@ -154,13 +158,14 @@ public class ActionConfirmService {
      * 错误消息区分「已过期」与「已被并发 claim」两种情形，方便调用方和审计定位。
      * </p>
      */
-    public PendingAction claimForExecution(String actionId) {
+    public PendingAction claimForExecution(String actionId, AuthenticatedOperator operator) {
         return transactionTemplate.execute(status -> {
             LocalDateTime now = LocalDateTime.now();
-            int claimed = repository.claimWaitingAction(
-                    actionId, PendingActionStatus.WAITING, PendingActionStatus.EXECUTING, now);
+            int claimed = repository.claimOwnedWaitingAction(
+                    actionId, PendingActionStatus.WAITING, PendingActionStatus.EXECUTING, now,
+                    operator.principal(), operator.authSessionId());
             if (claimed != 1) {
-                throw claimFailedError(actionId);
+                throw claimFailedWithOwnershipCheck(actionId, operator, now);
             }
             // 同一事务内 findByActionId，可见 claim 后的最新状态。
             return findByActionId(actionId);
@@ -314,6 +319,35 @@ public class ActionConfirmService {
      * 错误消息按当前 DB 状态分流，避免误导调用方。
      * </p>
      */
+    /**
+     * claim 失败时先检查是否为跨会话归属不匹配，再 fallback 到 {@link #claimFailedError}。
+     * <p>
+     * {@link PendingActionRepository#claimOwnedWaitingAction} 的 WHERE 子句同时校验
+     * status、expiresAt、creatorPrincipal、creatorAuthSessionId。当返回 0 时，
+     * 可能是过期、被并发 claim、或归属不匹配。本方法先排查归属不匹配（403），
+     * 再由 claimFailedError 区分过期 vs 并发（400）。
+     * </p>
+     */
+    private RuntimeException claimFailedWithOwnershipCheck(String actionId,
+                                                                   AuthenticatedOperator operator,
+                                                                   LocalDateTime now) {
+        PendingAction current = findByActionId(actionId);
+        // 状态 WAITING + 未过期 + 归属不匹配 → 403
+        if (current.getStatus() == PendingActionStatus.WAITING
+                && current.getExpiresAt().isAfter(now)) {
+            if (!operator.principal().equals(current.getCreatorPrincipal())) {
+                return BusinessException.forbidden(
+                        "pending action was created by a different user");
+            }
+            if (!operator.authSessionId().equals(current.getCreatorAuthSessionId())) {
+                return BusinessException.forbidden(
+                        "pending action was created in a different session");
+            }
+        }
+        // 过期/并发 → 400 (IllegalStateException)
+        return claimFailedError(actionId);
+    }
+
     private IllegalStateException claimFailedError(String actionId) {
         PendingAction current = findByActionId(actionId);
         if (current.getStatus() == PendingActionStatus.EXPIRED) {

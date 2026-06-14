@@ -82,7 +82,7 @@ class SessionExpiryAndRateLimitTest {
                 .sessionId("test-session")
                 .answer("ok")
                 .build();
-        Mockito.when(chatService.processMessage(Mockito.anyString(), Mockito.any()))
+        Mockito.when(chatService.processMessage(Mockito.anyString(), Mockito.any(), Mockito.any()))
                 .thenReturn(ok);
         // 用 JDK 11+ java.net.http.HttpClient 避开 HttpURLConnection 401 streaming bug
         HttpClient httpClient = HttpClient.newBuilder().build();

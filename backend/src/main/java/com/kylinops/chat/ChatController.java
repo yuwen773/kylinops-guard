@@ -2,6 +2,9 @@ package com.kylinops.chat;
 
 import com.kylinops.agent.AgentResult;
 import com.kylinops.common.ApiResponse;
+import com.kylinops.executor.AuthenticatedOperator;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -9,6 +12,8 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -23,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
  *   <li>所有输入必然经过 PromptInjectionDetector 检测</li>
  *   <li>写操作必然经过 RiskCheckService 校验</li>
  *   <li>每次请求写入审计日志</li>
+ *   <li>已认证操作者身份从 SecurityContext + HttpSession 提取，用于 L2 动作归属</li>
  * </ul>
  */
 @Slf4j
@@ -43,16 +49,31 @@ public class ChatController {
      * @return Agent 执行结果
      */
     @PostMapping(value = "/send", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResponse<AgentResult> send(@Valid @RequestBody ChatRequest request) {
+    public ApiResponse<AgentResult> send(@Valid @RequestBody ChatRequest request,
+                                          HttpServletRequest servletRequest) {
         log.info("POST /api/chat/send: content='{}', sessionId={}",
                 truncate(request.getContent(), 80), request.getSessionId());
 
-        AgentResult result = chatService.processMessage(request.getContent(), request.getSessionId());
+        AuthenticatedOperator operator = extractOperator(servletRequest);
+        AgentResult result = chatService.processMessage(
+                request.getContent(), request.getSessionId(), operator);
 
         log.info("POST /api/chat/send 响应: sessionId={}, intent={}, decision={}, auditId={}",
                 result.getSessionId(), result.getIntentType(), result.getRiskDecision(), result.getAuditId());
 
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 从 HTTP 请求上下文中提取已认证操作者身份。
+     */
+    private static AuthenticatedOperator extractOperator(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String principal = auth != null && auth.isAuthenticated()
+                ? auth.getName() : "anonymous";
+        HttpSession session = request.getSession(false);
+        String authSessionId = session != null ? session.getId() : "anonymous";
+        return new AuthenticatedOperator(principal, authSessionId);
     }
 
     /**

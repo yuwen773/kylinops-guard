@@ -5,6 +5,7 @@ import com.kylinops.agent.ToolPlanningService.ToolPlan;
 import com.kylinops.audit.AuditLog;
 import com.kylinops.audit.AuditLogRepository;
 import com.kylinops.audit.AuditLogService;
+import com.kylinops.common.BusinessException;
 import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
@@ -62,6 +63,11 @@ class ActionConfirmServiceTest {
     @MockBean
     private SafeExecutor safeExecutor;
 
+    private static final AuthenticatedOperator TEST_OPERATOR =
+            new AuthenticatedOperator("test-admin", "test-auth-session-1");
+    private static final AuthenticatedOperator OTHER_OPERATOR =
+            new AuthenticatedOperator("other-admin", "other-auth-session-2");
+
     @BeforeEach
     void setUp() {
         reset(riskCheckService, safeExecutor, auditLogService);
@@ -85,7 +91,7 @@ class ActionConfirmServiceTest {
     void confirmationRechecksStoredActionExecutesOnceAndPersistsResultAndAudit() {
         PendingAction action = createWaitingAction();
 
-        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true);
+        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR);
 
         assertThat(result.getStatus()).isEqualTo(PendingActionStatus.SUCCESS);
         assertThat(result.getExecutionResult()).contains("restart complete");
@@ -107,7 +113,7 @@ class ActionConfirmServiceTest {
     void cancellationAtomicallyTransitionsAndUpdatesAuditWithoutExecution() {
         PendingAction action = createWaitingAction();
 
-        PendingAction cancelled = actionConfirmService.confirmAction(action.getActionId(), false);
+        PendingAction cancelled = actionConfirmService.confirmAction(action.getActionId(), false, TEST_OPERATOR);
 
         assertThat(cancelled.getStatus()).isEqualTo(PendingActionStatus.CANCELLED);
         verifyNoInteractions(riskCheckService, safeExecutor);
@@ -122,7 +128,7 @@ class ActionConfirmServiceTest {
         action.setExpiresAt(LocalDateTime.now().minusSeconds(1));
         repository.saveAndFlush(action);
 
-        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true))
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("expired");
 
@@ -136,9 +142,9 @@ class ActionConfirmServiceTest {
     @Test
     void duplicateConfirmationNeverExecutesTwice() {
         PendingAction action = createWaitingAction();
-        actionConfirmService.confirmAction(action.getActionId(), true);
+        actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR);
 
-        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true))
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already processed");
 
@@ -153,7 +159,7 @@ class ActionConfirmServiceTest {
                         RiskLevel.L3, java.util.List.of("blocked_action"),
                         "action is no longer permitted", "do not execute"));
 
-        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true);
+        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR);
 
         assertThat(result.getStatus()).isEqualTo(PendingActionStatus.FAILED);
         assertThat(result.getExecutionResult()).contains("action is no longer permitted");
@@ -169,7 +175,7 @@ class ActionConfirmServiceTest {
         action.setRiskLevel(RiskLevel.L3);
         repository.saveAndFlush(action);
 
-        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true);
+        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR);
 
         assertThat(result.getStatus()).isEqualTo(PendingActionStatus.FAILED);
         assertThat(result.getExecutionResult()).contains("persisted action is not L2");
@@ -183,7 +189,7 @@ class ActionConfirmServiceTest {
                 auditLogRepository.findByAuditId(action.getAuditId()).orElseThrow().getId());
         auditLogRepository.flush();
 
-        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true);
+        PendingAction result = actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR);
 
         assertThat(result.getStatus()).isEqualTo(PendingActionStatus.FAILED);
         assertThat(result.getExecutionResult()).contains("audit");
@@ -199,7 +205,7 @@ class ActionConfirmServiceTest {
 
         // 调用 confirmAction 时，claim 步骤的 WHERE 必须包含 expiresAt > now，
         // 避免「先读 snapshot 判定未过期、然后并发推到 claim 时正好过期」的空窗。
-        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true))
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("expired");
 
@@ -217,16 +223,16 @@ class ActionConfirmServiceTest {
         expired.setExpiresAt(LocalDateTime.now().minusSeconds(1));
         repository.saveAndFlush(expired);
 
-        assertThatThrownBy(() -> actionConfirmService.confirmAction(expired.getActionId(), true))
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(expired.getActionId(), true, TEST_OPERATOR))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("expired")
                 .hasMessageNotContaining("already processed");
 
         // Case 2: 第一次 confirm 成功后再次 confirm → 消息应包含 "already processed"。
         PendingAction claimed = createWaitingAction();
-        actionConfirmService.confirmAction(claimed.getActionId(), true);
+        actionConfirmService.confirmAction(claimed.getActionId(), true, TEST_OPERATOR);
 
-        assertThatThrownBy(() -> actionConfirmService.confirmAction(claimed.getActionId(), true))
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(claimed.getActionId(), true, TEST_OPERATOR))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already processed")
                 .hasMessageNotContaining("expired");
@@ -260,7 +266,7 @@ class ActionConfirmServiceTest {
     private Object confirmAfter(CountDownLatch start, String actionId) {
         try {
             start.await();
-            return actionConfirmService.confirmAction(actionId, true);
+            return actionConfirmService.confirmAction(actionId, true, TEST_OPERATOR);
         } catch (Exception e) {
             return e;
         }
@@ -278,7 +284,7 @@ class ActionConfirmServiceTest {
                         eq(action.getAuditId()), anyBoolean(), anyString());
 
         // 业务执行（safeExecutor）正常发生一次；audit 写入阶段抛异常向上传播。
-        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true))
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), true, TEST_OPERATOR))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("simulated audit confirmation failure");
 
@@ -301,11 +307,45 @@ class ActionConfirmServiceTest {
                 .when(auditLogService).updateAuditConfirmation(
                         eq(action.getAuditId()), anyBoolean(), anyString());
 
-        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), false))
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(action.getActionId(), false, TEST_OPERATOR))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("simulated cancel audit failure");
 
         // 关键断言：cancel 事务回滚 → status 仍是 WAITING（不是 CANCELLED）。
+        PendingAction reloaded = repository.findByActionId(action.getActionId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(PendingActionStatus.WAITING);
+        verifyNoInteractions(riskCheckService, safeExecutor);
+    }
+
+    @Test
+    @DisplayName("跨认证会话确认 → BusinessException(403)")
+    void crossSessionConfirmationThrowsForbidden() {
+        PendingAction action = createWaitingAction();
+
+        // 用 OTHER_OPERATOR（不同 principal + authSessionId）确认
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(
+                action.getActionId(), true, OTHER_OPERATOR))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("code", 403)
+                .hasMessageContaining("different");
+
+        // 确认动作未被 claim，仍为 WAITING
+        PendingAction reloaded = repository.findByActionId(action.getActionId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(PendingActionStatus.WAITING);
+        verifyNoInteractions(riskCheckService, safeExecutor);
+    }
+
+    @Test
+    @DisplayName("跨认证会话取消 → BusinessException(403)")
+    void crossSessionCancellationThrowsForbidden() {
+        PendingAction action = createWaitingAction();
+
+        assertThatThrownBy(() -> actionConfirmService.confirmAction(
+                action.getActionId(), false, OTHER_OPERATOR))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("code", 403)
+                .hasMessageContaining("different");
+
         PendingAction reloaded = repository.findByActionId(action.getActionId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(PendingActionStatus.WAITING);
         verifyNoInteractions(riskCheckService, safeExecutor);
@@ -319,6 +359,7 @@ class ActionConfirmServiceTest {
         return actionConfirmService.createAction(
                 auditId,
                 UUID.randomUUID().toString(),
+                TEST_OPERATOR,
                 "safe_service_restart",
                 "nginx",
                 Map.of("serviceName", "nginx"),
