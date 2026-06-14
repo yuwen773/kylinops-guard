@@ -45,3 +45,6 @@ kylinops:
     absolute-timeout: 8h
     max-failures: 5
     lock-duration: 15m
+  # P3-T1: prod 默认 LLM 关闭（fail-closed）— 部署时显式通过环境变量开启
+  llm:
+    enabled: false

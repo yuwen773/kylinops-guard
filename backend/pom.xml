@@ -105,6 +105,16 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+            MockWebServer (P3-T1: LLM client 测试用本地 mock HTTP server)。
+            体积小 (~150KB)，无外部依赖，用于断言 wire-level HTTP 请求。
+        -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>4.12.0</version>
+            <scope>test</scope>
+        </dependency>
         <!-- Testcontainers PostgreSQL: 后续 Task 3 集成测试使用，本 Task 引入是为 Phase 1 数据库强化做准备 -->
         <dependency>
             <groupId>org.testcontainers</groupId>

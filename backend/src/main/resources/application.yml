@@ -53,6 +53,14 @@ kylinops:
     base-url: ${LLM_BASE_URL:}
     api-key: ${LLM_API_KEY:}
     model: ${LLM_MODEL:deepseek-chat}
+    # 阶段超时（毫秒）— 意图阶段必须短，避免拖慢主链路；响应阶段允许略长
+    intent-timeout-ms: 3000
+    response-timeout-ms: 5000
+    # 意图置信度阈值（低于此值回退规则匹配）
+    confidence-threshold: 0.75
+    # 上下文字节上限（总 / 单工具）
+    max-context-bytes: 32768
+    max-tool-context-bytes: 4096
   security:
     # Maximum pending actions (L2 confirmations) per session
     max-pending-actions: 10
