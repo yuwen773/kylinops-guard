@@ -99,7 +99,35 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+            zonky embedded-postgres：Docker daemon 不可用时的显式降级（BLOCKED_EXTERNAL）。
+            仅 Phase 1 Task 2 FlywayPostgresMigrationTest 使用。
+            该工件不在 aliyun 镜像中，故下方额外声明 central-direct 仓库。
+        -->
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <version>2.0.7</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <repositories>
+        <!--
+            zonky embedded-postgres 不在 aliyun 镜像中，需直连 maven central。
+            仅测试作用域使用；生产运行时仍走 PostgreSQL JDBC。
+        -->
+        <repository>
+            <id>central-direct</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <build>
         <finalName>kylin-ops-guard</finalName>

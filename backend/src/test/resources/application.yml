@@ -8,6 +8,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    placeholder-replacement: true
+    placeholders:
+      # 默认 CLOB：H2 PG 模式 + @Lob 期望 CLOB 类型
+      lob_type: CLOB
   jpa:
     hibernate:
       ddl-auto: validate
