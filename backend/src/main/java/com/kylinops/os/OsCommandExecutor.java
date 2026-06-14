@@ -1,15 +1,18 @@
 package com.kylinops.os;
 
+import com.kylinops.config.RuntimeProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * OS 命令执行器
@@ -18,112 +21,301 @@ import java.util.concurrent.TimeUnit;
  * 所有 OS 感知 OpsTool 通过此执行器运行系统命令，禁止直接创建 ProcessBuilder。
  * </p>
  *
- * <h3>核心功能</h3>
+ * <h3>硬边界（P1-T4）</h3>
  * <ul>
- *   <li>命令可用性检测 — {@link #isCommandAvailable(String)}</li>
- *   <li>命令执行 — {@link #execute(List, long)}</li>
- *   <li>输出截断 — stdout 最多 64KB 或 500 行（先到者）</li>
- *   <li>硬超时 — 超过 timeoutMs 后 {@link Process#destroyForcibly()}</li>
- *   <li>错误处理 — 异常全部封装为 {@link CommandResult}，不抛异常</li>
+ *   <li>并发 drain — stdout/stderr 独立线程同时读取</li>
+ *   <li>硬超时 — 从 process.start() 起算，超时后 destroyForcibly + 清理子进程</li>
+ *   <li>输出上限 — 默认 1 MB / 1000 行每条流</li>
+ *   <li>有界线程池 — 最大 8 并发进程，等待队列 32</li>
+ *   <li>拒绝策略 — AbortPolicy，返回 {@link CommandResult#overloaded(String)}</li>
+ *   <li>子进程清理 — {@link ProcessHandle#descendants()} destroyForcibly</li>
+ *   <li>方法最迟在 timeoutMs+1s 内返回</li>
  * </ul>
  */
 @Slf4j
 @Component
 public class OsCommandExecutor {
 
-    /** 最大输出行数 */
-    static final int MAX_LINES = 500;
+    /** 最大输出行数（未配置 RuntimeProperties 时的默认值） */
+    static final int DEFAULT_MAX_LINES = 1000;
 
-    /** 最大输出字节数 (64 KB) */
-    static final int MAX_BYTES = 65536;
+    /** 最大输出字节数 (1 MB) */
+    static final int DEFAULT_MAX_BYTES = 1_048_576;
+
+    /** 默认最大并发进程数 */
+    static final int DEFAULT_MAX_PROCESSES = 8;
+
+    /** 默认等待队列容量 */
+    static final int DEFAULT_QUEUE_CAPACITY = 32;
+
+    private final RuntimeProperties props;
+    private final ThreadPoolExecutor processPool;
+
+    /**
+     * 构造带运行时属性的执行器（Spring 注入用）。
+     */
+    public OsCommandExecutor(RuntimeProperties props) {
+        this.props = props;
+        this.processPool = createProcessPool();
+        log.info("OsCommandExecutor 初始化: maxProcesses={}, queueCapacity={}, maxLines={}, maxBytes={}",
+                props.getMaxProcesses(), props.getQueueCapacity(),
+                props.getMaxLinesPerStream(), props.getMaxBytesPerStream());
+    }
+
+    /**
+     * 无参构造（测试直接实例化用），使用内置默认值。
+     */
+    public OsCommandExecutor() {
+        this.props = null; // 使用静态常量
+        this.processPool = createDefaultPool();
+    }
+
+    /**
+     * 创建有界线程池（生产路径）。
+     */
+    private ThreadPoolExecutor createProcessPool() {
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                props.getMaxProcesses(), props.getMaxProcesses(),
+                60L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(props.getQueueCapacity()),
+                new ThreadPoolExecutor.AbortPolicy()
+        );
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
+    }
+
+    /**
+     * 创建默认线程池（测试路径）。
+     */
+    private ThreadPoolExecutor createDefaultPool() {
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                DEFAULT_MAX_PROCESSES, DEFAULT_MAX_PROCESSES,
+                60L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(DEFAULT_QUEUE_CAPACITY),
+                new ThreadPoolExecutor.AbortPolicy()
+        );
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
+    }
+
+    // ==================== 公共方法 ====================
 
     /**
      * 执行系统命令并返回结果。
      * <p>
      * 命令以固定参数列表执行（禁止拼接用户输入），
-     * 自动处理超时、截断和异常。
+     * 自动处理并发 drain、超时、截断、子进程清理和异常。
      * </p>
      *
-     * @param command  命令 + 参数列表（如 ["df", "-h"]）
-     * @param timeoutMs 超时阈值（毫秒）
+     * @param command   命令 + 参数列表（如 ["df", "-h"]）
+     * @param timeoutMs 超时阈值（毫秒），从 process.start() 起算
      * @return 命令执行结果（永远不会返回 null）
      */
     public CommandResult execute(List<String> command, long timeoutMs) {
         long start = System.nanoTime();
-        List<String> stdout = new ArrayList<>();
-        List<String> stderr = new ArrayList<>();
-        boolean truncated = false;
-        int exitCode = -1;
-        String errorMessage = null;
 
         if (log.isDebugEnabled()) {
             log.debug("执行命令: {}", String.join(" ", command));
         }
 
         try {
+            // 提交到有界线程池，等待执行槽
+            Future<CommandResult> future = processPool.submit(() ->
+                    executeInternal(command, timeoutMs));
+
+            // 整体超时兜底：timeoutMs + cleanupBudget
+            long totalTimeout = timeoutMs + (props != null
+                    ? props.getCleanupBudget().toMillis()
+                    : 1000);
+            return future.get(totalTimeout, TimeUnit.MILLISECONDS);
+
+        } catch (RejectedExecutionException e) {
+            long elapsedNs = System.nanoTime() - start;
+            log.warn("执行器队列已满，拒绝命令: {}", String.join(" ", command));
+            return CommandResult.overloaded("执行器队列已满（最大 " + getMaxProcesses() + " 并发），请稍后重试", elapsedNs);
+
+        } catch (TimeoutException e) {
+            long elapsedNs = System.nanoTime() - start;
+            log.warn("等待执行槽超时 ({}ms): {}", timeoutMs, String.join(" ", command));
+            return new CommandResult(-1, List.of(), List.of(), false,
+                    "等待执行槽超时（阈值: " + timeoutMs + "ms）", elapsedNs);
+
+        } catch (ExecutionException e) {
+            long elapsedNs = System.nanoTime() - start;
+            Throwable cause = e.getCause();
+            String msg = cause != null ? cause.getMessage() : "未知执行异常";
+            log.debug("命令执行异常: {}", msg);
+            return new CommandResult(-1, List.of(), List.of(), false,
+                    "执行异常: " + msg, elapsedNs);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            long elapsedNs = System.nanoTime() - start;
+            return new CommandResult(-1, List.of(), List.of(), false,
+                    "执行被中断", elapsedNs);
+        }
+    }
+
+    /**
+     * 执行命令体（在线程池中运行）。
+     */
+    private CommandResult executeInternal(List<String> command, long timeoutMs) {
+        long processStart = System.nanoTime();
+        List<String> stdout = new ArrayList<>();
+        List<String> stderr = new ArrayList<>();
+        AtomicBoolean truncated = new AtomicBoolean(false);
+        Process process = null;
+
+        try {
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.redirectErrorStream(false);
-            Process process = pb.start();
+            Process proc = pb.start();
+            process = proc; // 赋值给外层变量用于 finally 清理
 
-            // 读取 stdout（含截断）
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                int totalBytes = 0;
-                while ((line = reader.readLine()) != null) {
-                    if (!truncated && stdout.size() < MAX_LINES && totalBytes < MAX_BYTES) {
-                        stdout.add(line);
-                        totalBytes += line.getBytes(StandardCharsets.UTF_8).length;
-                        if (stdout.size() >= MAX_LINES || totalBytes >= MAX_BYTES) {
-                            truncated = true;
-                        }
-                    }
-                    // 截断后继续消费流，防止进程阻塞
-                }
-            }
+            // 并发 drain stdout 和 stderr（使用 proc 局部变量，可被 lambda 有效 final 捕获）
+            CompletableFuture<List<String>> stdoutFuture = CompletableFuture.supplyAsync(
+                    () -> drainStream(proc.getInputStream(), truncated));
+            CompletableFuture<List<String>> stderrFuture = CompletableFuture.supplyAsync(
+                    () -> drainStream(proc.getErrorStream(), truncated));
 
-            // 读取 stderr
-            try (BufferedReader errorReader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = errorReader.readLine()) != null) {
-                    stderr.add(line);
-                }
-            }
+            // 硬超时：从 process.start() 起算
+            boolean finished = proc.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
 
-            // 等待完成或超时
-            boolean finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
             if (!finished) {
-                process.destroyForcibly();
-                long elapsedNs = System.nanoTime() - start;
+                // 超时 — 先清理子进程再 destroy
+                destroyDescendants(proc);
+                proc.destroyForcibly();
+
+                // 等待 drain 完成（在清理预算内）
+                long graceMs = props != null
+                        ? props.getGracefulKill().toMillis()
+                        : 250;
+                quietSleep(graceMs);
+
+                // 获取已 drain 的内容
+                try {
+                    stdout = stdoutFuture.getNow(new ArrayList<>());
+                    stderr = stderrFuture.getNow(new ArrayList<>());
+                } catch (Exception ignored) {
+                    // 忽略 drain 异常
+                }
+
+                long elapsedNs = System.nanoTime() - processStart;
                 log.warn("命令执行超时 ({}ms): {}", timeoutMs, String.join(" ", command));
-                return new CommandResult(-1, stdout, stderr, truncated,
-                        "工具执行超时（阈值: " + timeoutMs + "ms）",
-                        elapsedNs);
+                return new CommandResult(-1, stdout, stderr, true,
+                        "工具执行超时（阈值: " + timeoutMs + "ms）", elapsedNs);
             }
 
-            exitCode = process.exitValue();
+            // 进程正常结束 — 等待 drain 完成
+            try {
+                stdout = stdoutFuture.get(100, TimeUnit.MILLISECONDS);
+                stderr = stderrFuture.get(100, TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                // drain 应已完成；用 getNow 兜底
+                stdout = stdoutFuture.getNow(stdout);
+                stderr = stderrFuture.getNow(stderr);
+            }
+
+            int exitCode = proc.exitValue();
+            String errorMessage = null;
             if (exitCode != 0) {
                 String stderrText = stderr.isEmpty() ? "" : ", stderr: " + String.join("\n", stderr);
                 errorMessage = "命令退出码: " + exitCode + stderrText;
                 log.debug("命令执行异常退出 (exit={}): {}", exitCode, String.join(" ", command));
             }
 
+            long elapsedNs = System.nanoTime() - processStart;
+            return new CommandResult(exitCode, stdout, stderr, truncated.get(), errorMessage, elapsedNs);
+
         } catch (IOException e) {
-            errorMessage = "IO 异常: " + e.getMessage();
             log.debug("命令 IO 异常: {}", e.getMessage());
+            long elapsedNs = System.nanoTime() - processStart;
+            return new CommandResult(-1, stdout, stderr, false,
+                    "IO 异常: " + e.getMessage(), elapsedNs);
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            errorMessage = "执行被中断";
-            log.debug("命令执行被中断");
+            long elapsedNs = System.nanoTime() - processStart;
+            return new CommandResult(-1, stdout, stderr, false,
+                    "执行被中断", elapsedNs);
+
         } catch (Exception e) {
-            errorMessage = "未知异常: " + e.getMessage();
             log.debug("命令执行未知异常", e);
+            long elapsedNs = System.nanoTime() - processStart;
+            return new CommandResult(-1, stdout, stderr, false,
+                    "未知异常: " + e.getMessage(), elapsedNs);
+
+        } finally {
+            if (process != null && process.isAlive()) {
+                destroyDescendants(process);
+                process.destroyForcibly();
+            }
+        }
+    }
+
+    /**
+     * 并发 drain 一条流（stdout 或 stderr）。
+     * <p>
+     * 在 CompletableFuture 中运行，读取行并应用上限截断。
+     * </p>
+     */
+    private List<String> drainStream(InputStream inputStream, AtomicBoolean truncated) {
+        List<String> lines = new ArrayList<>();
+        int maxLines = props != null ? props.getMaxLinesPerStream() : DEFAULT_MAX_LINES;
+        int maxBytes = props != null ? props.getMaxBytesPerStream() : DEFAULT_MAX_BYTES;
+        int totalBytes = 0;
+        boolean localTruncated = false;
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!localTruncated && lines.size() < maxLines && totalBytes < maxBytes) {
+                    lines.add(line);
+                    totalBytes += line.getBytes(StandardCharsets.UTF_8).length;
+                    if (lines.size() >= maxLines || totalBytes >= maxBytes) {
+                        localTruncated = true;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // 进程销毁后流关闭是正常的
+            if (log.isTraceEnabled()) {
+                log.trace("流 drain 关闭: {}", e.getMessage());
+            }
         }
 
-        long elapsedNs = System.nanoTime() - start;
-        return new CommandResult(exitCode, stdout, stderr, truncated, errorMessage, elapsedNs);
+        if (localTruncated) {
+            truncated.set(true);
+        }
+        return lines;
     }
+
+    /**
+     * 清理目标进程的所有子进程。
+     */
+    private void destroyDescendants(Process process) {
+        if (process != null) {
+            try {
+                process.descendants().forEach(ProcessHandle::destroyForcibly);
+            } catch (Exception e) {
+                log.trace("清理子进程异常: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 安静的线程休眠（不抛 InterruptedException）。
+     */
+    private void quietSleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // ==================== 无需并发控制的公共方法 ====================
 
     /**
      * 读取一个文本文件的内容（用于读取 /proc 等伪文件系统中的文件）。
@@ -173,7 +365,6 @@ public class OsCommandExecutor {
             if (isWindows()) {
                 checkCmd = List.of("where", cmd);
             } else {
-                // 首选 command -v（POSIX 标准），回退 which
                 checkCmd = List.of("command", "-v", cmd);
             }
 
@@ -185,7 +376,6 @@ public class OsCommandExecutor {
                 return true;
             }
 
-            // 非 Windows 系统回退到 which
             if (!isWindows()) {
                 p = new ProcessBuilder("which", cmd).start();
                 finished = p.waitFor(3, TimeUnit.SECONDS);
@@ -213,6 +403,13 @@ public class OsCommandExecutor {
         return System.getProperty("os.name").toLowerCase().contains("linux");
     }
 
+    /**
+     * 获取实际的最大并发数（用于错误信息）。
+     */
+    private int getMaxProcesses() {
+        return props != null ? props.getMaxProcesses() : DEFAULT_MAX_PROCESSES;
+    }
+
     // ==================== 内部结果类 ====================
 
     /**
@@ -227,7 +424,7 @@ public class OsCommandExecutor {
         private final long elapsedNs;
 
         public CommandResult(int exitCode, List<String> stdout, List<String> stderr,
-                            boolean truncated, String errorMessage, long elapsedNs) {
+                             boolean truncated, String errorMessage, long elapsedNs) {
             this.exitCode = exitCode;
             this.stdout = stdout != null ? stdout : List.of();
             this.stderr = stderr != null ? stderr : List.of();
@@ -244,6 +441,18 @@ public class OsCommandExecutor {
         /** 获取执行耗时（毫秒） */
         public long getDurationMs() {
             return TimeUnit.NANOSECONDS.toMillis(elapsedNs);
+        }
+
+        /**
+         * 创建执行器过载结果。
+         *
+         * @param message   过载描述
+         * @param elapsedNs 已消耗纳秒
+         * @return 过载结果
+         */
+        public static CommandResult overloaded(String message, long elapsedNs) {
+            return new CommandResult(-1, List.of(), List.of(), false,
+                    "TOOL_EXECUTOR_OVERLOADED: " + message, elapsedNs);
         }
 
         public int getExitCode() { return exitCode; }
