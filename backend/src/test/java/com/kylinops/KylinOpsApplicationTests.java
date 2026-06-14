@@ -1,6 +1,7 @@
 package com.kylinops;
 
 import com.kylinops.common.ApiResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,12 +18,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 麒麟安全智能运维 Agent — 集成测试
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "spring.security.user.name=admin",
+            "spring.security.user.password=test"
+        })
 @ActiveProfiles("test")
 class KylinOpsApplicationTests {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+    private TestRestTemplate authRestTemplate;
+
+    @BeforeEach
+    void setUp() {
+        authRestTemplate = restTemplate.withBasicAuth("admin", "test");
+    }
 
     @Test
     @DisplayName("GET /api/health 应返回 200 且 status 为 UP")
@@ -30,7 +42,7 @@ class KylinOpsApplicationTests {
         @SuppressWarnings("unchecked")
         ResponseEntity<ApiResponse<Map<String, Object>>> response =
                 (ResponseEntity<ApiResponse<Map<String, Object>>>) (Object)
-                        restTemplate.getForEntity("/api/health", ApiResponse.class);
+                        authRestTemplate.getForEntity("/api/health", ApiResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
@@ -46,7 +58,7 @@ class KylinOpsApplicationTests {
         @SuppressWarnings("unchecked")
         ResponseEntity<ApiResponse<Map<String, Object>>> response =
                 (ResponseEntity<ApiResponse<Map<String, Object>>>) (Object)
-                        restTemplate.getForEntity("/api/health", ApiResponse.class);
+                        authRestTemplate.getForEntity("/api/health", ApiResponse.class);
 
         assertThat(response.getBody()).isNotNull();
         Map<String, Object> data = response.getBody().getData();
@@ -60,7 +72,7 @@ class KylinOpsApplicationTests {
         @SuppressWarnings("unchecked")
         ResponseEntity<ApiResponse<Map<String, Object>>> response =
                 (ResponseEntity<ApiResponse<Map<String, Object>>>) (Object)
-                        restTemplate.getForEntity("/api/health", ApiResponse.class);
+                        authRestTemplate.getForEntity("/api/health", ApiResponse.class);
 
         assertThat(response.getBody()).isNotNull();
         Map<String, Object> data = response.getBody().getData();
@@ -76,7 +88,7 @@ class KylinOpsApplicationTests {
     @DisplayName("GET /api/nonexistent 应返回 404")
     void nonexistentEndpointShouldReturn404() {
         ResponseEntity<?> response =
-                restTemplate.getForEntity("/api/nonexistent", ApiResponse.class);
+                authRestTemplate.getForEntity("/api/nonexistent", ApiResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();

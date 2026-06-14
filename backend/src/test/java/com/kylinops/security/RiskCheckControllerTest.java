@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -16,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * RiskCheckController 单元测试
  */
 @WebMvcTest(RiskCheckController.class)
+@WithMockUser
 @DisplayName("RiskCheckController — 风险校验 API")
 class RiskCheckControllerTest {
 
@@ -50,6 +53,7 @@ class RiskCheckControllerTest {
                 .thenReturn(mockResult);
 
         mockMvc.perform(post("/api/security/risk-check")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetType\":\"command\",\"content\":\"rm -rf /\"}"))
                 .andExpect(status().isOk())
@@ -76,6 +80,7 @@ class RiskCheckControllerTest {
     @DisplayName("POST /api/security/risk-check → 缺失 targetType 返回 400")
     void riskCheckMissingTargetType() throws Exception {
         mockMvc.perform(post("/api/security/risk-check")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"df -h\"}"))
                 .andExpect(status().isBadRequest());
@@ -85,6 +90,7 @@ class RiskCheckControllerTest {
     @DisplayName("POST /api/security/risk-check → 空白内容返回 400")
     void riskCheckBlankContent() throws Exception {
         mockMvc.perform(post("/api/security/risk-check")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetType\":\"command\",\"content\":\"\"}"))
                 .andExpect(status().isBadRequest());

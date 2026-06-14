@@ -6,15 +6,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ActionConfirmController.class)
+@WithMockUser
 @DisplayName("ActionConfirmController - strict confirmation API")
 class ActionConfirmControllerTest {
 
@@ -33,6 +36,7 @@ class ActionConfirmControllerTest {
         when(actionConfirmService.confirmAction("test-action-id", true)).thenReturn(action);
 
         mockMvc.perform(post("/api/actions/confirm")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"actionId\":\"test-action-id\",\"confirm\":true}"))
                 .andExpect(status().isOk())
@@ -51,6 +55,7 @@ class ActionConfirmControllerTest {
         when(actionConfirmService.confirmAction("test-action-id", false)).thenReturn(action);
 
         mockMvc.perform(post("/api/actions/confirm")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"actionId\":\"test-action-id\",\"confirm\":false}"))
                 .andExpect(status().isOk())
@@ -62,6 +67,7 @@ class ActionConfirmControllerTest {
     @Test
     void rejectsUnknownCommandToolAndParamsFields() throws Exception {
         mockMvc.perform(post("/api/actions/confirm")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -79,6 +85,7 @@ class ActionConfirmControllerTest {
     @Test
     void missingActionIdReturnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/actions/confirm")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confirm\":true}"))
                 .andExpect(status().isBadRequest());
@@ -87,6 +94,7 @@ class ActionConfirmControllerTest {
     @Test
     void missingConfirmReturnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/actions/confirm")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"actionId\":\"test-id\"}"))
                 .andExpect(status().isBadRequest());

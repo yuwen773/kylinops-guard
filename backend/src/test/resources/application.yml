@@ -1,6 +1,10 @@
 # Test profile 覆盖（叠加在 src/main/resources/application-test.yml 之上）
 # 仅在 @ActiveProfiles("test") 的测试类中生效。
 spring:
+  security:
+    user:
+      name: admin
+      password: test
   datasource:
     # 测试用 H2 内存 —— 与 application-test.yml 一致，此处显式声明以
     # 覆盖任何 CI 环境变量或父配置中的引用。

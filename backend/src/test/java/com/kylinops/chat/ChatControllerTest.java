@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -19,6 +20,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </p>
  */
 @WebMvcTest(ChatController.class)
+@WithMockUser
 @DisplayName("ChatController — POST /api/chat/send")
 class ChatControllerTest {
 
@@ -75,6 +78,7 @@ class ChatControllerTest {
         String overLimit = buildContent(MAX_CONTENT_LENGTH + 1);
 
         mockMvc.perform(post("/api/chat/send")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody(overLimit)))
                 .andExpect(status().isBadRequest())
@@ -91,6 +95,7 @@ class ChatControllerTest {
         when(chatService.processMessage(anyString(), any())).thenReturn(stubAgentResult());
 
         mockMvc.perform(post("/api/chat/send")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody(atLimit)))
                 .andExpect(status().isOk())
@@ -107,6 +112,7 @@ class ChatControllerTest {
         when(chatService.processMessage(anyString(), any())).thenReturn(stubAgentResult());
 
         mockMvc.perform(post("/api/chat/send")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonBody(normal)))
                 .andExpect(status().isOk())
