@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-deepseek-test",
+  "object": "chat.completion",
+  "created": 1718000000,
+  "model": "deepseek-chat",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "{\"intent\":\"SYSTEM_CHECK\",\"confidence\":0.92,\"params\":{}}"},
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 100, "completion_tokens": 30, "total_tokens": 130}
+}

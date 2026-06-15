@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-qwen-test",
+  "object": "chat.completion",
+  "created": 1718000000,
+  "model": "qwen-turbo",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "{\"intent\":\"DISK_DIAGNOSIS\",\"confidence\":0.88,\"params\":{}}"},
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {"prompt_tokens": 110, "completion_tokens": 28, "total_tokens": 138}
+}
