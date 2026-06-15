@@ -234,11 +234,12 @@ E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts
 
 # Standalone single-JAR 部署（前后端合一，LoongArch 低配虚拟机推荐）
 bash deploy/scripts/build-standalone.sh                    # 一键构建（npm run build + mvn package）
+bash deploy/scripts/start-standalone.sh                    # 启动（默认 dev,standalone，H2 文件模式）
+# 或手动启动：
 java -jar backend/target/kylin-ops-guard.jar \            # http://localhost:8080
   --spring.profiles.active=prod,standalone                # PostgreSQL
 # 或搭配 H2：
-java -jar backend/target/kylin-ops-guard.jar \
-  --spring.profiles.active=dev,standalone                 # H2 文件模式
+SPRING_PROFILES_ACTIVE=prod,standalone bash deploy/scripts/start-standalone.sh  # prod 模式
 
 # Environment validation on Kylin / LoongArch (Task 20)
 bash deploy/scripts/check-env.sh
