@@ -182,11 +182,11 @@ if [ -n "$SPECIFIC_TAG" ]; then
     echo -e "  → 指定标签: ${TAG}"
 else
     echo -e "  → 查询最新 release..."
-    TAG=$(curl -fsSL "${RELEASE_API}/latest" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])" 2>/dev/null || echo "")
+    TAG=$(curl -fsSL "${RELEASE_API}/latest" 2>/dev/null | grep -o '"tag_name":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "")
     if [ -z "$TAG" ]; then
         echo -e "  ${YELLOW}[WARN]${NC} 无法通过 API 获取最新版本,尝试 fallback..."
         # Fallback: 取 tag list 第一个
-        TAG=$(curl -fsSL "${RELEASE_API}" 2>/dev/null | python3 -c "import sys,json; releases=json.load(sys.stdin); print(releases[0]['tag_name'])" 2>/dev/null || echo "v0.4-manual-acceptance")
+        TAG=$(curl -fsSL "${RELEASE_API}" 2>/dev/null | grep -o '"tag_name":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "v0.4-manual-acceptance")
     fi
     echo -e "  → 最新: ${TAG}"
 fi
@@ -315,7 +315,7 @@ echo -e "${CYAN}[6/6]${NC} 验证服务..."
 for i in $(seq 1 15); do
     if curl -fsS -m 2 "${HEALTH_URL}" > /dev/null 2>&1; then
         echo -e "  ${GREEN}✓${NC} 服务正常运行:"
-        curl -sS "${HEALTH_URL}" | python3 -m json.tool 2>/dev/null || curl -sS "${HEALTH_URL}"
+        curl -sS "${HEALTH_URL}" 2>/dev/null || true
         echo ""
         echo -e "${GREEN}=========================================="
         echo " ✓ 更新完成 (${TAG})"

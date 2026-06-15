@@ -194,7 +194,7 @@ echo "等待服务启动..."
 for i in $(seq 1 30); do
     if curl -fsS -m 2 "${HEALTH_URL}" > /dev/null 2>&1; then
         echo -e "${GREEN}服务启动成功！${NC}"
-        curl -sS "${HEALTH_URL}" | python3 -m json.tool 2>/dev/null || curl -sS "${HEALTH_URL}"
+        curl -sS "${HEALTH_URL}" 2>/dev/null || true
         echo ""
         exit 0
     fi

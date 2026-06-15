@@ -63,37 +63,11 @@ assert_na() {
     echo -e "  ${YELLOW}⊘${NC} ${name} (N/A: ${reason})"
 }
 
-# jget <json> <python_expr>
-jget() {
-    local json="$1" expr="$2"
-    python3 -c "
-import json, sys
-try:
-    obj = json.loads(sys.argv[1])
-except Exception as e:
-    print('PARSE_ERR: ' + str(e))
-    sys.exit(0)
-${expr}
-" "${json}" 2>/dev/null
-}
-
-http_post() {
-    local url="$1" data="$2"
-    HTTP_CODE="$(curl -s -o /tmp/auth-extras-body.json -w '%{http_code}' \
-        --max-time "${HTTP_TIMEOUT}" \
-        -H 'Content-Type: application/json' \
-        -H "X-XSRF-TOKEN: ${CSRF_TOKEN:-}" \
-        --cookie-jar "${COOKIE_JAR}" --cookie "${COOKIE_JAR}" \
-        -X POST --data "${data}" "${BASE_URL}${url}" 2>/dev/null || echo "000")"
-    HTTP_BODY="$(cat /tmp/auth-extras-body.json 2>/dev/null || echo "")"
-}
-
 # Pre-flight
 if [[ -z "${SMOKE_PASSWORD}" ]]; then
     err "SMOKE_PASSWORD 未设置"; exit 1
 fi
 if ! command -v curl >/dev/null 2>&1; then err "curl 缺失"; exit 1; fi
-if ! command -v python3 >/dev/null 2>&1; then err "python3 缺失"; exit 1; fi
 
 cat <<EOF
 ================================================================
@@ -115,15 +89,12 @@ LOCKED_AT_LEAST_ONCE="false"
 LAST_HTTP=""
 LAST_BODY=""
 for i in 1 2 3 4 5; do
-    LOGIN_BODY="$(python3 -c "
-import json, os
-print(json.dumps({'username': os.environ['SMOKE_USERNAME'], 'password': 'wrong-password-${i}'}))
-")"
     HTTP_CODE="$(curl -s -o /tmp/auth-extras-body.json -w '%{http_code}' \
         --max-time "${HTTP_TIMEOUT}" \
         -H 'Content-Type: application/json' \
         --cookie-jar "${LOCKOUT_COOKIE_JAR}" --cookie "${LOCKOUT_COOKIE_JAR}" \
-        -X POST --data "${LOGIN_BODY}" "${BASE_URL}/api/auth/login" 2>/dev/null || echo "000")"
+        -X POST --data '{"username":"'${SMOKE_USERNAME}'","password":"wrong-password-'${i}'"}' \
+        "${BASE_URL}/api/auth/login" 2>/dev/null || echo "000")"
     HTTP_BODY="$(cat /tmp/auth-extras-body.json 2>/dev/null || echo "")"
     LAST_HTTP="${HTTP_CODE}"
     LAST_BODY="${HTTP_BODY}"
@@ -138,26 +109,23 @@ done
 assert "失败锁定在 5 次内触发 (HTTP 423)" "${LOCKED_AT_LEAST_ONCE}" \
     "last_http=${LAST_HTTP}, body=${LAST_BODY:0:200}"
 
-# Verify response body mentions lockout (be defensive about field name)
-LOCKOUT_BODY_HAS_KEY=$(jget "${LAST_BODY}" "
-body = str(obj).lower()
-print('lock' in body or 'fail' in body or 'too many' in body)
-")
-assert "锁定响应 body 含 lock/fail 关键字" "${LOCKOUT_BODY_HAS_KEY}" "body=${LAST_BODY:0:300}"
+# Verify response body mentions lockout (case-insensitive grep)
+LOCKOUT_MENTIONED="false"
+if echo "${LAST_BODY}" | grep -qiE '(lock|锁定|fail|too.many)'; then
+    LOCKOUT_MENTIONED="true"
+fi
+assert "锁定响应 body 含 lock/fail 关键字" "${LOCKOUT_MENTIONED}" "body=${LAST_BODY:0:300}"
 
 echo
 echo -e "${CYAN}=== §1.2.2 Cell: 锁定后正确密码也被拒 ===${NC}"
 
 # 6th attempt with CORRECT password should still be locked
-LOGIN_BODY="$(python3 -c "
-import json, os
-print(json.dumps({'username': os.environ['SMOKE_USERNAME'], 'password': os.environ['SMOKE_PASSWORD']}))
-")"
 HTTP_CODE="$(curl -s -o /tmp/auth-extras-body.json -w '%{http_code}' \
     --max-time "${HTTP_TIMEOUT}" \
     -H 'Content-Type: application/json' \
     --cookie-jar "${LOCKOUT_COOKIE_JAR}" --cookie "${LOCKOUT_COOKIE_JAR}" \
-    -X POST --data "${LOGIN_BODY}" "${BASE_URL}/api/auth/login" 2>/dev/null || echo "000")"
+    -X POST --data '{"username":"'${SMOKE_USERNAME}'","password":"'${SMOKE_PASSWORD}'"}' \
+    "${BASE_URL}/api/auth/login" 2>/dev/null || echo "000")"
 HTTP_BODY="$(cat /tmp/auth-extras-body.json 2>/dev/null || echo "")"
 log "  6th attempt with CORRECT pwd: HTTP ${HTTP_CODE}"
 assert "锁定后正确密码也被拒 (423)" \

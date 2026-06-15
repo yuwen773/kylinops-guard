@@ -65,28 +65,29 @@ assert_na() {
     echo -e "  ${YELLOW}⊘${NC} ${name} (N/A: ${reason})"
 }
 
-# jget <json> <python_expr>
-jget() {
-    local json="$1" expr="$2"
-    python3 -c "
-import json, sys
-try:
-    obj = json.loads(sys.argv[1])
-except Exception as e:
-    print('PARSE_ERR: ' + str(e))
-    sys.exit(0)
-${expr}
-" "${json}" 2>/dev/null
+# json_extract <json_string> <field_name>
+# Extract a string or number field from single-line JSON via grep.
+json_extract() {
+    local json="$1" field="$2"
+    local val
+    val="$(echo "${json}" | grep -o '"'"${field}"'":"[^"]*"' | head -1 | cut -d'"' -f4)"
+    if [[ -n "${val}" ]]; then
+        echo "${val}"
+        return
+    fi
+    val="$(echo "${json}" | grep -o '"'"${field}"'":[-0-9.]*' | head -1 | cut -d: -f2)"
+    echo "${val}"
 }
 
 http_post() {
     local url="$1" data="$2"
+    printf '%s\n' "${data}" > /tmp/perf-gate-post-body.json
     HTTP_CODE="$(curl -s -o /tmp/perf-gate-body.json -w '%{http_code}' \
         --max-time "${HTTP_TIMEOUT}" \
         -H 'Content-Type: application/json' \
-        -H "X-XSRF-TOKEN: ${CSRF_TOKEN:-}" \
+        -H "X-CSRF-TOKEN: ${CSRF_TOKEN:-}" \
         --cookie-jar "${COOKIE_JAR}" --cookie "${COOKIE_JAR}" \
-        -X POST --data "${data}" "${BASE_URL}${url}" 2>/dev/null || echo "000")"
+        -X POST --data @/tmp/perf-gate-post-body.json "${BASE_URL}${url}" 2>/dev/null || echo "000")"
     HTTP_BODY="$(cat /tmp/perf-gate-body.json 2>/dev/null || echo "")"
 }
 
@@ -95,7 +96,6 @@ if [[ -z "${SMOKE_PASSWORD}" ]]; then
     err "SMOKE_PASSWORD 未设置"; exit 1
 fi
 if ! command -v curl >/dev/null 2>&1; then err "curl 缺失"; exit 1; fi
-if ! command -v python3 >/dev/null 2>&1; then err "python3 缺失"; exit 1; fi
 
 cat <<EOF
 ================================================================
@@ -110,18 +110,14 @@ echo
 echo -e "${CYAN}=== Setup: 登录拿 CSRF ===${NC}"
 
 rm -f "${COOKIE_JAR}"
-LOGIN_BODY="$(python3 -c "
-import json, os
-print(json.dumps({'username': os.environ['SMOKE_USERNAME'], 'password': os.environ['SMOKE_PASSWORD']}))
-")"
-http_post "/api/auth/login" "${LOGIN_BODY}"
+http_post "/api/auth/login" '{"username":"'${SMOKE_USERNAME}'","password":"'${SMOKE_PASSWORD}'"}'
 if [[ "${HTTP_CODE}" != "200" ]]; then
     err "Login failed: HTTP ${HTTP_CODE}, body=${HTTP_BODY:0:200}"
     exit 1
 fi
-CSRF_TOKEN="$(jget "${HTTP_BODY}" "print(obj.get('data', {}).get('csrfToken', ''))")"
+CSRF_TOKEN="$(json_extract "${HTTP_BODY}" "csrfToken")"
 [[ -z "${CSRF_TOKEN}" || "${CSRF_TOKEN}" == "None" ]] && \
-    CSRF_TOKEN="$(grep -E 'XSRF-TOKEN' "${COOKIE_JAR}" 2>/dev/null | awk '{print $7}' | tail -1 || echo "")"
+    CSRF_TOKEN="$(grep -E 'CSRF-TOKEN' "${COOKIE_JAR}" 2>/dev/null | awk '{print $7}' | tail -1 || echo "")"
 log "登录成功, csrf=${CSRF_TOKEN:0:8}..."
 
 echo
@@ -168,7 +164,7 @@ done
 
 # Compute P95 (sorted, index at 0.95 * N)
 SORTED_TIMINGS=($(printf '%s\n' "${RC_TIMINGS[@]}" | sort -n))
-P95_INDEX=$(python3 -c "print(int(0.95 * ${#SORTED_TIMINGS[@]}))")
+P95_INDEX=$((95 * ${#SORTED_TIMINGS[@]} / 100))
 RC_P95="${SORTED_TIMINGS[${P95_INDEX}]}"
 log "  RiskCheck P95: ${RC_P95}ms (samples: ${SORTED_TIMINGS[*]})"
 assert "RiskCheck P95 < 1000ms" \
@@ -214,7 +210,7 @@ echo -e "${CYAN}=== Cell 5: 报告生成 < 5000ms ===${NC}"
 
 # Step 1: get a real auditId from a fresh chat
 http_post "/api/chat/send" '{"content":"查看 CPU 状态"}' >/dev/null
-AUDIT_ID="$(jget "${HTTP_BODY}" "print(obj.get('data', {}).get('auditId', ''))")"
+AUDIT_ID="$(json_extract "${HTTP_BODY}" "auditId")"
 if [[ -z "${AUDIT_ID}" || "${AUDIT_ID}" == "None" ]]; then
     err "无法获取 auditId 用于报告生成; body=${HTTP_BODY:0:300}"
     exit 1
