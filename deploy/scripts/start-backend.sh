@@ -137,16 +137,22 @@ if [ ! -f "${JAR_FILE}" ]; then
 fi
 
 # ---- 4. 启动 ----
-echo "启动 ${APP_NAME} ..."
+# Spring profile 选择：
+#   - 默认 dev：H2 文件模式 + Flyway 禁用 + ddl-auto=update + 默认 BCrypt 密码哈希（首次跑 README 即可登录）
+#   - 显式覆盖：通过环境变量 SPRING_PROFILES_ACTIVE=test|prod
+#   - 修复 DEFER-002：原值 "default" 会让 base yml 缺 datasource + Flyway 占位符 ${lob_type} 未定义 → 启动失败
+PROFILE="${SPRING_PROFILES_ACTIVE:-dev}"
+echo "启动 ${APP_NAME} (profile: ${PROFILE}) ..."
 cd backend
 nohup java -jar "target/${APP_NAME}.jar" \
-    --spring.profiles.active=default \
+    --spring.profiles.active="${PROFILE}" \
     > "${LOG_DIR}/backend.log" 2>&1 &
 PID=$!
 cd ..
 echo -e "${GREEN}${APP_NAME} 已启动 (PID: ${PID})${NC}"
 echo "日志文件: backend/${LOG_DIR}/backend.log"
 echo "数据目录: backend/${DATA_DIR}/"
+echo "Spring profile: ${PROFILE}（可通过 SPRING_PROFILES_ACTIVE 环境变量覆盖）"
 echo ""
 
 # ---- 5. 等待健康检查 ----
