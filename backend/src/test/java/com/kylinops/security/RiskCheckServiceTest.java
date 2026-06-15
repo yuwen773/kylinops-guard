@@ -115,6 +115,64 @@ class RiskCheckServiceTest {
         assertThat(result.getDecision()).isEqualTo(RiskDecision.ALLOW);
     }
 
+    // ==================== DEFER-001: 路径型风险评估 ====================
+
+    @Test
+    @DisplayName("DEFER-001 自然语言删除 /etc/passwd → L3/BLOCK (path 规则)")
+    void naturalLanguageDeleteSystemPathReturnsBlock() {
+        ToolPlan plan = ToolPlan.builder()
+                .intent(IntentType.UNKNOWN)
+                .steps(List.of())
+                .requiresRiskCheck(false)
+                .build();
+        RiskCheckResult result = riskCheckService.checkPlan(plan, "删除 /etc/passwd", UUID.randomUUID().toString());
+
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L3);
+        assertThat(result.getMatchedRules()).contains("block_path_root");
+    }
+
+    @Test
+    @DisplayName("DEFER-001 自然语言删除 /var/lib/mysql → L3/BLOCK (sensitive_data 规则)")
+    void naturalLanguageDeleteSensitiveDataPathReturnsBlock() {
+        ToolPlan plan = ToolPlan.builder()
+                .intent(IntentType.UNKNOWN)
+                .steps(List.of())
+                .requiresRiskCheck(false)
+                .build();
+        RiskCheckResult result = riskCheckService.checkPlan(plan, "清理 /var/lib/mysql/data 目录", UUID.randomUUID().toString());
+
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.BLOCK);
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L3);
+        assertThat(result.getMatchedRules()).contains("block_path_sensitive_data");
+    }
+
+    @Test
+    @DisplayName("DEFER-001 提到 /tmp 安全路径 → ALLOW (无 path 规则命中)")
+    void mentionSafePathDoesNotBlock() {
+        ToolPlan plan = ToolPlan.builder()
+                .intent(IntentType.UNKNOWN)
+                .steps(List.of())
+                .requiresRiskCheck(false)
+                .build();
+        RiskCheckResult result = riskCheckService.checkPlan(plan, "看看 /tmp/cache-demo 下的文件", UUID.randomUUID().toString());
+
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.ALLOW);
+    }
+
+    @Test
+    @DisplayName("DEFER-001 提到 URL 中的 /etc → ALLOW (URL 不会被误判为路径)")
+    void mentionUrlPathDoesNotBlock() {
+        ToolPlan plan = ToolPlan.builder()
+                .intent(IntentType.UNKNOWN)
+                .steps(List.of())
+                .requiresRiskCheck(false)
+                .build();
+        RiskCheckResult result = riskCheckService.checkPlan(plan, "访问 https://docs.example.com/etc/config", UUID.randomUUID().toString());
+
+        assertThat(result.getDecision()).isEqualTo(RiskDecision.ALLOW);
+    }
+
     @Test
     void serviceRestartActionRequiresConfirmation() {
         String auditId = UUID.randomUUID().toString();

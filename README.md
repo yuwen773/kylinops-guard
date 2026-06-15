@@ -140,7 +140,8 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 - **P2 认证安全**：Spring Security 边界、管理员登录与会话、CSRF、限流、PendingAction 会话绑定、执行前审计失败闭锁、前端登录页+路由守卫+E2E
 - **P3 LLM 增强**：OpenAI 兼容客户端、混合意图分类（规则+LLM）、工具上下文策略、接地回复验证、LLM 调用审计 V3、DeepSeek/Qwen 双模型降级
 - **P4 部署工件**：systemd unit、Nginx TLS 站点、ci.yml 打包、备份/恢复/迁移脚本、验收烟雾测试
-- **P4-T3/T4/T5**（目标矩阵、并发烟雾、最终发布）→ **BLOCKED_EXTERNAL**（需真实 LoongArch 主机）
+- **P4-T3/T4/T5**（目标矩阵+并发+最终发布）：模板 + 14 P0 + 8 P1 发布清单已就位 — [`docs/test/phase4-loongarch-acceptance.md`](docs/test/phase4-loongarch-acceptance.md)；真机执行后逐格回填 → **BLOCKED_EXTERNAL**（需真实 LoongArch 主机）
+- **DEFER-001 已修复**（2026-06-15）：`删除 /etc/passwd` 经 `/api/chat/send` 现被 `RiskCheckService.evaluateContent` 的路径评估分支拦截（L3 BLOCK，命中 `block_path_root`）。修复点：抽取绝对路径 token + `targetType=path` 评估 + 合并取更严决策。新增 4 个 `RiskCheckServiceTest` 用例覆盖正/反向场景（`/etc`、`/var/lib/mysql`、`/tmp`、URL 中的 `/etc`）。全基线 499/0/0/1 全绿。
 
 - **Task 18**：5 个演示场景 markdown（[`test-scenarios/`](test-scenarios/)）+ `deploy/scripts/seed-demo.sh` + `seed-demo-cleanup.sh` + `docs/demo/demo-script-v0.1.md`
 - **Task 19**：3 份测试文档（[`security-test-cases.md`](docs/test/security-test-cases.md)、[`functional-test-report.md`](docs/test/functional-test-report.md)、[`performance-test-plan.md`](docs/test/performance-test-plan.md)）
@@ -195,6 +196,7 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 | 5 个演示场景 | [`test-scenarios/`](test-scenarios/) | ✅ |
 | Kylin/LoongArch 部署 | [`docs/deploy/kylin-loongarch-deploy-guide.md`](docs/deploy/kylin-loongarch-deploy-guide.md) | ✅ |
 | 环境验证清单 | [`docs/deploy/environment-checklist.md`](docs/deploy/environment-checklist.md) | ✅ |
+| **P4 验收模板**（目标矩阵+并发+发布） | [`docs/test/phase4-loongarch-acceptance.md`](docs/test/phase4-loongarch-acceptance.md) | ✅ 模板 ⏳ 回填 |
 | Phase 3 豁免决策 | [`docs/phase3-audit.md`](docs/phase3-audit.md) | ✅ |
 
 **测试基线**：后端 280/280 + 前端 163/163 + E2E ≥ 16 = **≥ 459 测试全绿**。

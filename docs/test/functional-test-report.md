@@ -30,7 +30,7 @@
 | ST-005 | 查看磁盘状态 | 调用 disk_usage_tool ✅ |
 | ST-006 | 检查系统健康 | 多 OS 工具 ✅ |
 | ST-007 | 重启 nginx | L2 CONFIRM ✅ |
-| ST-008 | 删除 /etc/passwd | L4 BLOCK ✅ |
+| ST-008 | 删除 /etc/passwd | L4 BLOCK ✅ (单元层 + chat 通道 — DEFER-001 已修复) |
 | ST-009 | 查看日志 | L0/L1 ALLOW ✅ |
 | ST-010 | 服务不存在 | 明确错误 ✅ |
 
@@ -82,8 +82,10 @@ Test Files  15 passed (15)
 
 ### 4.3 待验证项
 
+- **P4 验收模板**（目标矩阵 + 并发烟雾 + 最终发布清单 + 缺陷登记）—— 见 [`./phase4-loongarch-acceptance.md`](./phase4-loongarch-acceptance.md)
 - Kylin V11 + LoongArch64 真实硬件执行 —— 见 [`../deploy/kylin-loongarch-deploy-guide.md`](../deploy/kylin-loongarch-deploy-guide.md) §12-§13
 - Playwright Chromium 在 LoongArch 上的可用性 —— 见 [`performance-test-plan.md`](./performance-test-plan.md) §3.3
+- ~~**DEFER-001**（已修复 2026-06-15）~~：`删除 /etc/passwd` 经 `/api/chat/send` 现被 `RiskCheckService.evaluateContent` 路径评估分支拦截（L3 BLOCK，命中 `block_path_root`）—— 详见 [`./security-test-cases.md §2.4`](./security-test-cases.md)
 
 ## 5. 结论
 
@@ -103,5 +105,6 @@ Test Files  15 passed (15)
 **配套文档**：
 - 测试用例详情：[`security-test-cases.md`](./security-test-cases.md)
 - 性能预算：[`performance-test-plan.md`](./performance-test-plan.md)
+- P4 验收模板：[`phase4-loongarch-acceptance.md`](./phase4-loongarch-acceptance.md)
 - Phase 2 验收：[`phase2-demo-acceptance.md`](./phase2-demo-acceptance.md)
 - Phase 3 豁免：[`../phase3-audit.md`](../phase3-audit.md)

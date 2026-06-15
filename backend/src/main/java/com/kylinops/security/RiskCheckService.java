@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -109,19 +111,70 @@ public class RiskCheckService {
 
     /**
      * 对用户输入内容执行风险规则评估。
+     * <p>
+     * P4-DEFER-001 修复：除命令规则外，还从用户输入中抽取绝对路径 token，
+     * 对每个 token 以 {@code targetType="path"} 调用规则引擎，
+     * 合并取更严的决策。这让自然语言描述的路径型危险操作
+     * （如 "删除 /etc/passwd"、"清理 /var/lib/mysql"）能命中
+     * {@code block_path_root} / {@code block_path_sensitive_data} 等路径规则。
+     * </p>
      */
     private RiskCheckResult evaluateContent(String userInput, String auditId) {
         if (userInput == null || userInput.isBlank()) {
             return RiskCheckResult.allow(RiskLevel.L0, "无输入内容");
         }
 
-        RiskEvaluationContext ctx = new RiskEvaluationContext("command", userInput, null, null);
-        RiskCheckResult ruleResult = riskRuleEngine.evaluate(ctx);
+        // 1) 命令/文本规则（保留旧行为：rm -rf /、chmod -R 777 等命令形式）
+        RiskEvaluationContext cmdCtx = new RiskEvaluationContext("command", userInput, null, null);
+        RiskCheckResult cmdResult = riskRuleEngine.evaluate(cmdCtx);
+        persistCheck("content", userInput, cmdResult, auditId);
 
-        // 持久化内容级检查
-        persistCheck("content", userInput, ruleResult, auditId);
+        // 2) 路径规则 — 抽取绝对路径 token 并以 targetType=path 评估
+        List<String> pathTokens = extractAbsolutePaths(userInput);
+        if (pathTokens.isEmpty()) {
+            return cmdResult;
+        }
 
-        return ruleResult;
+        RiskCheckResult pathResult = evaluatePathTokens(pathTokens, auditId);
+        return mergeResults(cmdResult, pathResult);
+    }
+
+    /**
+     * 从用户输入中抽取绝对路径 token。
+     * <p>
+     * 匹配以 "/" 开头的连续字符序列（允许字母数字、下划线、点、连字符、斜杠）。
+     * 排除 URL 中的 "://" 协议头以及以 "//" 开头的网络路径：
+     * 这两类序列的字符集里包含 ":"，不在字符类中，天然不会被匹配。
+     * 提取的 token 至少需要 2 个字符（避免裸 "/" 误判）。
+     * </p>
+     */
+    private List<String> extractAbsolutePaths(String userInput) {
+        Pattern pathPattern = Pattern.compile("/[A-Za-z0-9._/-]+");
+        Matcher matcher = pathPattern.matcher(userInput);
+        List<String> paths = new ArrayList<>();
+        while (matcher.find()) {
+            String token = matcher.group();
+            // 跳过以 "//" 开头的网络路径（来自 URL）
+            if (token.startsWith("//")) {
+                continue;
+            }
+            paths.add(token);
+        }
+        return paths;
+    }
+
+    /**
+     * 对每个路径 token 调规则引擎（targetType=path），合并取最严的决策。
+     */
+    private RiskCheckResult evaluatePathTokens(List<String> pathTokens, String auditId) {
+        RiskCheckResult worst = RiskCheckResult.allow(RiskLevel.L0, "未检测到受限路径");
+        for (String path : pathTokens) {
+            RiskEvaluationContext pathCtx = new RiskEvaluationContext("path", path, null, null);
+            RiskCheckResult r = riskRuleEngine.evaluate(pathCtx);
+            persistCheck("path", path, r, auditId);
+            worst = mergeResults(worst, r);
+        }
+        return worst;
     }
 
     /**

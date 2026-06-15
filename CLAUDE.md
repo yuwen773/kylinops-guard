@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **P3 LLM 增强**：OpenAI 兼容客户端、混合意图分类（规则+LLM）、工具上下文策略、接地回复验证、LLM 调用审计 V3、DeepSeek/Qwen 双模型降级
 - **P4 部署工件**：systemd unit、Nginx TLS 站点、ci.yml 打包、备份/恢复/迁移脚本、验收烟雾测试、部署文档
 
-LoongArch 64 端到端验证：`docs/test/phase2-demo-acceptance.md §6.2`（待最终回填）。P4-T3/T4/T5（目标矩阵、并发烟雾、最终发布）**BLOCKED_EXTERNAL** — 需真实 LoongArch 主机。
+LoongArch 64 端到端验证：`docs/test/phase2-demo-acceptance.md §6.2`（待最终回填）。P4-T3/T4/T5（目标矩阵+并发+最终发布）模板已就位于 `docs/test/phase4-loongarch-acceptance.md`，含 0 项待修 P0 缺陷（DEFER-001 `删除 /etc/passwd` 经 chat 通道未拦截 已于 2026-06-15 修复 — `RiskCheckService.evaluateContent` 增加绝对路径抽取 + `targetType=path` 评估，详见 `phase4-loongarch-acceptance.md §4.1`）— 真机回填前**BLOCKED_EXTERNAL**。
 
 The eight `*.md` files at the repo root are v0.1 product/architecture/task specs (all in Chinese) — the source of truth. Any code change that deviates from a spec must update the spec too.
 
