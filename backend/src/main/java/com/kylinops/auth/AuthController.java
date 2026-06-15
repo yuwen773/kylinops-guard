@@ -54,6 +54,26 @@ public class AuthController {
         String ip = clientIp(request);
         String username = body.username();
 
+        // 1. 先校验凭据
+        boolean ok = authnService.verify(username, body.password());
+
+        if (!ok) {
+            // 2. 失败计数 + 1
+            rateLimiter.recordFailure(ip, username);
+
+            // 3. 失败计数达到 max-failures 时立即返回 423（在 rate-limit 检查之前）
+            if (rateLimiter.isLocked(ip, username)) {
+                log.warn("登录触发锁定: ip={}, username={}", ip, username);
+                return ResponseEntity.status(HttpStatus.LOCKED)
+                        .body(ApiResponse.error(423, "账户已锁定，请稍后再试"));
+            }
+
+            log.warn("登录失败: ip={}, username={}", ip, username);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(401, GENERIC_AUTH_FAIL_MSG));
+        }
+
+        // 4. 通过 rate-limit 检查（成功路径也需检查，防止被锁定但密码碰巧正确）
         LoginRateLimiter.Decision decision = rateLimiter.check(ip, username);
         if (decision == LoginRateLimiter.Decision.LOCKED) {
             log.warn("登录被锁定: ip={}, username={}", ip, username);
@@ -66,15 +86,7 @@ public class AuthController {
                     .body(ApiResponse.error(429, "请求过于频繁，请稍后再试"));
         }
 
-        boolean ok = authnService.verify(username, body.password());
-        if (!ok) {
-            rateLimiter.recordFailure(ip, username);
-            log.warn("登录失败: ip={}, username={}", ip, username);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.error(401, GENERIC_AUTH_FAIL_MSG));
-        }
-
-        // 校验通过
+        // 5. 通过后返回 200 + sessionId
         rateLimiter.recordSuccess(ip, username);
         authnService.onLoginSuccess(request, response, username);
 

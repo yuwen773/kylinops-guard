@@ -227,18 +227,18 @@ class SessionExpiryAndRateLimitTest {
     @Test
     @DisplayName("lockDuration 过后锁定恢复（默认 max-failures=5, lock-duration=200ms）")
     void lockoutExpiresAfterLockDuration() throws Exception {
-        // 5 次失败触发锁定
-        for (int i = 0; i < 5; i++) {
+        // 4 次失败：401（Bug 3 修复后，前 4 次仍返回 401）
+        for (int i = 0; i < 4; i++) {
             String body = objectMapper.writeValueAsString(Map.of("username", "admin", "password", "wrong-" + i));
             ResponseEntity<String> r = restTemplate.postForEntity(
                     "/api/auth/login", new HttpEntity<>(body, jsonHeaders()), String.class);
             assertThat(r.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         }
-        // 第 6 次锁定
-        String body = objectMapper.writeValueAsString(Map.of("username", "admin", "password", "wrong-lock"));
-        ResponseEntity<String> locked = restTemplate.postForEntity(
-                "/api/auth/login", new HttpEntity<>(body, jsonHeaders()), String.class);
-        assertThat(locked.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
+        // 第 5 次：立即 423 Locked（Bug 3 修复：达到 max-failures 阈值就立即返回 423）
+        String fifthBody = objectMapper.writeValueAsString(Map.of("username", "admin", "password", "wrong-5"));
+        ResponseEntity<String> fifth = restTemplate.postForEntity(
+                "/api/auth/login", new HttpEntity<>(fifthBody, jsonHeaders()), String.class);
+        assertThat(fifth.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
 
         // poll 等待锁定期（200ms）过去；最多 5s
         pollUntil(() -> {

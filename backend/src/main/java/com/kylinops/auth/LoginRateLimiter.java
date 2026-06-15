@@ -85,6 +85,24 @@ public class LoginRateLimiter {
     }
 
     /**
+     * 检查当前是否处于锁定状态（IP+username 维度）。
+     *
+     * @return true 当且仅当存在未过期的锁定条目
+     */
+    public boolean isLocked(String ip, String username) {
+        Instant lockedUntil = usernameLockedUntil.get(key(ip, username));
+        if (lockedUntil == null) return false;
+        Instant now = clock.instant();
+        if (now.isBefore(lockedUntil)) {
+            return true;
+        }
+        // 锁定到期，清理（与 check() 行为一致）
+        usernameLockedUntil.remove(key(ip, username));
+        usernameFailures.remove(key(ip, username));
+        return false;
+    }
+
+    /**
      * 记录一次成功登录 — 清除该 IP+username 的失败计数与锁定。
      */
     public void recordSuccess(String ip, String username) {
@@ -94,11 +112,22 @@ public class LoginRateLimiter {
 
     /**
      * 记录一次失败登录 — 累加 IP 计数与 username 失败计数，必要时触发锁定。
+     * <p>
+     * 若当前存在已过期的锁定条目，先清空失败计数，避免一次失败后立即把刚解锁的账号
+     * 因累计失败次数再次达到 maxFailures 而重新锁死。
+     * </p>
      */
     public void recordFailure(String ip, String username) {
         Instant now = clock.instant();
+        // 若锁定已到期，先清空旧状态（与 isLocked / check 的清理行为保持一致）
+        String k = key(ip, username);
+        Instant lockedUntil = usernameLockedUntil.get(k);
+        if (lockedUntil != null && !now.isBefore(lockedUntil)) {
+            usernameLockedUntil.remove(k);
+            usernameFailures.remove(k);
+        }
         // IP 滑动窗口累加
-        Deque<Instant> ipq = ipAttempts.computeIfAbsent(ip, k -> new ArrayDeque<>());
+        Deque<Instant> ipq = ipAttempts.computeIfAbsent(ip, k1 -> new ArrayDeque<>());
         synchronized (ipq) {
             Instant cutoff = now.minus(Duration.ofMinutes(1));
             while (!ipq.isEmpty() && ipq.peekFirst().isBefore(cutoff)) {
@@ -107,7 +136,7 @@ public class LoginRateLimiter {
             ipq.offerLast(now);
         }
         // username 失败窗口（独立于 lockDuration，避免短 lockDuration 抹掉计数）
-        Deque<Instant> uq = usernameFailures.computeIfAbsent(key(ip, username), k -> new ArrayDeque<>());
+        Deque<Instant> uq = usernameFailures.computeIfAbsent(k, k1 -> new ArrayDeque<>());
         synchronized (uq) {
             Instant cutoff = now.minus(failureWindow);
             while (!uq.isEmpty() && uq.peekFirst().isBefore(cutoff)) {
@@ -115,11 +144,11 @@ public class LoginRateLimiter {
             }
             uq.offerLast(now);
             if (uq.size() >= maxFailures) {
-                usernameLockedUntil.put(key(ip, username), now.plus(lockDuration));
+                usernameLockedUntil.put(k, now.plus(lockDuration));
             }
         }
         log.debug("recordFailure ip={} user={} uq.size={} maxFailures={} lockUntil={}",
-                ip, username, uq.size(), maxFailures, usernameLockedUntil.get(key(ip, username)));
+                ip, username, uq.size(), maxFailures, usernameLockedUntil.get(k));
     }
 
     private static String key(String ip, String username) {

@@ -127,6 +127,19 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("第 5 次连续错误密码 → 立即 423 (Bug 3 回归)")
+    void fifthWrongPasswordReturns423Immediately() {
+        // 4 次错误：401
+        for (int i = 0; i < 4; i++) {
+            ResponseEntity<String> r = login(ADMIN_USER, "wrong-" + i);
+            assertThat(r.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+        // 第 5 次错误：立即 423（不再等下一次）
+        ResponseEntity<String> fifth = login(ADMIN_USER, "wrong-fifth");
+        assertThat(fifth.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
+    }
+
+    @Test
     @DisplayName("第 5 次连续失败 → 423 Locked")
     void fifthConsecutiveFailureLocks() {
         // 用一个新用户名（避免与其他测试共享限流计数），这里直接用 admin 在 lockDuration 内逐次错
@@ -135,13 +148,10 @@ class AuthControllerTest {
             ResponseEntity<String> r = login(ADMIN_USER, "wrong-" + i);
             assertThat(r.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         }
-        // 第 5 次：仍然 401
+        // 第 5 次：立即 423 Locked（Bug 3 修复后，第 5 次失败计数达到 max-failures，
+        //   AuthController 在 recordFailure 后立即检查 isLocked 并返回 423，不再等到第 6 次）
         ResponseEntity<String> fifth = login(ADMIN_USER, "wrong-5");
-        assertThat(fifth.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-
-        // 第 6 次起：423 Locked（同一 IP+username 已达 5 次）
-        ResponseEntity<String> sixth = login(ADMIN_USER, "wrong-6");
-        assertThat(sixth.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
+        assertThat(fifth.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
     }
 
     @Test
