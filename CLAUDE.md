@@ -232,6 +232,15 @@ npx playwright install chromium
 npm run test:e2e                                    # E2E with mock interception
 E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts
 
+# Standalone single-JAR 部署（前后端合一，LoongArch 低配虚拟机推荐）
+cd backend
+mvn -Pstandalone clean package -DskipTests            # 自动 npm ci + npm run build + 打包
+java -jar target/kylin-ops-guard.jar \
+  --spring.profiles.active=prod,standalone             # PostgreSQL
+# 或搭配 H2：
+java -jar target/kylin-ops-guard.jar \
+  --spring.profiles.active=dev,standalone              # H2 文件模式
+
 # Environment validation on Kylin / LoongArch (Task 20)
 bash deploy/scripts/check-env.sh
 bash deploy/scripts/start-backend.sh

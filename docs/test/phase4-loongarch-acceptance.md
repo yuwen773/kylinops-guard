@@ -32,11 +32,15 @@
 
 | 代号 | 硬件架构 | 操作系统 | JDK | DB | 部署形态 | 角色 | evidence 子目录 |
 |---|---|---|---|---|---|---|---|
-| **A. loongarch-prod** | LoongArch64 (LA664) | Kylin Advanced Server V11 SP3 | **LoongArch JDK 17（生产栈，强制）** | PostgreSQL 14 | systemd + nginx + prod env | 真机验收主目标 | `evidence/<日期>-loongarch/` |
+| **A. loongarch-prod** | LoongArch64 (LA664) | Kylin Advanced Server V11 SP3 | **LoongArch JDK 17（生产栈，强制）** | PostgreSQL 14 | systemd + nginx + prod env（**或** standalone 单 JAR `--spring.profiles.active=prod,standalone`） | 真机验收主目标 | `evidence/<日期>-loongarch/` |
 | **B. x86-dev** | x86_64 (amd64) | Windows 11 / WSL2 Ubuntu / Native Linux | JDK 17 / 23（仅 dev，**不可上 LoongArch**） | H2 file mode | `mvn spring-boot:run` + vite dev | 本地开发与回归 | `evidence/<日期>-x86-dev/` |
 | **C. ci-runner** | x86_64 (amd64) | Ubuntu 22.04 GitHub Actions runner | Temurin JDK 17 | H2 in-memory | `mvn -B test` + `npm run test:unit` | 自动化基线 | CI logs (无需 evidence 目录) |
 
 > **当前实情**：**B. x86-dev** 部分 ✅ / **C. ci-runner** 100% ✅（每次 push 自动跑）/ **A. loongarch-prod** ⏳ 待真机执行。
+
+> **ℹ️ 部署形态兼容**：提供两种部署选项 —
+> - **分离部署**（默认）：Spring Boot + Nginx（或 Vite dev），需 2+ 进程，适合 x86-dev 开发与标准生产环境。
+> - **单 JAR 部署**（推荐低配 LoongArch 虚拟机）：`mvn -Pstandalone clean package -DskipTests` 将前端 UI 内嵌到 JAR 中，运行时 `--spring.profiles.active=prod,standalone` 只需 1 个进程 1 个端口。详见 CLAUDE.md "Build / Run" 段。
 
 > **⚠️ JDK 严格区分（DEFER-003）**：LoongArch 真机 = JDK 17（生产栈，与 `pom.xml` `<java.version>17</java.version>` 对齐）；x86-dev = JDK 23（仅 dev）；CI = Temurin 17。**dev 用 JDK 23 跑通的测试 ≠ LoongArch JDK 17 跑通**。真机回填时必须用 JDK 17 重跑所有 B. x86-dev 已 ✅ 项；不可直接移植验收结果。Windows dev 上 PATH 里的 Oracle JRE stub 会静默失败（DEFER-003）— `start-backend.sh` 已自动解析（`PATH java` → `JAVA_HOME` → 常见 JDK 路径）。
 

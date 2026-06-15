@@ -184,4 +184,106 @@
         </plugins>
     </build>
 
+    <profiles>
+        <!--
+            Standalone 单 JAR 构建 profile（前后端合一）。
+            激活方式：
+              mvn -Pstandalone clean package -DskipTests
+
+            自动执行：
+              1. 下载 Node.js + npm（首次）
+              2. npm ci 装前端依赖
+              3. npm run build 构建前端
+              4. 复制 frontend/dist/ → target/classes/static/
+              5. 打包为包含前端 UI 的 fat JAR
+
+            启动：
+              java -jar target/kylin-ops-guard.jar -Dspring.profiles.active=prod,standalone
+        -->
+        <profile>
+            <id>standalone</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-clean-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>clean-standalone-static</id>
+                                <phase>initialize</phase>
+                                <goals><goal>clean</goal></goals>
+                                <configuration>
+                                    <filesets>
+                                        <fileset>
+                                            <directory>${project.build.outputDirectory}/static</directory>
+                                        </fileset>
+                                    </filesets>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>1.15.0</version>
+                        <configuration>
+                            <workingDirectory>${project.basedir}/../frontend</workingDirectory>
+                            <installDirectory>${project.basedir}/../frontend/node</installDirectory>
+                        </configuration>
+                        <executions>
+                            <!-- 1. 安装 Node.js + npm（仅首次或缺失时执行） -->
+                            <execution>
+                                <id>install-node-and-npm</id>
+                                <goals><goal>install-node-and-npm</goal></goals>
+                                <phase>generate-resources</phase>
+                                <configuration>
+                                    <nodeVersion>v20.18.0</nodeVersion>
+                                </configuration>
+                            </execution>
+                            <!-- 2. npm ci（锁定版本依赖） -->
+                            <execution>
+                                <id>npm-ci</id>
+                                <goals><goal>npm</goal></goals>
+                                <phase>generate-resources</phase>
+                                <configuration>
+                                    <arguments>ci</arguments>
+                                </configuration>
+                            </execution>
+                            <!-- 3. npm run build -->
+                            <execution>
+                                <id>npm-run-build</id>
+                                <goals><goal>npm</goal></goals>
+                                <phase>generate-resources</phase>
+                                <configuration>
+                                    <arguments>run build</arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <!-- 4. 复制 frontend/dist/ → target/classes/static/ -->
+                            <execution>
+                                <id>copy-frontend-dist</id>
+                                <phase>process-resources</phase>
+                                <goals><goal>copy-resources</goal></goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                                    <overwrite>true</overwrite>
+                                    <resources>
+                                        <resource>
+                                            <directory>${project.basedir}/../frontend/dist</directory>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>

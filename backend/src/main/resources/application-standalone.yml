@@ -1,0 +1,20 @@
+# ============================================================
+# Standalone Profile — 单 JAR 部署（前后端合一）
+#
+# 必须配合一个 DB profile 使用，例如：
+#   --spring.profiles.active=prod,standalone   (PostgreSQL)
+#   --spring.profiles.active=dev,standalone    (H2 文件模式)
+#
+# 行为：
+#   - Spring Boot 自动映射 classpath:/static/ → /
+#   - SpaFallbackFilter 激活，处理 Vue Router 前端路由
+#   - Cookie Secure=false（standalone 下通常无 TLS 终止）
+# ============================================================
+
+server:
+  servlet:
+    session:
+      cookie:
+        # standalone 模式下无 HTTPS 终止层（或用户自配），
+        # 关闭 Secure 标志允许 HTTP 携带 Cookie
+        secure: false
