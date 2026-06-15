@@ -49,6 +49,18 @@ npm run build       # vue-tsc + vite build → dist/
 # 产物：dist/ 静态文件
 ```
 
+### 2.3 Standalone 单 JAR 构建（可选，低配环境推荐）
+
+前后端合一，只需 1 个进程 1 个端口，适合 LoongArch 低配虚拟机：
+
+```bash
+bash deploy/scripts/build-standalone.sh
+# 自动执行 npm run build + mvn -Pstandalone clean package
+# 产物：backend/target/kylin-ops-guard.jar（内含前端 UI）
+```
+
+> 三种部署形态共存：dev（Vite HMR 热更新） / prod（Nginx + 后端分离） / standalone（单 JAR）。详见 CLAUDE.md "Build / Run" 段。
+
 ### 2.3 配置
 
 `backend/src/main/resources/application.yml` 关键项：
@@ -72,6 +84,22 @@ bash deploy/scripts/check-env.sh       # 环境检查
 sudo bash deploy/scripts/seed-demo.sh  # (Linux only) 演示数据 seeding
 bash deploy/scripts/start-backend.sh   # 启动后端
 bash deploy/scripts/start-frontend.sh  # 启动前端 dev (或部署 dist/ 到 nginx)
+```
+
+### 3.1b Standalone 启动（单 JAR）
+
+构建完成后（§2.3），一行命令启动前后端合一的服务：
+
+```bash
+bash deploy/scripts/start-standalone.sh
+# 默认 profile=dev,standalone（H2 文件模式）
+# 访问 http://localhost:8080 // 登录 admin / test-admin-pwd
+```
+
+生产环境使用 PostgreSQL：
+
+```bash
+SPRING_PROFILES_ACTIVE=prod,standalone bash deploy/scripts/start-standalone.sh
 ```
 
 ### 3.2 生产部署

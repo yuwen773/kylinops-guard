@@ -95,6 +95,10 @@ cd frontend && npm install && npm run dev   # http://127.0.0.1:5173
 
 # 5. 验证
 curl http://localhost:8080/api/health
+
+# --- 或者一步到位（Standalone 单 JAR，LoongArch 低配环境推荐）---
+# bash deploy/scripts/build-standalone.sh    # 构建（含前端 + 后端）
+# bash deploy/scripts/start-standalone.sh    # 启动（默认 dev,standalone）
 ```
 
 ### 验证结果示例
