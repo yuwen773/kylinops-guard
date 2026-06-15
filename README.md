@@ -122,7 +122,7 @@ curl http://localhost:8080/api/health
 后端核心安全闭环已通过全量测试、打包和 Git 检查验收。包括 Spring Boot 骨架、JPA 实体、OS 工具、安全风险引擎、Agent 编排层、确认执行、审计 API 和 Chat API。`POST /api/chat/send` 已可用。
 
 ### Phase 2 — 前端演示闭环 (Task 02→17) — 已完成
-六页面前端 (ChatConsole, Dashboard, ToolCenter, SecurityCenter, AuditLog, ReportCenter) 全部落地，单元/集成测试 + Playwright E2E 覆盖四演示场景与六页面导航。验收证据见 `docs/test/phase2-demo-acceptance.md`；该文档严格区分 **Windows 已验证** 与 **LoongArch 待验证**。
+七页面前端 (Login, ChatConsole, Dashboard, ToolCenter, SecurityCenter, AuditLog, ReportCenter) 全部落地，含管理员登录与会话安全。单元/集成测试 + Playwright E2E 覆盖四演示场景与认证流程。
 
 ### Phase 3 — 执行器与报告 (Task 06→12) — 已实现
 SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_preview` 已实现，真实删除仍 deferred）。
@@ -134,16 +134,32 @@ SafeExecutor、PendingAction 确认流程、报告生成（其中 `safe_*_previe
 - **Task 20**：[`docs/deploy/kylin-loongarch-deploy-guide.md`](docs/deploy/kylin-loongarch-deploy-guide.md) + [`environment-checklist.md`](docs/deploy/environment-checklist.md)
 - **Task 21**：8 份标准化提交通道（[`docs/product/`](docs/product/)、[`docs/design/`](docs/design/)、[`docs/test/functional-test-report.md`](docs/test/functional-test-report.md)、[`docs/test/performance-test-report.md`](docs/test/performance-test-report.md)、[`docs/deploy/install-and-deploy-guide.md`](docs/deploy/install-and-deploy-guide.md)、[`docs/demo/demo-video-script.md`](docs/demo/demo-video-script.md)、[`docs/demo/ppt-outline.md`](docs/demo/ppt-outline.md)）
 
+### Production Hardening — 生产加固 + LLM 增强 (P1-T1..P4-T2) — 已完成 (2026-06-15)
+
+- **P1 运行时加固**：Flyway 数据库迁移、PostgreSQL+H2 双模式、dev/test/prod 配置拆分、OsCommandExecutor 硬超时与并发有界、动作白名单、HTTP 健康三端点
+- **P2 认证安全**：Spring Security 边界、管理员登录与会话、CSRF、限流、PendingAction 会话绑定、执行前审计失败闭锁、前端登录页+路由守卫+E2E
+- **P3 LLM 增强**：OpenAI 兼容客户端、混合意图分类（规则+LLM）、工具上下文策略、接地回复验证、LLM 调用审计 V3、DeepSeek/Qwen 双模型降级
+- **P4 部署工件**：systemd unit、Nginx TLS 站点、ci.yml 打包、备份/恢复/迁移脚本、验收烟雾测试
+- **P4-T3/T4/T5**（目标矩阵、并发烟雾、最终发布）→ **BLOCKED_EXTERNAL**（需真实 LoongArch 主机）
+
+- **Task 18**：5 个演示场景 markdown（[`test-scenarios/`](test-scenarios/)）+ `deploy/scripts/seed-demo.sh` + `seed-demo-cleanup.sh` + `docs/demo/demo-script-v0.1.md`
+- **Task 19**：3 份测试文档（[`security-test-cases.md`](docs/test/security-test-cases.md)、[`functional-test-report.md`](docs/test/functional-test-report.md)、[`performance-test-plan.md`](docs/test/performance-test-plan.md)）
+- **Task 20**：[`docs/deploy/kylin-loongarch-deploy-guide.md`](docs/deploy/kylin-loongarch-deploy-guide.md) + [`environment-checklist.md`](docs/deploy/environment-checklist.md)
+- **Task 21**：8 份标准化提交通道（[`docs/product/`](docs/product/)、[`docs/design/`](docs/design/)、[`docs/test/functional-test-report.md`](docs/test/functional-test-report.md)、[`docs/test/performance-test-report.md`](docs/test/performance-test-report.md)、[`docs/deploy/install-and-deploy-guide.md`](docs/deploy/install-and-deploy-guide.md)、[`docs/demo/demo-video-script.md`](docs/demo/demo-video-script.md)、[`docs/demo/ppt-outline.md`](docs/demo/ppt-outline.md)）
+
+- **P1-T1..P4-T2 生产加固**：部署包详见 [`deploy/README.md`](deploy/README.md)
+
 **Phase 3 缺口核对**（[`docs/phase3-audit.md`](docs/phase3-audit.md)）：Task 06 三个扩展工具（service_log_tool / zombie_process_scan_tool / port_conflict_check_tool）正式豁免，不影响 4 个 P0 演示场景。
 
 ## 四演示场景
 
 四个 P0 场景的输入/预期/验收点（系统健康检查、磁盘诊断、服务诊断+L2、危险命令拦截）见 [`CLAUDE.md` §Four Demo Scenarios](CLAUDE.md#four-demo-scenarios-the-architecture-must-support-these)。验收记录与 Windows / LoongArch 区分见 [`docs/test/phase2-demo-acceptance.md`](docs/test/phase2-demo-acceptance.md)。
 
-## Phase 2 — 六页面前端
+## 七页面前端
 
 | 页面 | 路径 | 职责 |
 |---|---|---|
+| Login | `/login` | 管理员登录（CSRF + Session），无 session 时所有页面重定向至此 |
 | ChatConsole | `/chat` | 自然语言入口 + quick-action 按钮 + 风险标签 + L2 确认 |
 | Dashboard | `/dashboard` | 工具调用统计 + 风险等级分布 + 服务状态总览（经 ToolExecutor 采集） |
 | ToolCenter | `/tools` | 已注册 OpsTool 元数据 + 调用次数与成功率 |
