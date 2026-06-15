@@ -10,6 +10,7 @@ backend/target/
 
 # H2 Database files
 backend/data/
+data/
 *.mv.db
 *.trace.db
 
@@ -29,6 +30,13 @@ Thumbs.db
 frontend/node_modules/
 frontend/dist/
 
+# Built frontend in backend (from build-standalone.sh or npm run build)
+backend/src/main/resources/static/
+
+# Temp / local scripts
+.tmp-*.sh
+run-test-and-capture.bat
+
 # Logs
 *.log
 logs/
@@ -39,6 +47,7 @@ logs/
 
 # Local tool / agent state (not source code)
 .omc/
+.reasonix/
 docs/superpowers/
 
 # Isolated workspaces (per superpowers:using-git-worktrees)
