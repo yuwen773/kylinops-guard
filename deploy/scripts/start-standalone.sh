@@ -89,8 +89,14 @@ for i in $(seq 1 30); do
     if curl -fsS -m 2 "${HEALTH_URL}" > /dev/null 2>&1; then
         echo ""
         echo -e "${GREEN}服务启动成功！${NC}"
-        echo "访问: http://localhost:8080"
-        echo "登录: admin / test-admin-pwd（dev profile）"
+        echo ""
+        echo "  🌐 访问地址: http://localhost:8080"
+        echo "  🔑 登录账户: admin"
+        echo "  🔑 登录密码: test-admin-pwd"
+        echo ""
+        echo "  提示：生产部署请设置 SPRING_PROFILES_ACTIVE=prod,standalone"
+        echo "        并配置 KYLINOPS_ADMIN_PASSWORD_HASH 环境变量"
+        echo ""
         exit 0
     fi
     sleep 1
