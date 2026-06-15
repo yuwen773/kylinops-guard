@@ -98,6 +98,22 @@ public class OsCommandExecutor {
         return pool;
     }
 
+    // ==================== 测试辅助 ====================
+
+    /**
+     * 返回线程池当前活跃线程数（用于测试验证并发状态）。
+     */
+    int getPoolActiveCount() {
+        return processPool.getActiveCount();
+    }
+
+    /**
+     * 返回线程池队列当前积压任务数（用于测试验证队列满）。
+     */
+    int getPoolQueueSize() {
+        return processPool.getQueue().size();
+    }
+
     // ==================== 公共方法 ====================
 
     /**
