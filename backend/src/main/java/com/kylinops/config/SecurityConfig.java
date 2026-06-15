@@ -30,7 +30,7 @@ import java.util.UUID;
  *
  * <h3>安全规则</h3>
  * <ul>
- *   <li>{@code /api/health}, {@code /api/health/live}, {@code /api/auth/login} → {@code permitAll()}</li>
+ *   <li>{@code /api/health}, {@code /api/health/live}, {@code /api/health/ready}, {@code /api/auth/login} → {@code permitAll()}</li>
  *   <li>{@code /api/**} → {@code authenticated()}</li>
  *   <li>其它请求 → {@code permitAll()}（静态资源等）</li>
  * </ul>
@@ -82,7 +82,7 @@ public class SecurityConfig implements WebMvcConfigurer {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/health", "/api/health/live", "/api/auth/login").permitAll()
+                .requestMatchers("/api/health", "/api/health/live", "/api/health/ready", "/api/auth/login").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )

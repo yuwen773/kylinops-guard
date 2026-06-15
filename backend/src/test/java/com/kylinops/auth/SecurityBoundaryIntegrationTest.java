@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * 测试场景：
  * <ul>
- *   <li>公开端点（/api/health, /api/health/live, /api/auth/login）→ 无需认证</li>
+ *   <li>公开端点（/api/health, /api/health/live, /api/health/ready, /api/auth/login）→ 无需认证</li>
  *   <li>受保护端点（/api/audit/logs, /api/tools）→ 返回 401</li>
  *   <li>401 响应必须是 JSON 格式且包含 code/message/traceId</li>
  * </ul>
@@ -59,6 +59,17 @@ class SecurityBoundaryIntegrationTest {
                 .getForEntity("/api/health/live", ApiResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("GET /api/health/ready -> 非 401 (permitAll)")
+    void healthReadyEndpointShouldBePublic() {
+        ResponseEntity<String> response = restTemplate
+                .getForEntity("/api/health/ready", String.class);
+
+        // 不应返回 401 — 安全配置放行了该路径
+        // (可以 200 或 503，取决于 DB 状态，但绝不能 401)
+        assertThat(response.getStatusCode()).isNotEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
