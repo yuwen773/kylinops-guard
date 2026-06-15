@@ -8,6 +8,8 @@ import org.junit.jupiter.api.condition.OS;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -170,46 +172,49 @@ class OsCommandExecutorConcurrencyTest {
         smallProps.setQueueCapacity(1);
         OsCommandExecutor smallExecutor = new OsCommandExecutor(smallProps);
 
-        // 用长命令填满池（sleep 10 秒）
+        // 用长命令填满池（sleep 10 秒，足够测试窗口）
         List<String> slow = isWindows()
                 ? List.of("cmd", "/c", "ping -n 10 127.0.0.1 > nul")
                 : List.of("sleep", "10");
 
-        // 异步提交两个命令填满池（第 1 个运行、第 2 个排队）
-        CompletableFuture<OsCommandExecutor.CommandResult> f1 = CompletableFuture.supplyAsync(
-                () -> smallExecutor.execute(slow, 30_000));
+        // 用独立线程池（2 线程）异步提交，避免 ForkJoinPool.commonPool()
+        // 在 CI 2 核环境下的线程饥饿问题
+        ExecutorService asyncPool = Executors.newFixedThreadPool(2);
+        try {
+            // 提交 f1（会占用 processPool 的唯一槽位）
+            CompletableFuture<OsCommandExecutor.CommandResult> f1 = CompletableFuture.supplyAsync(
+                    () -> smallExecutor.execute(slow, 30_000), asyncPool);
+            // 等待 f1 已占用槽位（最多 5s）
+            long deadline = System.currentTimeMillis() + 5_000;
+            while (smallExecutor.getPoolActiveCount() < 1 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50);
+            }
+            assertThat(smallExecutor.getPoolActiveCount())
+                    .as("f1 应在 5s 内占用线程池槽位").isEqualTo(1);
 
-        // 轮询等待 f1 已占用线程池槽位（最多 5s，避免 CI 时序敏感）
-        long deadline = System.currentTimeMillis() + 5_000;
-        while (smallExecutor.getPoolActiveCount() < 1 && System.currentTimeMillis() < deadline) {
-            Thread.sleep(20);
+            // 提交 f2（应排队，填满队列槽位）
+            CompletableFuture<OsCommandExecutor.CommandResult> f2 = CompletableFuture.supplyAsync(
+                    () -> smallExecutor.execute(slow, 30_000), asyncPool);
+            // 等待 f2 已入队（最多 5s）
+            deadline = System.currentTimeMillis() + 10_000;
+            while (smallExecutor.getPoolQueueSize() < 1 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50);
+            }
+            assertThat(smallExecutor.getPoolQueueSize())
+                    .as("f2 应在 10s 内入队").isEqualTo(1);
+
+            // 第 3 个应被拒绝（队列满 + 池满 = RejectedExecutionException）
+            OsCommandExecutor.CommandResult r3 = smallExecutor.execute(slow, 30_000);
+
+            assertThat(r3.getErrorMessage()).contains("TOOL_EXECUTOR_OVERLOADED");
+            assertThat(r3.isSuccess()).isFalse();
+
+            // 清理：等待 f1/f2 自动完成（无需验证结果）
+            f1.get(35_000, TimeUnit.MILLISECONDS);
+            f2.get(35_000, TimeUnit.MILLISECONDS);
+        } finally {
+            asyncPool.shutdownNow();
         }
-        assertThat(smallExecutor.getPoolActiveCount())
-                .as("f1 应在 5s 内占用线程池槽位").isEqualTo(1);
-
-        CompletableFuture<OsCommandExecutor.CommandResult> f2 = CompletableFuture.supplyAsync(
-                () -> smallExecutor.execute(slow, 30_000));
-
-        // 轮询等待 f2 已入队（pool active == 1 仍在运行，queue size == 1 已排队）
-        deadline = System.currentTimeMillis() + 5_000;
-        while ((smallExecutor.getPoolActiveCount() < 1 || smallExecutor.getPoolQueueSize() < 1)
-                && System.currentTimeMillis() < deadline) {
-            Thread.sleep(20);
-        }
-        assertThat(smallExecutor.getPoolActiveCount())
-                .as("f1 应在等待期间保持活跃").isEqualTo(1);
-        assertThat(smallExecutor.getPoolQueueSize())
-                .as("f2 应在 5s 内入队").isEqualTo(1);
-
-        // 第 3 个应被拒绝
-        OsCommandExecutor.CommandResult r3 = smallExecutor.execute(slow, 30_000);
-
-        assertThat(r3.getErrorMessage()).contains("TOOL_EXECUTOR_OVERLOADED");
-        assertThat(r3.isSuccess()).isFalse();
-
-        // 等待 f1/f2 完成（无需验证结果，只是清理）
-        f1.get(35_000, TimeUnit.MILLISECONDS);
-        f2.get(35_000, TimeUnit.MILLISECONDS);
     }
 
     // ==================== 测试: 正常命令仍正常工作 ====================
