@@ -55,9 +55,13 @@ final class SchemaFingerprint {
 
     /**
      * 读取当前数据库中所有 {@code KYLIN_*} 表名（H2 PG 模式大写）。
-     * 排除 V2 增量迁移新增的 {@code KYLIN_EXECUTION_ATTEMPT} /
-     * {@code KYLIN_EXECUTION_OUTCOME}，因为 legacy fixture 升级后这两张表
-     * 由 V2 创建，不应参与「与 V1 fingerprint 比对」。
+     * 排除 V2/V3 增量迁移新增的表：
+     * <ul>
+     *   <li>V2: {@code KYLIN_EXECUTION_ATTEMPT} / {@code KYLIN_EXECUTION_OUTCOME}
+     *       —— legacy fixture 升级后由 V2 创建，不应参与「与 V1 fingerprint 比对」</li>
+     *   <li>V3: {@code KYLIN_LLM_CALL_RECORD} —— P3-T5 LLM 调用审计，
+     *       legacy fixture 不包含，故也不参与 V1 比对</li>
+     * </ul>
      */
     static Set<String> readKylinTables(JdbcTemplate jdbc) {
         List<String> names = jdbc.queryForList(
@@ -70,6 +74,7 @@ final class SchemaFingerprint {
         }
         upper.remove("KYLIN_EXECUTION_ATTEMPT");
         upper.remove("KYLIN_EXECUTION_OUTCOME");
+        upper.remove("KYLIN_LLM_CALL_RECORD");
         return upper;
     }
 

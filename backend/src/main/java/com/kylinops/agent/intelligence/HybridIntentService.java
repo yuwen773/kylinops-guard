@@ -1,6 +1,8 @@
 package com.kylinops.agent.intelligence;
 
 import com.kylinops.agent.IntentClassifier;
+import com.kylinops.audit.AuditContextHolder;
+import com.kylinops.audit.LlmCallStage;
 import com.kylinops.common.enums.IntentType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,8 +61,20 @@ public class HybridIntentService {
             return IntentResolution.ruleHit(ruleIntent);
         }
 
-        // 2) LLM 后备
-        LlmIntentParser.ParsedLlmIntent parsed = llmParser.parse(userInput);
+        // 2) LLM 后备 — P3-T5: 设置 stage=INTENT 让 AuditingLlmClient 正确归类
+        LlmIntentParser.ParsedLlmIntent parsed;
+        LlmCallStage previousStage = AuditContextHolder.getStage();
+        AuditContextHolder.setStage(LlmCallStage.INTENT);
+        try {
+            parsed = llmParser.parse(userInput);
+        } finally {
+            // 恢复原 stage（避免污染外层调用方）
+            if (previousStage != null) {
+                AuditContextHolder.setStage(previousStage);
+            } else {
+                AuditContextHolder.setStage(null);
+            }
+        }
         if (parsed != null && parsed.isValid()) {
             log.info("意图识别走 LLM 路径: intent={}, confidence={}",
                     parsed.getIntent(), parsed.getConfidence());

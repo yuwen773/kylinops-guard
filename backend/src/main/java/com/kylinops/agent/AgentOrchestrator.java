@@ -6,6 +6,7 @@ import com.kylinops.agent.ToolPlanningService.ToolStep;
 import com.kylinops.agent.intelligence.HybridIntentService;
 import com.kylinops.agent.intelligence.HybridResponseService;
 import com.kylinops.agent.intelligence.IntentResolution;
+import com.kylinops.audit.AuditContextHolder;
 import com.kylinops.audit.AuditLogService;
 import com.kylinops.chat.Message;
 import com.kylinops.chat.MessageRepository;
@@ -124,6 +125,9 @@ public class AgentOrchestrator {
         log.info("sessionId={}, auditId={}, input='{}'",
                 request.getSessionId(), auditId, truncate(request.getUserInput(), 100));
 
+        // P3-T5: 在 ThreadLocal 中发布 auditId，供 AuditingLlmClient 读取
+        // try/finally 保证清理，防止 ThreadLocal 泄漏到线程池下一个请求
+        AuditContextHolder.set(auditId);
         try {
             // ── Step 0: 查找或创建 Session ──
             Session session = findOrCreateSession(request.getSessionId());
@@ -299,6 +303,9 @@ public class AgentOrchestrator {
                     .auditId(auditId)
                     .errorMessage(e.getMessage())
                     .build();
+        } finally {
+            // P3-T5: 清理 ThreadLocal 防止泄漏到下一个请求
+            AuditContextHolder.clear();
         }
     }
 

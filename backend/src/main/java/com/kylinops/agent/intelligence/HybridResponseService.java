@@ -1,6 +1,8 @@
 package com.kylinops.agent.intelligence;
 
 import com.kylinops.agent.AgentResponseBuilder;
+import com.kylinops.audit.AuditContextHolder;
+import com.kylinops.audit.LlmCallStage;
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
@@ -120,9 +122,20 @@ public class HybridResponseService {
                 return fallbackBuilder.build(intent, results, decision, riskReason, riskLevel);
             }
 
-            // 4) 调用 LLM
+            // 4) 调用 LLM — P3-T5: 设置 stage=RESPONSE 让 AuditingLlmClient 正确归类
             List<ChatMessage> messages = buildMessages(intent, sanitizedContext);
-            LlmCallResult result = llmClient.complete(LlmStage.RESPONSE, messages);
+            LlmCallStage previousStage = AuditContextHolder.getStage();
+            AuditContextHolder.setStage(LlmCallStage.RESPONSE);
+            LlmCallResult result;
+            try {
+                result = llmClient.complete(LlmStage.RESPONSE, messages);
+            } finally {
+                if (previousStage != null) {
+                    AuditContextHolder.setStage(previousStage);
+                } else {
+                    AuditContextHolder.setStage(null);
+                }
+            }
 
             if (result == null || result.content() == null || result.content().isBlank()) {
                 log.warn("LLM 返回空 content, 走模板回复");
