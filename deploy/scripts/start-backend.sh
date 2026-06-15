@@ -40,6 +40,40 @@ echo " 麒麟安全智能运维 Agent — 后端启动"
 echo " 工作目录: $(pwd)"
 echo "=========================================="
 
+# ---- 1.5 解析 JAVA 可执行文件（修复 DEFER-003）----
+# Windows dev 上 PATH 里的 java 可能是 Oracle JRE stub（`java -version` 无输出）
+# 会让 nohup java -jar 静默失败。解析顺序：PATH 中可用 java → JAVA_HOME → Windows 常见 JDK 路径。
+resolve_java() {
+    if command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
+        command -v java
+        return 0
+    fi
+    if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then
+        echo "${JAVA_HOME}/bin/java"
+        return 0
+    fi
+    # Windows + Git Bash 常见路径（dev 常见 JDK 23 / 17 安装位置）
+    local candidate
+    for candidate in \
+        "/d/Program Files/Java/jdk-23/bin/java" \
+        "/d/Program Files/Java/jdk-17/bin/java" \
+        "/c/Program Files/Java/jdk-17/bin/java"; do
+        if [ -x "${candidate}.exe" ] || [ -x "${candidate}" ]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if ! JAVA="$(resolve_java)"; then
+    echo -e "${RED}[ERROR] 未找到可用的 java。请安装 JDK 17/23 或设置 JAVA_HOME${NC}"
+    echo "  提示 (Windows dev): PATH 里的 Oracle JRE stub 会静默失败（`java -version` 无输出）"
+    echo "  已知可用: D:/Program Files/Java/jdk-23/bin/java.exe (JDK 23)"
+    exit 1
+fi
+echo "Java: $("${JAVA}" -version 2>&1 | head -1)"
+
 # ---- 2. 检测端口占用 & 自动 kill 旧 JVM ----
 free_port() {
     local port="$1"
@@ -144,7 +178,7 @@ fi
 PROFILE="${SPRING_PROFILES_ACTIVE:-dev}"
 echo "启动 ${APP_NAME} (profile: ${PROFILE}) ..."
 cd backend
-nohup java -jar "target/${APP_NAME}.jar" \
+nohup "${JAVA}" -jar "target/${APP_NAME}.jar" \
     --spring.profiles.active="${PROFILE}" \
     > "${LOG_DIR}/backend.log" 2>&1 &
 PID=$!

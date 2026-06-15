@@ -247,6 +247,7 @@ Performance budgets to hit (PRD §12.3): single tool ≤ 3s, risk check ≤ 1s, 
 ## Environment Notes
 
 - The host shell here is Windows (`win32` + Git Bash). The target deployment is **Kylin Advanced Server V11 on LoongArch64**. Java is portable so most code is fine; OS-sensing tools must be developed against Linux command output formats (`df -h`, `ps aux`, `ss -tulnp`, `systemctl status`, `journalctl`, `/proc/*`) and gracefully degrade when those binaries are missing on dev hosts (return a structured `ToolResult` with `status: "failed"` + degradation note, never crash the request).
+- **JDK 严格区分（DEFER-003）**：LoongArch 真机务必用 **JDK 17**（生产栈，与后端 `<java.version>17</java.version>` 对齐）；x86-dev 可用 JDK 23；CI runner 用 Temurin 17。dev 用 JDK 23 跑通的测试 ≠ LoongArch JDK 17 跑通，回填时必须重跑。Windows dev 上 PATH 里 `C:\Program Files\Common Files\Oracle\Java\javapath\java` 是 Oracle JRE stub，会静默失败（`java -version` 无输出，nohup 启动后台进程立刻退出但日志为空）— `deploy/scripts/start-backend.sh` 已加自动解析（`PATH java` → `JAVA_HOME` → Windows 常见 JDK 路径），仍失败时显式用 `D:/Program Files/Java/jdk-23/bin/java.exe` 或设置 `JAVA_HOME`。
 - Never claim a LoongArch deployment has been verified that wasn't actually run there. The deploy doc must distinguish 已验证 vs 待验证 environments explicitly (任务卡 Task 20).
 - All spec docs and the demo are in Chinese — keep user-facing strings, audit reasons, and report content in Chinese. Code identifiers and comments stay in English.
 
