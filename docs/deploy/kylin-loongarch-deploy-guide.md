@@ -465,6 +465,124 @@ bash deploy/scripts/start-backend.sh
 
 ---
 
+## 12.8 systemd 部署 (推荐 — 麒麟 V11 生产)
+
+> 在首次手工部署完成后,推荐用 systemd 守护后端,开机自启 + 失败自动重启。
+
+### 12.8.1 准备用户与目录
+
+```bash
+# 创建服务账户 (非 root)
+sudo useradd --system --shell /usr/sbin/nologin --home /opt/kylinops kylinops
+
+# 创建数据 / 日志 / 证书目录
+sudo mkdir -p /opt/kylinops /var/lib/kylinops/frontend \
+                /var/lib/kylinops/certbot \
+                /var/log/kylinops \
+                /etc/kylinops/tls
+sudo chown -R kylinops:kylinops /opt/kylinops /var/lib/kylinops /var/log/kylinops
+sudo chmod 0750 /var/lib/kylinops /var/log/kylinops /opt/kylinops
+
+# 部署 JAR
+sudo cp backend/target/kylin-ops-guard.jar /opt/kylinops/
+sudo chown kylinops:kylinops /opt/kylinops/kylin-ops-guard.jar
+```
+
+### 12.8.2 部署 env 文件 (0600, root:kylinops)
+
+```bash
+# 1. 复制模板
+sudo cp deploy/config/kylinops.env.example /etc/kylinops/kylinops.env
+
+# 2. 严格权限 — env 含 DB_PASSWORD / ADMIN_PASSWORD_HASH / LLM_API_KEY
+sudo chown root:kylinops /etc/kylinops/kylinops.env
+sudo chmod 0640 /etc/kylinops/kylinops.env   # 或 0600 进一步收紧
+
+# 3. 填入真实值 (BCrypt hash 用 htpasswd 生成)
+sudo -e /etc/kylinops/kylinops.env
+```
+
+### 12.8.3 部署 application-prod.yml
+
+```bash
+sudo cp deploy/config/application-prod.yml /etc/kylinops/application-prod.yml
+sudo chown root:kylinops /etc/kylinops/application-prod.yml
+sudo chmod 0644 /etc/kylinops/application-prod.yml
+```
+
+### 12.8.4 安装 systemd unit
+
+```bash
+sudo cp deploy/systemd/kylinops-guard.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now kylinops-guard
+sudo systemctl status kylinops-guard
+```
+
+**安全契约 (P4-T1)**：`kylinops-guard.service` 内置：
+- `User=kylinops` / `Group=kylinops`（非 root）
+- `NoNewPrivileges=true`（禁止 setuid 提权）
+- `PrivateTmp=true`（隔离 /tmp）
+- `ProtectSystem=strict`（/usr /etc 只读）
+- `ReadWritePaths=/var/lib/kylinops /var/log/kylinops`（仅数据/日志可写）
+- `Restart=on-failure`（崩溃自动重启）
+
+### 12.8.5 部署前端 dist
+
+```bash
+sudo mkdir -p /var/lib/kylinops/frontend
+sudo cp -r frontend/dist/* /var/lib/kylinops/frontend/dist/
+sudo chown -R kylinops:kylinops /var/lib/kylinops/frontend
+```
+
+### 12.8.6 部署 Nginx
+
+```bash
+# 1. 部署站点配置
+sudo cp deploy/nginx/kylinops-guard.conf /etc/nginx/conf.d/
+
+# 2. 部署 TLS 证书 (Let's Encrypt 或内部 CA)
+sudo cp fullchain.pem privkey.pem /etc/kylinops/tls/
+sudo chown -R root:kylinops /etc/kylinops/tls
+sudo chmod 0640 /etc/kylinops/tls/*
+
+# 3. 校验 + 启用
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Nginx 配置要点：
+- `proxy_pass http://127.0.0.1:8080`（不暴露 backend 公网）
+- `client_max_body_size 1m`（请求体兜底）
+- `add_header X-Frame-Options DENY / X-Content-Type-Options nosniff / Referrer-Policy strict-origin-when-cross-origin / Strict-Transport-Security`
+- `ssl_protocols TLSv1.2 TLSv1.3`
+- `upstream kylinops_backend { server 127.0.0.1:8080; keepalive 16; }`
+
+### 12.8.7 备份目录
+
+```bash
+sudo mkdir -p /var/lib/kylinops/backup /var/lib/kylinops/frontend
+sudo chown -R kylinops:kylinops /var/lib/kylinops/backup
+# 部署包升级时由 update.sh 把当前版本备份到这里
+```
+
+### 12.8.8 验收
+
+```bash
+# 1. systemd 状态
+sudo systemctl status kylinops-guard
+sudo journalctl -u kylinops-guard -n 50
+
+# 2. 安全 sandbox 自检 (P4-T1 重点)
+systemctl show kylinops-guard | grep -E 'NoNewPrivileges|PrivateTmp|ProtectSystem|User='
+
+# 3. HTTP 走通
+curl -I https://<host>/api/health
+# 预期: 200, 含 X-Frame-Options / Strict-Transport-Security 头
+```
+
+---
+
 ## 13. LoongArch 验证清单
 
 > 以下步骤**必须**在 LoongArch64 真实硬件上执行，并回填实测结果。

@@ -1,0 +1,98 @@
+# ============================================================
+# systemd unit — 麒麟安全智能运维 Agent (KylinOps Guard)
+# ============================================================
+# 安装:
+#   sudo cp deploy/systemd/kylinops-guard.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kylinops-guard
+#
+# 配套:
+#   /etc/kylinops/kylinops.env          — 环境变量 (0600, root:kylinops)
+#   /opt/kylinops/kylin-ops-guard.jar   — Spring Boot fat JAR
+#   /var/lib/kylinops/                  — 数据 + Flyway
+#   /var/log/kylinops/                  — 应用日志 (JournalForward 兜底)
+# ============================================================
+#
+# 安全契约 (P4-T1):
+#   * 不以 root 运行 — User=kylinops
+#   * NoNewPrivileges — 禁止 setuid/setgid 提权
+#   * PrivateTmp — /tmp 与系统隔离
+#   * ProtectSystem=strict — /usr /etc /boot 只读
+#   * ReadWritePaths 仅放开数据/日志目录
+#   * 失败自动重启,启动 30s 窗口 (Restart=on-failure)
+# ============================================================
+
+[Unit]
+Description=KylinOps Guard Backend
+Documentation=https://github.com/yuwen773/kylinops-guard
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# ---- 身份 (非 root) ----
+User=kylinops
+Group=kylinops
+
+# ---- 启动 ----
+EnvironmentFile=/etc/kylinops/kylinops.env
+ExecStart=/usr/bin/java -jar /opt/kylinops/kylin-ops-guard.jar --spring.profiles.active=prod
+WorkingDirectory=/opt/kylinops
+
+# ---- 重启策略 ----
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+TimeoutStartSec=60
+
+# ---- 资源限制 ----
+# 守护进程 + 10 并发 chat + LLM 时, 768M heap 够用; 大型 healthcheck 给到 1G
+LimitNOFILE=65536
+# OOM 时优先 kill 主进程, 不牵连系统
+OOMPolicy=stop
+OOMScoreAdjust=-100
+
+# ---- 沙箱 ----
+# 禁止提权 — 即使二进制带 setuid 也不生效
+NoNewPrivileges=true
+# /tmp 私有, 看不到系统 /tmp
+PrivateTmp=true
+# /home /root /run/user 不可见
+ProtectHome=true
+# /usr /boot /etc 只读; 写权限仅在 ReadWritePaths 列出的目录
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+# 仅数据 + 日志可写
+ReadWritePaths=/var/lib/kylinops /var/log/kylinops
+# 系统时钟可读, 不可写
+ProtectClock=true
+# 系统 hostname / machine-id 只读
+ProtectHostname=true
+ProtectSystemStrictMode=true
+# 关闭非必要 Linux 能力
+CapabilityBoundingSet=
+AmbientCapabilities=
+# 拒绝私挂文件系统
+PrivateDevices=true
+PrivateNetwork=false
+ProtectProc=invisible
+
+# ---- 日志 ----
+# 转发到 systemd journal, logrotate 由 journald 处理
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kylinops-guard
+
+# ---- 安全目录 ----
+RuntimeDirectory=kylinops
+RuntimeDirectoryMode=0750
+StateDirectory=kylinops
+StateDirectoryMode=0750
+LogsDirectory=kylinops
+LogsDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

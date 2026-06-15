@@ -115,6 +115,23 @@ jobs:
           cp -r deploy/scripts _package/deploy/
           cp -r deploy/config _package/deploy/ 2>/dev/null || true
 
+      # P4-T1: systemd unit + nginx site 一起打包, 部署机可直接 cp 到 /etc/
+      - name: Copy systemd and nginx configs
+        run: |
+          mkdir -p _package/deploy/systemd _package/deploy/nginx
+          cp -r deploy/systemd/* _package/deploy/systemd/
+          cp -r deploy/nginx/* _package/deploy/nginx/
+
+      # P4-T1: 显式排除含凭据文件 (尽管这些文件不应进 git, 二次保险)
+      - name: Verify no secrets in package
+        run: |
+          if find _package -type f \( -name '.env' -o -name 'application-local.yml' -o -name 'kylinops.env' \) | grep -q .; then
+            echo "ERROR: secret files detected in package" >&2
+            find _package -type f \( -name '.env' -o -name 'application-local.yml' -o -name 'kylinops.env' \) >&2
+            exit 1
+          fi
+          echo "OK: no secret files in package"
+
       - name: Copy application config
         run: |
           mkdir -p _package/config
