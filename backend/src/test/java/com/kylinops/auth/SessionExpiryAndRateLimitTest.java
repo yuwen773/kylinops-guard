@@ -206,6 +206,22 @@ class SessionExpiryAndRateLimitTest {
         assertThat(r4.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     }
 
+    @Test
+    @DisplayName("登录后 /api/chat/send → 200 (SecurityContext 必须从 session 加载 — Bug 2 回归)")
+    void loginThenChatSend_doesNotReturn403() throws Exception {
+        // 1. 登录拿 cookie
+        String cookie = loginAndGetCookie();
+        HttpHeaders h = authedHeadersWithCsrf(cookie);
+
+        // 2. POST /api/chat/send 应该返回 200，不能因为 Spring Security 6
+        //    SecurityContextHolderFilter 不读 session 而退回 anonymous → 403
+        ResponseEntity<String> r = restTemplate.exchange(
+                "/api/chat/send", HttpMethod.POST,
+                new HttpEntity<>("{\"content\":\"你好\"}", h), String.class);
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
     // ==================== 锁定恢复 ====================
 
     @Test
