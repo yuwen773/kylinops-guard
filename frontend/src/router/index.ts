@@ -1,10 +1,27 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { fetchSession } from '@/api/auth';
+import { getSession } from '@/auth/session';
 
 /**
  * Phase 2 task-card-mandated route set. Do not add ad-hoc routes here —
  * each business page maps 1:1 to a contract from 任务卡 Task 13–17.
+ *
+ * P2-T5 additions:
+ *   - `/login` is a public route that renders without `AppLayout`.
+ *   - A global `beforeEach` guard hits `GET /api/auth/session` for any
+ *     non-public route and bounces to `/login` on 401. The in-memory
+ *     session is treated as cached: once populated, the guard does not
+ *     re-fetch within the same SPA mount.
  */
+const PUBLIC_ROUTES = new Set(['/login']);
+
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/pages/Login/index.vue'),
+    meta: { title: '管理员登录', public: true },
+  },
   { path: '/', redirect: '/chat' },
   {
     path: '/chat',
@@ -51,6 +68,42 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+/**
+ * Guarded navigation: confirms there is a valid session before letting the
+ * router land on any protected page.
+ *
+ * Caching policy:
+ *   - If the in-memory session is already populated, allow the navigation
+ *     without re-hitting the backend.
+ *   - Otherwise call `fetchSession()` which returns `null` on 401 and
+ *     repopulates the store on success.
+ *   - A second navigation inside the same SPA mount will therefore use
+ *     the cached session and avoid an extra round-trip.
+ */
+router.beforeEach(async (to) => {
+  // Public routes (currently only /login) always pass through.
+  if (PUBLIC_ROUTES.has(to.path) || to.meta?.public === true) {
+    return true;
+  }
+
+  // Already have a session? Continue.
+  if (getSession() !== null) {
+    return true;
+  }
+
+  // No cached session — ask the backend.
+  try {
+    const session = await fetchSession();
+    if (session !== null) {
+      return true;
+    }
+  } catch {
+    // Network errors land here. Treat as unauthenticated for the guard's
+    // purposes — the user can still retry from the login page.
+  }
+  return { path: '/login' };
 });
 
 export default router;

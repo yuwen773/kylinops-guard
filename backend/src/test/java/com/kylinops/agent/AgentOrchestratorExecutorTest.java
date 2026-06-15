@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.fail;
  * 因此直接通过反射读字段即可拿到单例 executor。</p>
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @DisplayName("AgentOrchestrator.parallelExecutor — 高并发降级")
 class AgentOrchestratorExecutorTest {
 

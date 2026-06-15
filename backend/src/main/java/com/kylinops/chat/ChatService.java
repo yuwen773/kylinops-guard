@@ -3,6 +3,7 @@ package com.kylinops.chat;
 import com.kylinops.agent.AgentOrchestrator;
 import com.kylinops.agent.AgentOrchestrator.AgentRequest;
 import com.kylinops.agent.AgentResult;
+import com.kylinops.executor.AuthenticatedOperator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,9 +37,10 @@ public class ChatService {
      *
      * @param content   用户输入内容
      * @param sessionId 会话 ID（可选，不传则创建新会话）
+     * @param operator  已认证操作者身份（用于 L2 动作归属校验）
      * @return Agent 执行结果
      */
-    public AgentResult processMessage(String content, String sessionId) {
+    public AgentResult processMessage(String content, String sessionId, AuthenticatedOperator operator) {
         // 1. 生成 auditId
         String auditId = UUID.randomUUID().toString();
 
@@ -47,6 +49,7 @@ public class ChatService {
                 .sessionId(sessionId)
                 .userInput(content)
                 .requestId(auditId)
+                .operator(operator)
                 .build();
 
         // 3. 调用 Agent 主编排器

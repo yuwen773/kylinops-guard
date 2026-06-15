@@ -83,4 +83,31 @@ public interface PendingActionRepository extends JpaRepository<PendingAction, Lo
                            @Param("waitingStatus") PendingActionStatus waitingStatus,
                            @Param("targetStatus") PendingActionStatus targetStatus,
                            @Param("now") LocalDateTime now);
+
+    /**
+     * 带归属校验的原子 claim —— 在 {@link #claimWaitingAction} 基础上增加
+     * {@code creatorPrincipal} 和 {@code creatorAuthSessionId} 条件。
+     * <p>
+     * 用于确认/取消流程，确保只能 claim 自己创建的待确认动作。
+     * 跨认证会话的 claim 请求返回 0，调用方据此拒绝 (HTTP 403)。
+     * </p>
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query("""
+            update PendingAction p
+               set p.status = :targetStatus,
+                   p.updatedAt = :now
+             where p.actionId = :actionId
+               and p.status = :waitingStatus
+               and p.expiresAt > :now
+               and p.creatorPrincipal = :creatorPrincipal
+               and p.creatorAuthSessionId = :creatorAuthSessionId
+            """)
+    int claimOwnedWaitingAction(@Param("actionId") String actionId,
+                                @Param("waitingStatus") PendingActionStatus waitingStatus,
+                                @Param("targetStatus") PendingActionStatus targetStatus,
+                                @Param("now") LocalDateTime now,
+                                @Param("creatorPrincipal") String creatorPrincipal,
+                                @Param("creatorAuthSessionId") String creatorAuthSessionId);
 }

@@ -151,6 +151,51 @@
 
 ---
 
+## 10.5 systemd 沙箱安全自检 (P4-T1)
+
+> 当用 `deploy/systemd/kylinops-guard.service` 部署时执行。**任意一项 FAIL 即生产环境不合格**。
+
+| 检查项 | 命令 | 预期值 | 实测值 | 状态 |
+| --- | --- | --- | --- | --- |
+| 服务非 root 运行 | `systemctl show kylinops-guard \| grep ^User=` | `User=kylinops` | _____ | ☐ |
+| 禁止提权 | `systemctl show kylinops-guard \| grep NoNewPrivileges` | `NoNewPrivileges=yes` | _____ | ☐ |
+| /tmp 隔离 | `systemctl show kylinops-guard \| grep PrivateTmp` | `PrivateTmp=yes` | _____ | ☐ |
+| /home 不可见 | `systemctl show kylinops-guard \| grep ProtectHome` | `ProtectHome=yes` | _____ | ☐ |
+| 系统只读 | `systemctl show kylinops-guard \| grep ^ProtectSystem=` | `ProtectSystem=strict` | _____ | ☐ |
+| 写权限白名单 | `systemctl show kylinops-guard \| grep ReadWritePaths` | 包含 `/var/lib/kylinops` 与 `/var/log/kylinops` | _____ | ☐ |
+| 进程文件描述符上限 | `systemctl show kylinops-guard \| grep LimitNOFILE` | `LimitNOFILE=65536` | _____ | ☐ |
+| 日志走 journal | `journalctl -u kylinops-guard -n 5` | 可见启动日志 | _____ | ☐ |
+
+---
+
+## 10.6 文件权限自检 (P4-T1)
+
+| 检查项 | 命令 | 预期值 | 实测值 | 状态 |
+| --- | --- | --- | --- | --- |
+| env 文件权限 | `stat -c '%a %U:%G' /etc/kylinops/kylinops.env` | `640` 或 `600` / `root:kylinops` | _____ | ☐ |
+| env 文件 owner | `ls -l /etc/kylinops/kylinops.env` | `-rw-r-----` 或更严 | _____ | ☐ |
+| TLS 私钥权限 | `stat -c '%a' /etc/kylinops/tls/privkey.pem` | `640` 或 `600` | _____ | ☐ |
+| application-prod.yml | `stat -c '%U:%G' /etc/kylinops/application-prod.yml` | `root:kylinops` | _____ | ☐ |
+| JAR 文件 | `stat -c '%U:%G' /opt/kylinops/kylin-ops-guard.jar` | `kylinops:kylinops` | _____ | ☐ |
+| 数据目录 | `stat -c '%U:%G' /var/lib/kylinops` | `kylinops:kylinops` | _____ | ☐ |
+| 公开目录无 secret | `grep -rE 'sk-[a-z0-9]{20,}\|password.*[a-z0-9]{8,}' /var/lib/kylinops/frontend/ \|\| echo OK` | `OK` | _____ | ☐ |
+
+---
+
+## 10.7 Nginx 配置自检 (P4-T1)
+
+| 检查项 | 命令 | 预期值 | 实测值 | 状态 |
+| --- | --- | --- | --- | --- |
+| Nginx 配置语法 | `sudo nginx -t` | `syntax is ok` / `test is successful` | _____ | ☐ |
+| 后端指向 loopback | `grep proxy_pass /etc/nginx/conf.d/kylinops-guard.conf` | `127.0.0.1:8080` | _____ | ☐ |
+| TLS 协议 | `grep ssl_protocols /etc/nginx/conf.d/kylinops-guard.conf` | `TLSv1.2 TLSv1.3` | _____ | ☐ |
+| 请求体大小 | `grep client_max_body_size /etc/nginx/conf.d/kylinops-guard.conf` | `1m` | _____ | ☐ |
+| HSTS 头 | `curl -I https://localhost/api/health` | 含 `Strict-Transport-Security` | _____ | ☐ |
+| X-Frame-Options | `curl -I https://localhost/api/health` | 含 `X-Frame-Options: DENY` | _____ | ☐ |
+| 隐藏 nginx 版本 | `curl -I https://localhost/ \| grep Server` | 不含版本号 | _____ | ☐ |
+
+---
+
 ## 11. 验收签字
 
 | 角色 | 姓名 | 日期 | 签字 |

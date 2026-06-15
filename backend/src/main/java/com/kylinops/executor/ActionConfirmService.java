@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kylinops.agent.ToolPlanningService.ToolPlan;
 import com.kylinops.agent.ToolPlanningService.ActionPlan;
 import com.kylinops.audit.AuditLogService;
+import com.kylinops.common.BusinessException;
 import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
@@ -34,6 +35,8 @@ public class ActionConfirmService {
     private final RiskCheckService riskCheckService;
     private final SafeExecutor safeExecutor;
     private final AuditLogService auditLogService;
+    private final ExecutionAttemptRepository executionAttemptRepository;
+    private final ExecutionOutcomeRepository executionOutcomeRepository;
     private final TransactionTemplate transactionTemplate;
 
     /**
@@ -52,16 +55,20 @@ public class ActionConfirmService {
                                 RiskCheckService riskCheckService,
                                 SafeExecutor safeExecutor,
                                 AuditLogService auditLogService,
+                                ExecutionAttemptRepository executionAttemptRepository,
+                                ExecutionOutcomeRepository executionOutcomeRepository,
                                 PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.riskCheckService = riskCheckService;
         this.safeExecutor = safeExecutor;
         this.auditLogService = auditLogService;
+        this.executionAttemptRepository = executionAttemptRepository;
+        this.executionOutcomeRepository = executionOutcomeRepository;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    public PendingAction createAction(String auditId, String sessionId,
+    public PendingAction createAction(String auditId, String sessionId, AuthenticatedOperator operator,
                                       String actionType, String toolName,
                                       Map<String, Object> params, RiskLevel riskLevel) {
         return transactionTemplate.execute(status -> {
@@ -75,6 +82,8 @@ public class ActionConfirmService {
             action.setActionId(UUID.randomUUID().toString());
             action.setAuditId(auditId);
             action.setSessionId(sessionId);
+            action.setCreatorPrincipal(operator.principal());
+            action.setCreatorAuthSessionId(operator.authSessionId());
             action.setActionType(actionType);
             action.setToolName(toolName);
             action.setParamsJson(toJson(params));
@@ -89,30 +98,45 @@ public class ActionConfirmService {
      * Confirms and executes, or cancels, the server-persisted action.
      * The request contributes no executable fields beyond actionId and confirm.
      * <p>
-     * 拆分三段短事务：
+     * 拆分五段短事务：
      * <ol>
-     *   <li>{@link #claimForExecution} —— 短事务，原子 CAS 校验 status + expiresAt；</li>
+     *   <li>{@link #claimForExecution} —— 短事务 #1，原子 CAS 校验 status + expiresAt；</li>
+     *   <li>{@link #recordAttempt} —— 短事务 #2，写入 ExecutionAttempt（STARTED，永不更新）；</li>
      *   <li>{@link #executeConfirmedAction} —— 无事务，跑 riskCheck / safeExecutor；</li>
-     *   <li>{@link #finalizeAction} —— 短事务，状态/审计落库。</li>
+     *   <li>{@link #recordOutcome} —— 短事务 #3，写入 ExecutionOutcomeRecord；</li>
+     *   <li>{@link #finalizeAction} —— 短事务 #4，状态/审计落库。</li>
      * </ol>
-     * 公开方法自身不带事务，事务边界由三个私有方法各自通过 {@link TransactionTemplate} 独立控制。
+     * 公开方法自身不带事务，事务边界由五个私有方法各自通过 {@link TransactionTemplate} 独立控制。
      * </p>
      * <p>
-     * 关键：{@code finalizeAction} / {@code cancelWaitingAction} 内 audit 写入失败时，
-     * 异常向上传播（不再 try/catch 吞掉），由本事务回滚让 status 保持中间态
-     * （EXECUTING / WAITING）。调用方 {@link ActionConfirmController#confirmAction}
-     * 当前不处理 RuntimeException，audit 失败会经由
-     * {@link com.kylinops.common.GlobalExceptionHandler#handleUnhandledException}
-     * 返回 HTTP 500，pendingAction 状态保持 EXECUTING/WAITING 可由 sweeper
-     * 后续清理。Phase 3 再考虑在 controller 层降级返回（带降级 audit 行）。
+     * 关键：attempt/outcome 写入失败时异常向上传播阻止后续流程；
+     * finalizeAction / cancelWaitingAction 内 audit 写入失败时，异常向上传播
+     * 让事务回滚保持中间态（EXECUTING / WAITING）。调用方
+     * {@link ActionConfirmController#confirmAction} 当前不处理 RuntimeException，
+     * audit 失败会经由 {@link com.kylinops.common.GlobalExceptionHandler#handleUnhandledException}
+     * 返回 HTTP 500，pendingAction 状态保持 EXECUTING/WAITING 可由
+     * {@link ExecutionReconciliationService} 后续诊断。
      * </p>
      */
-    public PendingAction confirmAction(String actionId, boolean confirm) {
+    public PendingAction confirmAction(String actionId, boolean confirm, AuthenticatedOperator operator) {
         if (!confirm) {
-            return cancelWaitingAction(actionId);
+            return cancelWaitingAction(actionId, operator);
         }
-        PendingAction claimed = claimForExecution(actionId);
+        // Phase 1: Claim (short TX #1)
+        PendingAction claimed = claimForExecution(actionId, operator);
+
+        // Phase 2: Attempt (short TX #2) — 写入 ExecutionAttempt STARTED
+        // 失败时抛异常，claim 状态保持 EXECUTING，由 reconciliation 诊断。
+        recordAttempt(claimed);
+
+        // Phase 3: Execute (no TX)
         ExecutionOutcome outcome = executeConfirmedAction(claimed);
+
+        // Phase 4: Outcome (short TX #3) — 写入 ExecutionOutcomeRecord
+        // 失败时抛异常，不进入 finalize，status 保持 EXECUTING。
+        recordOutcome(claimed, outcome);
+
+        // Phase 5: Finalize (short TX #4)
         return finalizeAction(claimed, outcome);
     }
 
@@ -127,13 +151,14 @@ public class ActionConfirmService {
      * audit 写入失败时异常向上传播，事务回滚让 status 保持 WAITING。
      * </p>
      */
-    public PendingAction cancelWaitingAction(String actionId) {
+    public PendingAction cancelWaitingAction(String actionId, AuthenticatedOperator operator) {
         return transactionTemplate.execute(status -> {
             LocalDateTime now = LocalDateTime.now();
-            int cancelled = repository.claimWaitingAction(
-                    actionId, PendingActionStatus.WAITING, PendingActionStatus.CANCELLED, now);
+            int cancelled = repository.claimOwnedWaitingAction(
+                    actionId, PendingActionStatus.WAITING, PendingActionStatus.CANCELLED, now,
+                    operator.principal(), operator.authSessionId());
             if (cancelled != 1) {
-                throw claimFailedError(actionId);
+                throw claimFailedWithOwnershipCheck(actionId, operator, now);
             }
             PendingAction cancelledAction = findByActionId(actionId);
             // 不再 try/catch：audit 失败 → 异常向上传播 → 事务回滚 → status 仍是 WAITING。
@@ -154,13 +179,14 @@ public class ActionConfirmService {
      * 错误消息区分「已过期」与「已被并发 claim」两种情形，方便调用方和审计定位。
      * </p>
      */
-    public PendingAction claimForExecution(String actionId) {
+    public PendingAction claimForExecution(String actionId, AuthenticatedOperator operator) {
         return transactionTemplate.execute(status -> {
             LocalDateTime now = LocalDateTime.now();
-            int claimed = repository.claimWaitingAction(
-                    actionId, PendingActionStatus.WAITING, PendingActionStatus.EXECUTING, now);
+            int claimed = repository.claimOwnedWaitingAction(
+                    actionId, PendingActionStatus.WAITING, PendingActionStatus.EXECUTING, now,
+                    operator.principal(), operator.authSessionId());
             if (claimed != 1) {
-                throw claimFailedError(actionId);
+                throw claimFailedWithOwnershipCheck(actionId, operator, now);
             }
             // 同一事务内 findByActionId，可见 claim 后的最新状态。
             return findByActionId(actionId);
@@ -213,13 +239,79 @@ public class ActionConfirmService {
     }
 
     /**
-     * 第三段：把执行结果原子落到 DB 与审计。
+     * 第二段（attempt）：写入 ExecutionAttempt（STARTED，永不更新）。
+     * <p>
+     * claim 成功后立即执行，确保每次执行尝试都有不可逆的原子审计起点。
+     * 写入失败时抛异常阻止后续流程（不进入 safeExecutor），status 保持 EXECUTING
+     * 由 {@link ExecutionReconciliationService} 诊断。
+     * </p>
+     */
+    public ExecutionAttempt recordAttempt(PendingAction claimed) {
+        return transactionTemplate.execute(status -> {
+            ExecutionAttempt attempt = new ExecutionAttempt();
+            attempt.setAttemptId(UUID.randomUUID().toString());
+            attempt.setAuditId(claimed.getAuditId());
+            attempt.setActionId(claimed.getActionId());
+            attempt.setActionType(claimed.getActionType());
+            attempt.setTargetSummary(resolveTarget(claimed, parseParamsUnchecked(claimed.getParamsJson())));
+            attempt.setStartedAt(LocalDateTime.now());
+            ExecutionAttempt saved = executionAttemptRepository.save(attempt);
+            log.info("已记录执行尝试: attemptId={}, auditId={}, actionType={}",
+                    saved.getAttemptId(), saved.getAuditId(), saved.getActionType());
+            return saved;
+        });
+    }
+
+    /**
+     * 第四段（outcome）：写入 ExecutionOutcomeRecord。
+     * <p>
+     * 执行完成后立即写入，与 attempt 1:1（通过 attemptId 关联）。
+     * 持久化失败时抛异常阻止 finalize（status 保持 EXECUTING），
+     * 不重试 — 由 reconciliation 诊断 INDETERMINATE 状态。
+     * </p>
+     */
+    public ExecutionOutcomeRecord recordOutcome(PendingAction claimed, ExecutionOutcome outcome) {
+        return transactionTemplate.execute(status -> {
+            ExecutionAttempt attempt = executionAttemptRepository
+                    .findByAuditId(claimed.getAuditId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "execution attempt not found for audit: " + claimed.getAuditId()));
+
+            ExecutionOutcomeRecord record = new ExecutionOutcomeRecord();
+            record.setOutcomeId(UUID.randomUUID().toString());
+            record.setAttemptId(attempt.getAttemptId());
+            record.setFinishedAt(LocalDateTime.now());
+
+            if (outcome.isExecuted()) {
+                ExecutionResult result = outcome.getResult();
+                record.setStatus(result.isSuccess() ? "SUCCEEDED" : "FAILED");
+                record.setSummary(result.getSummary());
+                record.setEvidenceJson(toJson(result));
+            } else {
+                record.setStatus("FAILED");
+                record.setSummary(outcome.getReason());
+                record.setEvidenceJson(outcome.getReason());
+            }
+
+            ExecutionOutcomeRecord saved = executionOutcomeRepository.save(record);
+            log.info("已记录执行结果: outcomeId={}, attemptId={}, status={}",
+                    saved.getOutcomeId(), saved.getAttemptId(), saved.getStatus());
+            return saved;
+        });
+    }
+
+    /**
+     * 第五段：把执行结果原子落到 DB 与审计。
      * <p>
      * 短事务：只做 save + auditLogService.update*；不调用 safeExecutor。
      * </p>
      * <p>
      * audit 写入失败时异常向上传播，事务回滚让 status 保持 EXECUTING，
      * 下次重试 / sweeper / 监控可见中间态。
+     * </p>
+     * <p>
+     * 重要：本阶段调用前 {@link #recordOutcome} 必须已成功写入，
+     * 否则 outcome 证据会丢失。
      * </p>
      */
     public PendingAction finalizeAction(PendingAction claimed, ExecutionOutcome outcome) {
@@ -314,6 +406,35 @@ public class ActionConfirmService {
      * 错误消息按当前 DB 状态分流，避免误导调用方。
      * </p>
      */
+    /**
+     * claim 失败时先检查是否为跨会话归属不匹配，再 fallback 到 {@link #claimFailedError}。
+     * <p>
+     * {@link PendingActionRepository#claimOwnedWaitingAction} 的 WHERE 子句同时校验
+     * status、expiresAt、creatorPrincipal、creatorAuthSessionId。当返回 0 时，
+     * 可能是过期、被并发 claim、或归属不匹配。本方法先排查归属不匹配（403），
+     * 再由 claimFailedError 区分过期 vs 并发（400）。
+     * </p>
+     */
+    private RuntimeException claimFailedWithOwnershipCheck(String actionId,
+                                                                   AuthenticatedOperator operator,
+                                                                   LocalDateTime now) {
+        PendingAction current = findByActionId(actionId);
+        // 状态 WAITING + 未过期 + 归属不匹配 → 403
+        if (current.getStatus() == PendingActionStatus.WAITING
+                && current.getExpiresAt().isAfter(now)) {
+            if (!operator.principal().equals(current.getCreatorPrincipal())) {
+                return BusinessException.forbidden(
+                        "pending action was created by a different user");
+            }
+            if (!operator.authSessionId().equals(current.getCreatorAuthSessionId())) {
+                return BusinessException.forbidden(
+                        "pending action was created in a different session");
+            }
+        }
+        // 过期/并发 → 400 (IllegalStateException)
+        return claimFailedError(actionId);
+    }
+
     private IllegalStateException claimFailedError(String actionId) {
         PendingAction current = findByActionId(actionId);
         if (current.getStatus() == PendingActionStatus.EXPIRED) {

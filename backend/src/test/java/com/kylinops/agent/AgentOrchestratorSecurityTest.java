@@ -1,6 +1,8 @@
 package com.kylinops.agent;
 
 import com.kylinops.agent.AgentOrchestrator.AgentRequest;
+import com.kylinops.agent.intelligence.HybridIntentService;
+import com.kylinops.agent.intelligence.IntentResolution;
 import com.kylinops.audit.AuditLogService;
 import com.kylinops.chat.Message;
 import com.kylinops.chat.MessageRepository;
@@ -31,14 +33,17 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class AgentOrchestratorSecurityTest {
 
     @Mock private PromptInjectionDetector injectionDetector;
     @Mock private IntentClassifier intentClassifier;
+    @Mock private HybridIntentService hybridIntentService;
     @Mock private ToolPlanningService toolPlanningService;
     @Mock private ToolExecutor toolExecutor;
     @Mock private RiskCheckService riskCheckService;
     @Mock private AgentResponseBuilder responseBuilder;
+    @Mock private com.kylinops.agent.intelligence.HybridResponseService hybridResponseService;
     @Mock private AuditLogService auditLogService;
     @Mock private ActionConfirmService actionConfirmService;
     @Mock private SessionRepository sessionRepository;
@@ -49,8 +54,8 @@ class AgentOrchestratorSecurityTest {
     @BeforeEach
     void setUp() {
         orchestrator = new AgentOrchestrator(
-                injectionDetector, intentClassifier, toolPlanningService, toolExecutor,
-                riskCheckService, responseBuilder, auditLogService, actionConfirmService,
+                injectionDetector, intentClassifier, hybridIntentService, toolPlanningService, toolExecutor,
+                riskCheckService, responseBuilder, hybridResponseService, auditLogService, actionConfirmService,
                 sessionRepository, messageRepository);
         when(injectionDetector.detect(anyString()))
                 .thenReturn(PromptInjectionDetector.DetectionResult.builder()
@@ -77,7 +82,8 @@ class AgentOrchestratorSecurityTest {
                         .build()))
                 .requiresRiskCheck(false)
                 .build();
-        when(intentClassifier.classify(anyString())).thenReturn(IntentType.SYSTEM_CHECK);
+        when(hybridIntentService.resolve(anyString()))
+                .thenReturn(IntentResolution.ruleHit(IntentType.SYSTEM_CHECK));
         when(toolPlanningService.createPlan(eq(IntentType.SYSTEM_CHECK), anyMap())).thenReturn(plan);
         when(riskCheckService.checkPlan(plan, "检查系统", "audit-123"))
                 .thenReturn(RiskCheckResult.allow(RiskLevel.L0, "safe"));
@@ -98,7 +104,8 @@ class AgentOrchestratorSecurityTest {
 
     @Test
     void internalExceptionReturnsFailedBlockAndStopsExecution() {
-        when(intentClassifier.classify(anyString())).thenThrow(new IllegalStateException("classifier failed"));
+        when(hybridIntentService.resolve(anyString()))
+                .thenThrow(new IllegalStateException("classifier failed"));
 
         AgentResult result = orchestrator.process(AgentRequest.builder()
                 .sessionId("session-1")

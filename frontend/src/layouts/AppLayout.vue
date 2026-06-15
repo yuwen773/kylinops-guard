@@ -2,9 +2,13 @@
 // App shell — top bar + sidebar + content area.
 // Sidebar order is locked by the Phase 2 task card and the demo video script;
 // do not reorder these items without updating the spec and the script.
-import { useRoute } from 'vue-router';
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { logout as logoutApi } from '@/api/auth';
+import { getSession } from '@/auth/session';
 
 const route = useRoute();
+const router = useRouter();
 
 // Top-bar product name. Mandated by the v0.1 PRD — changing this string
 // is a spec deviation.
@@ -21,6 +25,24 @@ const navItems = [
 ] as const;
 
 const activeIndex = (path: string) => navItems.findIndex((i) => i.path === path);
+
+// Active user — read from the in-memory session. Empty string when the
+// layout is mounted in test without a session (allowed because the
+// layout itself is route-guarded and never reached unauthenticated in
+// production).
+const username = computed<string>(() => getSession()?.username ?? '');
+
+const isLoggingOut = ref(false);
+async function handleLogout(): Promise<void> {
+  if (isLoggingOut.value) return;
+  isLoggingOut.value = true;
+  try {
+    await logoutApi();
+  } finally {
+    isLoggingOut.value = false;
+    await router.replace('/login');
+  }
+}
 </script>
 
 <template>
@@ -28,6 +50,19 @@ const activeIndex = (path: string) => navItems.findIndex((i) => i.path === path)
     <el-header class="app-header">
       <span class="app-title">{{ PRODUCT_NAME }}</span>
       <span class="app-codename">KylinOps Guard</span>
+      <span class="app-header-spacer" />
+      <span v-if="username" class="app-user" data-testid="app-user">{{ username }}</span>
+      <el-button
+        size="small"
+        type="default"
+        plain
+        :loading="isLoggingOut"
+        class="app-logout"
+        data-testid="app-logout"
+        @click="handleLogout"
+      >
+        登出
+      </el-button>
     </el-header>
     <el-container class="app-body">
       <el-aside class="app-aside" width="220px">
@@ -75,6 +110,21 @@ const activeIndex = (path: string) => navItems.findIndex((i) => i.path === path)
 .app-codename {
   color: #8a99b3;
   font-size: 0.85rem;
+}
+
+.app-header-spacer {
+  flex: 1;
+}
+
+.app-user {
+  color: #d4dae3;
+  font-size: 0.85rem;
+}
+
+.app-logout {
+  /* Element Plus default button styling — overriding only spacing so it
+     fits the dark header. */
+  margin-left: 0.5rem;
 }
 
 .app-body {

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from 'axios';
 import {
   ApiError,
   apiClient,
@@ -10,6 +10,13 @@ import {
   unwrapResponse,
 } from './client';
 import type { ApiResponse } from '@/types/api';
+import {
+  clearSession,
+  getSession,
+  setSession,
+  setUnauthenticatedRedirect,
+} from '@/auth/session';
+import type { AuthSession } from '@/types/auth';
 
 describe('isApiResponse', () => {
   it('recognises a well-formed envelope', () => {
@@ -187,5 +194,193 @@ describe('get / post (integration through the public client)', () => {
       post<null>('/api/chat/send', { content: 'rm -rf /' }),
     ).rejects.toBeInstanceOf(ApiError);
     spy.mockRestore();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Auth integration (P2-T5): withCredentials, CSRF, 401 → redirect
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Pull the single fulfilled request interceptor that the auth wiring
+ * installs (X-CSRF-TOKEN injection). Test-only — uses the documented but
+ * untyped `handlers` field on the interceptor manager.
+ */
+function takeRequestInterceptor(): (
+  cfg: InternalAxiosRequestConfig,
+) => InternalAxiosRequestConfig | Promise<InternalAxiosRequestConfig> {
+  const handlers = (
+    apiClient.interceptors.request as unknown as {
+      handlers: Array<{
+        fulfilled?: (cfg: InternalAxiosRequestConfig) => InternalAxiosRequestConfig | Promise<InternalAxiosRequestConfig>;
+      } | null>;
+    }
+  ).handlers;
+  const handler = handlers.find((h) => h && h.fulfilled);
+  if (!handler || !handler.fulfilled) {
+    throw new Error('expected at least one fulfilled request interceptor');
+  }
+  return handler.fulfilled;
+}
+
+/** Pull every rejected response interceptor. The client wires a single one
+ *  that performs both 401 handling and envelope unwrapping. */
+function takeResponseInterceptor(): (err: unknown) => unknown {
+  const handlers = (
+    apiClient.interceptors.response as unknown as {
+      handlers: Array<{ rejected?: (err: unknown) => unknown } | null>;
+    }
+  ).handlers;
+  const handler = handlers.find((h) => h && h.rejected);
+  if (!handler || !handler.rejected) {
+    throw new Error('expected at least one rejected response interceptor');
+  }
+  return handler.rejected;
+}
+
+function buildAuthSession(overrides?: Partial<AuthSession>): AuthSession {
+  return {
+    username: 'admin',
+    csrfToken: 'csrf-abc-123',
+    loginAt: '2026-06-14T00:00:00Z',
+    expiresAt: '2026-06-14T12:00:00Z',
+    idleTimeout: 1800,
+    ...overrides,
+  };
+}
+
+function baseConfig(method: 'get' | 'post' | 'put' | 'delete' | 'patch'): InternalAxiosRequestConfig {
+  return {
+    url: '/api/whatever',
+    method,
+    headers: new AxiosHeaders(),
+  } as InternalAxiosRequestConfig;
+}
+
+describe('apiClient — withCredentials default', () => {
+  it('axios instance is configured with withCredentials: true', () => {
+    // Required so the browser sends the JSESSIONID cookie on cross-origin
+    // dev requests. Without this the backend treats every request as a new
+    // session and the safety / audit loop loses identity.
+    expect(apiClient.defaults.withCredentials).toBe(true);
+  });
+});
+
+describe('apiClient — CSRF request interceptor', () => {
+  afterEach(() => {
+    clearSession();
+  });
+
+  it('adds the X-CSRF-TOKEN header to POST requests when a session is present', async () => {
+    setSession(buildAuthSession({ csrfToken: 'token-post' }));
+    const interceptor = takeRequestInterceptor();
+    const cfg = await interceptor(baseConfig('post'));
+    // AxiosHeaders supports `get(name)` which returns the header value.
+    const headers = AxiosHeaders.from(cfg.headers as AxiosHeaders);
+    expect(headers.get('X-CSRF-TOKEN')).toBe('token-post');
+  });
+
+  it('adds the X-CSRF-TOKEN header to PUT requests when a session is present', async () => {
+    setSession(buildAuthSession({ csrfToken: 'token-put' }));
+    const interceptor = takeRequestInterceptor();
+    const cfg = await interceptor(baseConfig('put'));
+    const headers = AxiosHeaders.from(cfg.headers as AxiosHeaders);
+    expect(headers.get('X-CSRF-TOKEN')).toBe('token-put');
+  });
+
+  it('adds the X-CSRF-TOKEN header to DELETE requests when a session is present', async () => {
+    setSession(buildAuthSession({ csrfToken: 'token-del' }));
+    const interceptor = takeRequestInterceptor();
+    const cfg = await interceptor(baseConfig('delete'));
+    const headers = AxiosHeaders.from(cfg.headers as AxiosHeaders);
+    expect(headers.get('X-CSRF-TOKEN')).toBe('token-del');
+  });
+
+  it('does NOT add the X-CSRF-TOKEN header to safe GET requests', async () => {
+    setSession(buildAuthSession({ csrfToken: 'token-get' }));
+    const interceptor = takeRequestInterceptor();
+    const cfg = await interceptor(baseConfig('get'));
+    const headers = AxiosHeaders.from(cfg.headers as AxiosHeaders);
+    expect(headers.get('X-CSRF-TOKEN')).toBeUndefined();
+  });
+
+  it('does NOT add the X-CSRF-TOKEN header when there is no session', async () => {
+    clearSession();
+    const interceptor = takeRequestInterceptor();
+    const cfg = await interceptor(baseConfig('post'));
+    const headers = AxiosHeaders.from(cfg.headers as AxiosHeaders);
+    expect(headers.get('X-CSRF-TOKEN')).toBeUndefined();
+  });
+});
+
+describe('apiClient — 401 response interceptor', () => {
+  beforeEach(() => {
+    setSession(buildAuthSession());
+  });
+  afterEach(() => {
+    clearSession();
+    setUnauthenticatedRedirect(null);
+  });
+
+  function makeAxiosErrorWithStatus(status: number): AxiosError {
+    const config = { headers: new AxiosHeaders() } as unknown as InternalAxiosRequestConfig;
+    return new AxiosError(
+      `Request failed with status code ${status}`,
+      'ERR_HTTP',
+      config,
+      null,
+      {
+        status,
+        data: {
+          code: status,
+          message: status === 401 ? '未认证，请先登录' : '错误',
+          data: null,
+          timestamp: 1,
+          traceId: 't-401',
+        },
+        statusText: 'ERR',
+        headers: {},
+        config,
+      } as unknown as import('axios').AxiosResponse,
+    );
+  }
+
+  it('on 401: clears the in-memory session and invokes the redirect hook', async () => {
+    const redirect = vi.fn();
+    setUnauthenticatedRedirect(redirect);
+    expect(getSession()).not.toBeNull();
+
+    const interceptor = takeResponseInterceptor();
+    const err = makeAxiosErrorWithStatus(401);
+
+    // The interceptor still throws (it must propagate through to call sites
+    // as ApiError) — we only care about the side effects.
+    let thrown: unknown = null;
+    try {
+      await interceptor(err);
+    } catch (e) {
+      thrown = e;
+    }
+
+    expect(thrown).toBeInstanceOf(ApiError);
+    expect(getSession()).toBeNull();
+    expect(redirect).toHaveBeenCalledTimes(1);
+  });
+
+  it('on non-401 errors: leaves the session intact and does NOT redirect', async () => {
+    const redirect = vi.fn();
+    setUnauthenticatedRedirect(redirect);
+
+    const interceptor = takeResponseInterceptor();
+    const err = makeAxiosErrorWithStatus(500);
+
+    try {
+      await interceptor(err);
+    } catch (_e) {
+      // Expected — unwrapError throws ApiError.
+    }
+
+    expect(getSession()).not.toBeNull();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });

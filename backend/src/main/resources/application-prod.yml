@@ -1,0 +1,50 @@
+# ============================================================
+# Production Profile — PostgreSQL + Flyway + 安全加固
+# ============================================================
+spring:
+  datasource:
+    url: ${KYLINOPS_DB_URL:}
+    driver-class-name: org.postgresql.Driver
+    username: ${KYLINOPS_DB_USERNAME:}
+    password: ${KYLINOPS_DB_PASSWORD:}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    placeholder-replacement: true
+    placeholders:
+      # PostgreSQL 兼容：TEXT 而非 CLOB
+      lob_type: TEXT
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  h2:
+    console:
+      enabled: false
+server:
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: KYLINOPS_SESSION
+        http-only: true
+        same-site: strict
+        path: /
+        secure: true   # prod 强制 HTTPS-only
+
+# ============================================================
+# P2-T2 单管理员登录 — prod 必须通过环境变量注入 hash（fail-closed）
+# KYLINOPS_ADMIN_PASSWORD_HASH 不能为空，否则 fail-closed validator 阻止启动
+# ============================================================
+kylinops:
+  auth:
+    username: ${KYLINOPS_ADMIN_USERNAME:admin}
+    password-hash: ${KYLINOPS_ADMIN_PASSWORD_HASH}    # 无默认值：env 缺失时 fail-closed 阻止启动
+    idle-timeout: 30m
+    absolute-timeout: 8h
+    max-failures: 5
+    lock-duration: 15m
+  # P3-T1: prod 默认 LLM 关闭（fail-closed）— 部署时显式通过环境变量开启
+  llm:
+    enabled: false

@@ -10,6 +10,7 @@ import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.executor.ActionConfirmService;
+import com.kylinops.executor.AuthenticatedOperator;
 import com.kylinops.executor.ExecutionPlan;
 import com.kylinops.executor.ExecutionResult;
 import com.kylinops.executor.PendingAction;
@@ -29,6 +30,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -38,6 +41,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,6 +53,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@WithMockUser
+@ActiveProfiles("test")
 @DisplayName("AuditLog — 审计链路集成测试")
 class AuditLogIntegrationTest {
 
@@ -218,7 +224,8 @@ class AuditLogIntegrationTest {
         assertThat(waiting.getStatus()).isEqualTo(PendingActionStatus.WAITING);
         assertThat(waiting.getAuditId()).isEqualTo(auditId);
 
-        PendingAction executed = actionConfirmService.confirmAction(waiting.getActionId(), true);
+        PendingAction executed = actionConfirmService.confirmAction(
+                waiting.getActionId(), true, AuthenticatedOperator.ANONYMOUS);
 
         assertThat(executed.getStatus()).isEqualTo(PendingActionStatus.SUCCESS);
         assertThat(executed.getExecutionResult()).contains("restart complete");
@@ -283,6 +290,7 @@ class AuditLogIntegrationTest {
     @DisplayName("独立风险 API 返回并持久化同一 auditId")
     void standaloneRiskCheckReturnsPersistedAuditId() throws Exception {
         String body = mockMvc.perform(post("/api/security/risk-check")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetType\":\"command\",\"content\":\"rm -rf /\"}"))
                 .andExpect(status().isOk())

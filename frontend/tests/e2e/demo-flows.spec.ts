@@ -22,6 +22,7 @@ import {
   mockAgentResult,
   mockApiResponse,
   mockAuditLogDetail,
+  mockAuthSession,
   mockConfirmedAuditDetail,
   mockBlockedAuditDetail,
   mockHealthAgentResult,
@@ -64,6 +65,17 @@ function installChatMocks(page: Page, handlers: ChatRouteHandlers) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ status: 'UP' }),
+      });
+    }
+
+    // GET /api/auth/session — P2-T5 router guard pulls this on every
+    // protected navigation. Mocking 200 keeps the existing tests
+    // authenticated without going through the login form.
+    if (url.endsWith('/api/auth/session') && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockApiResponse(mockAuthSession())),
       });
     }
 

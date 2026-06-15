@@ -29,9 +29,17 @@ public class PendingAction extends BaseEntity {
     @Column(nullable = false, length = 64)
     private String auditId;
 
-    /** 会话 ID */
+    /** 会话 ID（聊天会话，用于展示/跟踪，非归属校验） */
     @Column(length = 64)
     private String sessionId;
+
+    /** 创建者身份（认证 principal，如 admin） */
+    @Column(length = 64)
+    private String creatorPrincipal;
+
+    /** 创建者认证会话 ID（HTTP session id，非 chat sessionId） */
+    @Column(length = 64)
+    private String creatorAuthSessionId;
 
     /** 动作类型（如 safe_service_restart） */
     @Column(nullable = false, length = 64)

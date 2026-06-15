@@ -11,6 +11,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -22,6 +23,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </ul>
  */
 @WebMvcTest(SecurityCatalogController.class)
+@WithMockUser
 @DisplayName("SecurityCatalogController — Security Center 只读目录 API")
 class SecurityCatalogControllerTest {
 
@@ -259,6 +262,7 @@ class SecurityCatalogControllerTest {
     @DisplayName("PUT /api/security/rules → 405（不存在修改入口）")
     void putRulesNotAllowed() throws Exception {
         mockMvc.perform(put("/api/security/rules")
+                        .with(csrf())
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isMethodNotAllowed());
@@ -268,6 +272,7 @@ class SecurityCatalogControllerTest {
     @DisplayName("POST /api/security/rules → 405")
     void postRulesNotAllowed() throws Exception {
         mockMvc.perform(post("/api/security/rules")
+                        .with(csrf())
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isMethodNotAllowed());
@@ -276,7 +281,8 @@ class SecurityCatalogControllerTest {
     @Test
     @DisplayName("DELETE /api/security/rules → 405")
     void deleteRulesNotAllowed() throws Exception {
-        mockMvc.perform(delete("/api/security/rules"))
+        mockMvc.perform(delete("/api/security/rules")
+                        .with(csrf()))
                 .andExpect(status().isMethodNotAllowed());
     }
 
@@ -284,6 +290,7 @@ class SecurityCatalogControllerTest {
     @DisplayName("POST /api/security/events → 405（无新增事件入口）")
     void postEventsNotAllowed() throws Exception {
         mockMvc.perform(post("/api/security/events")
+                        .with(csrf())
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isMethodNotAllowed());
@@ -293,6 +300,7 @@ class SecurityCatalogControllerTest {
     @DisplayName("PUT /api/security/events → 405")
     void putEventsNotAllowed() throws Exception {
         mockMvc.perform(put("/api/security/events")
+                        .with(csrf())
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isMethodNotAllowed());
@@ -301,7 +309,8 @@ class SecurityCatalogControllerTest {
     @Test
     @DisplayName("DELETE /api/security/events → 405")
     void deleteEventsNotAllowed() throws Exception {
-        mockMvc.perform(delete("/api/security/events"))
+        mockMvc.perform(delete("/api/security/events")
+                        .with(csrf()))
                 .andExpect(status().isMethodNotAllowed());
     }
 
@@ -309,6 +318,7 @@ class SecurityCatalogControllerTest {
     @DisplayName("PUT /api/security/risk-levels → 405")
     void putRiskLevelsNotAllowed() throws Exception {
         mockMvc.perform(put("/api/security/risk-levels")
+                        .with(csrf())
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isMethodNotAllowed());

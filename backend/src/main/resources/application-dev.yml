@@ -1,0 +1,43 @@
+# ============================================================
+# Development Profile — H2 文件数据库 + Console
+# ============================================================
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/kylinops;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: kylinops
+    password: kylinops
+  flyway:
+    enabled: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+server:
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: KYLINOPS_SESSION
+        http-only: true
+        same-site: strict
+        path: /
+        secure: false   # dev HTTP 本地
+
+# ============================================================
+# P2-T2 单管理员登录 — dev 默认 BCrypt
+# password-hash 对应明文 "test-admin-pwd"
+# 生成命令：htpasswd -bnBC 10 "" "test-admin-pwd" | tr -d ':\n'
+# ============================================================
+kylinops:
+  auth:
+    username: ${KYLINOPS_ADMIN_USERNAME:admin}
+    password-hash: ${KYLINOPS_ADMIN_PASSWORD_HASH:$2a$10$ZZ80ReuZWzJ89A5VNHOMPOR4bEI22exOhHGtgeplOkwBwXGvQNAGS}
+    idle-timeout: 30m
+    absolute-timeout: 8h
+    max-failures: 5
+    lock-duration: 15m

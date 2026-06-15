@@ -1,0 +1,48 @@
+# ============================================================
+# KylinOps Guard — 部署侧 application-prod.yml overlay
+# ============================================================
+# 此文件由 deploy/config/application-prod.yml 复制到 /etc/kylinops/
+# 通过 SPRING_CONFIG_IMPORT=file:/etc/kylinops/application-prod.yml 加载
+#
+# 区别于 backend/src/main/resources/application-prod.yml (P1-T3 锁定, 打进 JAR):
+#   * 这是部署侧外挂, 运维修改不需要重新打包
+#   * 引用 ${ENV_VAR} 占位符从 /etc/kylinops/kylinops.env 注入
+#   * 含 /etc/kylinops/overrides.yml 钩子, 允许运维再做局部覆盖
+#
+# 约束 (P4-T1):
+#   * 禁止写死任何 secret (DB password / API key / password hash)
+#   * 全部走 ${ENV_VAR:default} 占位符
+#   * 部署到 x86_64 / LoongArch64 / aarch64 通吃, 不带架构假设
+# ============================================================
+
+spring:
+  config:
+    # 运维可在 overrides.yml 加局部覆盖 (例如临时调日志级别)
+    import: "optional:file:/etc/kylinops/overrides.yml"
+
+  # ---- 数据源 (PostgreSQL, P1-T1/T2) ----
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    # 连接池调优 — 受 systemd LimitNOFILE=65536 约束
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+# ---- 单管理员登录 (P2-T2) ----
+# ADMIN_PASSWORD_HASH 为空时 ProductionConfigValidator 阻止启动
+# ---- LLM (P3-T1..T6) ----
+# 生产默认 LLM_ENABLED=false; 启用 LLM 时填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL
+kylinops:
+  auth:
+    admin-username: ${ADMIN_USERNAME}
+    admin-password-hash: ${ADMIN_PASSWORD_HASH}
+  llm:
+    enabled: ${LLM_ENABLED:false}
+    base-url: ${LLM_BASE_URL:}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:}

@@ -51,6 +51,23 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Flyway (Phase 1 Runtime/Database: P1 切 PostgreSQL 时由迁移脚本管理 schema) -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL JDBC (P1) -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Lombok (optional, for cleaner POJOs) -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -70,13 +87,69 @@
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
 
+        <!-- Spring Security (P2-T1: Security Boundary) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Spring Security Test (P2-T1: @WithMockUser / SecurityMockMvcConfigurers) -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            MockWebServer (P3-T1: LLM client 测试用本地 mock HTTP server)。
+            体积小 (~150KB)，无外部依赖，用于断言 wire-level HTTP 请求。
+        -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>4.12.0</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Testcontainers PostgreSQL: 后续 Task 3 集成测试使用，本 Task 引入是为 Phase 1 数据库强化做准备 -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            zonky embedded-postgres：Docker daemon 不可用时的显式降级（BLOCKED_EXTERNAL）。
+            仅 Phase 1 Task 2 FlywayPostgresMigrationTest 使用。
+            该工件不在 aliyun 镜像中，故下方额外声明 central-direct 仓库。
+        -->
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <version>2.0.7</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <repositories>
+        <!--
+            zonky embedded-postgres 不在 aliyun 镜像中，需直连 maven central。
+            仅测试作用域使用；生产运行时仍走 PostgreSQL JDBC。
+        -->
+        <repository>
+            <id>central-direct</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <build>
         <finalName>kylin-ops-guard</finalName>

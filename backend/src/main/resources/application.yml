@@ -1,5 +1,6 @@
 # ============================================================
-# 麒麟安全智能运维 Agent — Application Configuration
+# 麒麟安全智能运维 Agent — 共享配置（所有 Profile）
+# Profile 特定配置见 application-{dev,test,prod}.yml
 # ============================================================
 
 server:
@@ -20,24 +21,6 @@ spring:
   application:
     name: kylin-ops-guard
 
-  # H2 File Mode (P0)
-  datasource:
-    url: jdbc:h2:file:./data/kylinops;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    driver-class-name: org.h2.Driver
-    username: kylinops
-    password: kylinops
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
-  # JPA / Hibernate
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    open-in-view: false
-
   # Jackson serialization
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -46,11 +29,13 @@ spring:
 
   # Multipart 上限：用于文件上传端点（非 chat 路径）。chat 走 JSON @RequestBody，
   # 由 ChatRequest.content @Size(16384) 在应用层校验，与 multipart 配置无关。
-  # max-request-size = 整个 multipart 请求体上限；max-file-size = 单个文件上限。
   servlet:
     multipart:
       max-request-size: 32MB
       max-file-size: 32MB
+
+  jpa:
+    open-in-view: false
 
 # ============================================================
 # Application custom configuration
@@ -68,6 +53,14 @@ kylinops:
     base-url: ${LLM_BASE_URL:}
     api-key: ${LLM_API_KEY:}
     model: ${LLM_MODEL:deepseek-chat}
+    # 阶段超时（毫秒）— 意图阶段必须短，避免拖慢主链路；响应阶段允许略长
+    intent-timeout-ms: 3000
+    response-timeout-ms: 5000
+    # 意图置信度阈值（低于此值回退规则匹配）
+    confidence-threshold: 0.75
+    # 上下文字节上限（总 / 单工具）
+    max-context-bytes: 32768
+    max-tool-context-bytes: 4096
   security:
     # Maximum pending actions (L2 confirmations) per session
     max-pending-actions: 10
@@ -86,3 +79,16 @@ kylinops:
       - redis
       - ssh
       - docker
+  auth:
+    # 单管理员登录 — username 来自环境变量，默认 admin
+    username: ${KYLINOPS_ADMIN_USERNAME:admin}
+    # BCrypt hash — dev/test profile 在 application-{dev,test}.yml 中给出占位 hash
+    # 部署时必须显式注入 KYLINOPS_ADMIN_PASSWORD_HASH（fail-closed validator 检查）
+    password-hash: ${KYLINOPS_ADMIN_PASSWORD_HASH:}
+    idle-timeout: 30m
+    absolute-timeout: 8h
+    max-failures: 5
+    lock-duration: 15m
+    # /api/chat/send 限流：每会话每窗口最多请求数
+    chat-rate-limit: 30
+    chat-rate-window: 1m
