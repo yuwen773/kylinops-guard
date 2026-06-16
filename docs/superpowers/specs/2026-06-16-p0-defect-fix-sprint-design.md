@@ -1,6 +1,6 @@
 # P0 缺陷修复冲刺 — 设计文档
 
-> **状态**：待评审（待用户确认后改为「已批准」并进入 writing-plans 阶段）
+> **状态**：✅ 已批准（2026-06-16）— 进入 writing-plans 阶段
 > **版本**：v0.1
 > **日期**：2026-06-16
 > **作者**：P0 冲刺规划（基于 `docs/product/functional-defect-and-roadmap.md` §一 P0 项）
@@ -584,13 +584,14 @@ Fix-04 演示交付:
 
 顺序交付的优势是每步可独立回退。每个 Fix 合入 master 后**立即打 tag**，演示前如发现问题可快速定位/回退：
 
-| Tag | 触发点 | 回退命令 |
+| Tag | 触发点 | 回退命令（回退到上一个稳定 tag） |
 |---|---|---|
-| `fix-01-rca-done` | Fix-01 全套（含 528+ 单测 + RCA 集成测试）合入 master | `git reset --hard fix-01-rca-done` |
-| `fix-02-lsof-done` | Fix-02 合入 master | `git reset --hard fix-02-lsof-done` |
-| `fix-03-offline-fallback-done` | Fix-03 合入 master | `git reset --hard fix-03-offline-fallback-done` |
+| `fix-01-rca-done` | Fix-01 全套（含 528+ 单测 + RCA 集成测试）合入 master | `git reset --hard <previous-stable-tag>` （Fix-01 出问题回退到 `pre-fix-01`） |
+| `fix-02-lsof-done` | Fix-02 合入 master | `git reset --hard <previous-stable-tag>` （Fix-02 出问题回退到 `fix-01-rca-done`） |
+| `fix-03-offline-fallback-done` | Fix-03 合入 master | `git reset --hard <previous-stable-tag>` （Fix-03 出问题回退到 `fix-02-lsof-done`） |
 | `fix-04-demo-done` | Fix-04（PPT + 视频 + 截图）齐备 | 不回退（交付物无破坏性） |
 | `p0-sprint-released` | Fix-05 验收清单全部勾完 | 视为最终发布基线 |
+| `pre-recording` | 录像前打的快照 | 录像中如发现问题不回退，记录到验收报告"已知问题" |
 
 **回退决策原则**：
 - Fix-01/02/03 任一发现 P0 bug → 立即 `reset --hard` 到上一个 tag
