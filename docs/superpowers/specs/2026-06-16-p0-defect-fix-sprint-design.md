@@ -1,6 +1,6 @@
 # P0 缺陷修复冲刺 — 设计文档
 
-> **状态**：已批准，进入 writing-plans 阶段
+> **状态**：待评审（待用户确认后改为「已批准」并进入 writing-plans 阶段）
 > **版本**：v0.1
 > **日期**：2026-06-16
 > **作者**：P0 冲刺规划（基于 `docs/product/functional-defect-and-roadmap.md` §一 P0 项）
@@ -28,7 +28,7 @@
 | 决策 | 选择 | 理由 |
 |---|---|---|
 | **RCA 数据落点** | 三层都加：`AgentResult` + `AuditLog` + `Report` | 对话时立刻可视化 + 持久化可追溯 + 报告结构化展示 |
-| **RCA 生成架构** | Orchestrator 内联生成（方案 A） | 实时生成、无反查延迟、改动集中（1 个文件） |
+| **RCA 生成架构** | Orchestrator 内联生成（方案 A） | 实时生成、无反查延迟；RCA 生成入口集中在 `AgentOrchestrator`，数据结构与展示层会同步扩展 |
 | **执行模式** | 顺序交付 | 比赛项目节奏，每步可回滚 |
 | **Fix-05 范围** | 轻量验收 + 增量测试补充（不升级到重型） | P0 修复合入后再决定是否需要重型 |
 | **RootCauseChain 包路径** | `com.kylinops.rca`（不在 `agent` 包下） | 该结构被 Agent、Audit、Report、前端共享 |
@@ -47,7 +47,7 @@
 | **Fix-02** | `lsof_tool` 补齐 | 后端 1 | 低 | +4 | — |
 | **Fix-03** | LLM 离线兜底增强 | 后端 2 | 低 | +10 | — |
 | **Fix-04** | 演示 PPT + 视频交付物 | 仅 docs/ + 截图 | 极低 | 0 | Fix-01/02/03 合入后 |
-| **Fix-05** | 回归测试与演示验收 | 仅 test/ | 极低 | 0（仅跑基线 + 增量） | Fix-01/02/03/04 后 |
+| **Fix-05** | 回归测试与演示验收 | 仅 test/ | 极低 | 0（**不新增业务功能测试**；负责组织执行与产出验收报告；专项测试由 Fix-01/02/03 各自补充） | Fix-01/02/03/04 后 |
 
 **执行顺序**：Fix-01 → Fix-02 → Fix-03 → Fix-04 → Fix-05。每个 Fix 合入 master 前必须跑全套基线（502/502 + 179/179 + 18/18）。
 
@@ -78,11 +78,11 @@ public class RootCauseChain {
     /** 工具证据列表（每项有 ID，可被 excludedCauses 引用） */
     private List<Evidence> evidence;
 
-    /** 候选根因列表（含确认标记 + 概率） */
-    private List<Hypothesis> hypothesis;
+    /** 候选根因列表（含确认标记 + 概率）— 复数命名，前后端统一 */
+    private List<Hypothesis> hypotheses;
 
-    /** 明确排除的根因（引用 Evidence.evidenceId） */
-    private List<String> excludedCauses;
+    /** 明确排除的根因（结构化对象，含原因 + 关联证据） */
+    private List<ExcludedCause> excludedCauses;
 
     /** 最终结论（人类可读） */
     private String conclusion;
@@ -133,6 +133,19 @@ public class RootCauseChain {
         /** 推理依据（人类可读） */
         private String reasoning;
     }
+
+    @Data
+    @AllArgsConstructor
+    public static class ExcludedCause {
+        /** 被排除的根因描述（人类可读） */
+        private String cause;
+
+        /** 排除原因（"敏感数据库目录，不建议清理"） */
+        private String reason;
+
+        /** 关联的证据 ID 列表（Evidence.evidenceId），可空 */
+        private List<String> evidenceIds;
+    }
 }
 ```
 
@@ -151,8 +164,9 @@ public class RootCauseChain {
 | 7 | `com.kylinops.agent.AgentOrchestrator.java` | 修改 | 注入 `RootCauseAnalyzer`；在 Step 7（toolResults 填充后）和 Step 8（answer 生成前）调用 `analyzer.analyze()`，将结果填入 `AgentResult.rootCauseChain` |
 | 8 | `com.kylinops.audit.AuditLog.java` + `AuditLogDetail.java` | 修改 | 新增 `@Lob` 字段 `rootCauseChainJson`（TEXT，存 JSON 字符串） |
 | 9 | `com.kylinops.audit.AuditLogService.java` | 修改 | 提供 `serializeRca()` / `deserializeRca()` 辅助方法 |
-| 10 | `com.kylinops.report.Report.java` + `ReportDetail.java` | 修改 | 新增可选字段 `rootCauseChain: RootCauseChain` |
-| 11 | `com.kylinops.report.ReportService.java` | 修改 | `generate()` 时从 `AuditLogDetail.rootCauseChainJson` 反序列化并填入 `ReportDetail.rootCauseChain` |
+| 10 | `com.kylinops.report.Report.java` | 修改 | Entity 字段 `@Lob TEXT rootCauseChainJson`（**不**直接存 `RootCauseChain` 对象） |
+| 10b | `com.kylinops.report.ReportDetail.java` | 修改 | DTO 字段 `private RootCauseChain rootCauseChain`（API 出口是结构化对象） |
+| 11 | `com.kylinops.report.ReportService.java` | 修改 | `generate()` 时从 `AuditLogDetail.rootCauseChainJson` 反序列化（用 Jackson）→ 填入 `ReportDetail.rootCauseChain` |
 
 **合计：后端 13 个文件改动**（新增 5 个 + 修改 8 个）。
 
@@ -165,6 +179,7 @@ public class RootCauseChain {
 | 3 | `frontend/src/types/rca.ts` | 新增 | RCA TypeScript 类型定义（mirror 后端） |
 | 4 | `frontend/src/components/ReasoningChain/index.vue` | 新增 | 通用组件：根据 `intentType` 渲染不同标题（"根因分析链" / "健康评估链" / "安全决策链"），展示 symptom → evidence → hypothesis → conclusion → suggestions 链路 |
 | 5 | `frontend/src/pages/ChatConsole/index.vue` | 修改 | 在 agent 回复区域嵌入 `<ReasoningChain>`（仅当 `result.rootCauseChain` 不为 null 时） |
+| 5b | `frontend/src/utils/intentType.ts` | 新增 | `normalizeIntentType(raw: string): string` — 把后端枚举（含 `_INQUIRY` 等历史命名）映射到 ReasoningChain 标题键 |
 | 6 | `frontend/src/pages/ReportCenter/index.vue` + `ReportPreview` | 修改 | 报告详情页展示 RCA 区块 |
 
 **合计：前端 6 个文件改动**（新增 1 个 + 修改 5 个）。
@@ -193,8 +208,8 @@ public class RootCauseChain {
   - AgentResult.rootCauseChain 不为 null
   - symptom 字段含 "磁盘根分区使用率 X%"
   - evidence 至少 2 项：disk_usage_tool + large_file_scan_tool
-  - hypothesis 至少 1 项 confirmed=true
-  - excludedCauses 含 "/var/lib/mysql（敏感数据库目录）"
+  - hypotheses 至少 1 项 confirmed=true
+  - excludedCauses 至少 1 项 ExcludedCause 对象，cause 含 "/var/lib/mysql"
   - conclusion 含具体文件路径与大小
   - suggestions 含 "先归档或截断日志"
   - confidence 在 0.7~1.0 之间
@@ -254,6 +269,7 @@ public class LsofTool implements OpsTool {
 - 禁止用户拼接 `lsof` 参数（仅允许 `-p <pid>`）
 - `lsof` 命令不存在 → 返回 `status=failed` + 降级说明（**不抛异常**）
 - Windows 环境直接返回 `failed`（与 `ServiceStatusTool` 一致）
+- **`lsof -F 0nPt` 输出解析**：`-F` machine-readable 格式因平台/版本差异可能解析失败 → 若解析异常，返回 `files=[]` + `sockets=[]` + `rawLines: <原始输出前 50 行>`，**不影响 `status=success`**（前端可选择显示原始行）
 - 走 `OsCommandExecutor.execute(List.of("lsof", "-p", String.valueOf(pid), "-F", "0nPt"), 5000)`
 
 ### 4.4 输出数据形态
@@ -365,7 +381,17 @@ public class OfflineFaqService {
 }
 ```
 
-集成点：`HybridIntentService.resolve()` 在 LLM 失败回退前调用 `offlineFaqService.fuzzyMatch()`。
+集成点（**严格顺序，避免 FAQ 抢在 LLM 之前误判**）：
+
+```
+regex → keyword → synonym → LLM → OfflineFaqService → UNKNOWN
+```
+
+`HybridIntentService.resolve()` 流程：
+1. `IntentClassifier.classify()` 命中非 UNKNOWN → 返回 RULE
+2. 否则 LLM 解析（`LlmIntentParser.parse()`）成功 → 返回 LLM
+3. 否则 `OfflineFaqService.fuzzyMatch()` 命中 → 返回 RULE（带 `OfflineFaq` 来源标记）
+4. 全部失败 → 返回 UNKNOWN
 
 ### 5.4 验收标准
 
@@ -547,13 +573,35 @@ Fix-04 演示交付:
    - 后端：`SYSTEM_CHECK` / `PROCESS_QUERY` / `NETWORK_QUERY` / `LOG_QUERY`
    - 前端（`frontend/src/types/agent.ts`）：`HEALTH_CHECK` / `PROCESS_INQUIRY` / `NETWORK_INQUIRY` / `LOG_INQUIRY`
    - 现状靠 ChatConsole 的字符串匹配兜底，未触发 502 测试失败
-   - **本期不动**：改动会冲击大量现有测试；建议 P1 路线单独修复
+   - **本期部分处理**（Fix-01 范围内）：前端新增 `normalizeIntentType(raw: string): string` 工具函数，把后端枚举映射到前端展示标签，但不修改枚举值；ReasoningChain 标题按此函数取标题，避免错位
+   - **完全统一**仍建议放到 P1 路线单独修复（涉及大量现有测试）
 2. **`Report.bodyMarkdown` 仍为 Lob TEXT，未来可能拆 `summary` / `body` / `rca` 三段**
 3. **`Frontend AgentResult` 缺 `toolCalls` 之外的 rich fields**（如 timing、context）
 
 ---
 
-## 10. 后续动作
+## 10. 回滚策略
+
+顺序交付的优势是每步可独立回退。每个 Fix 合入 master 后**立即打 tag**，演示前如发现问题可快速定位/回退：
+
+| Tag | 触发点 | 回退命令 |
+|---|---|---|
+| `fix-01-rca-done` | Fix-01 全套（含 528+ 单测 + RCA 集成测试）合入 master | `git reset --hard fix-01-rca-done` |
+| `fix-02-lsof-done` | Fix-02 合入 master | `git reset --hard fix-02-lsof-done` |
+| `fix-03-offline-fallback-done` | Fix-03 合入 master | `git reset --hard fix-03-offline-fallback-done` |
+| `fix-04-demo-done` | Fix-04（PPT + 视频 + 截图）齐备 | 不回退（交付物无破坏性） |
+| `p0-sprint-released` | Fix-05 验收清单全部勾完 | 视为最终发布基线 |
+
+**回退决策原则**：
+- Fix-01/02/03 任一发现 P0 bug → 立即 `reset --hard` 到上一个 tag
+- Fix-04 仅文档/媒体产物，不影响代码基线，**不回退**
+- Fix-05 仅产出验收报告，不修改任何代码
+
+**录像前快照**：录视频前必须 `git tag pre-recording` 一次，作为录像基线；录像中如发现演示 bug，**不直接回退**，先记录到 `docs/test/p0-fix-acceptance.md` 的"已知问题"小节，等录像结束后再处理。
+
+---
+
+## 11. 后续动作
 
 本文档批准后，调用 `writing-plans` skill 产出每 Fix 的实施计划（含具体 commit 切分、单测模板、PR 检查清单）。每个 Fix 单独一个 plan，5 个 plan 共用一个 docs/superpowers/plans/ 目录。
 
