@@ -9,6 +9,38 @@
 **Spec 引用：** `docs/superpowers/specs/2026-06-16-p0-defect-fix-sprint-design.md` §6
 **前置依赖：** tag `fix-03-offline-fallback-done`
 
+### Git 入库策略（重要）
+
+> **不要把大体积 .mp4 强制塞进 Git 历史**——以下文件**必须** commit：
+
+| 文件 | 用途 | 是否入 Git |
+|---|---|---|
+| `docs/demo/video/demo-script-final.md` | 最终版视频脚本 | ✅ **必须** |
+| `docs/demo/video/demo-checklist.md` | 演示前检查清单 | ✅ **必须** |
+| `docs/demo/video/demo-recording.md` | 视频元数据 + 校验信息 | ✅ **必须** |
+| `docs/demo/screenshots/*.png` | 截图素材包 | ✅ **必须** |
+| `docs/demo/slides/kylinops-demo.pptx` | 演示 PPT | ⚠️ **可选**（体积大可走 LFS 或仅 Releases） |
+| `docs/demo/video/demo-recording.mp4` | 演示视频 | ⚠️ **可选**（体积大可走 LFS 或仅打包） |
+
+**`demo-recording.md` 必须包含的字段**：
+
+- 视频文件名（含扩展名）
+- 时长（秒）
+- 分辨率（如 1920x1080）
+- 帧率（如 30fps）
+- 码率（如 8Mbps）
+- 文件大小（MB / GB）
+- 存放位置（Git 路径 / Releases URL / 团队共享盘 URL）
+- SHA256 或 MD5 校验值
+- 是否已放入最终提交压缩包（**是 / 否**）
+
+> **.mp4 是否入 Git 的判定标准**：
+> - 体积 < 50MB：可入 Git（与 .pptx 共用 LFS 或直接 commit）
+> - 体积 ≥ 50MB：**不入 Git**——只把元数据写入 `demo-recording.md`，视频文件只在最终提交压缩包中提供
+> - 大赛最终材料要求视频文件时，最后打包提交时**必须**包含 `demo-recording.mp4` 与全部交付物，但不强制进入 Git 历史
+
+
+
 ---
 
 ## Task 1: 创建 docs/demo 目录结构
@@ -342,7 +374,8 @@ git commit -m "docs(demo): add PPT generation notes (binary in slides/)"
 ## Task 5: 录制视频
 
 **Files:**
-- Create: `docs/demo/video/demo-recording.mp4`（二进制，≤ 7 分钟）
+- Create: `docs/demo/video/demo-recording.mp4`（二进制，≤ 7 分钟）— **是否入 Git 见下方入库策略**
+- Create: `docs/demo/video/demo-recording.md`（**Git 必须入库**：视频元数据 + 校验信息）
 
 - [ ] **Step 1: 打 pre-recording tag**
 
@@ -396,19 +429,66 @@ sleep 30
 ls -la docs/demo/video/demo-recording.mp4
 ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \
     docs/demo/video/demo-recording.mp4
+ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate \
+    -of default=noprint_wrappers=1 docs/demo/video/demo-recording.mp4
+FILE_SIZE=$(du -m docs/demo/video/demo-recording.mp4 | cut -f1)
+echo "file_size_MB=$FILE_SIZE"
+echo "sha256=$(sha256sum docs/demo/video/demo-recording.mp4 | cut -d' ' -f1)"
 ```
 
-Expected: 视频时长 ≤ 420 秒（7 分钟）
+Expected: 视频时长 ≤ 420 秒（7 分钟）；分辨率 ≥ 1280x720；记录 file_size_MB 与 sha256
 
-- [ ] **Step 7: Commit（按需使用 git-lfs）**
+- [ ] **Step 7: 写 demo-recording.md（**必填元数据，强制入 Git**）**
+
+`docs/demo/video/demo-recording.md`:
+
+```markdown
+# 演示视频元数据
+
+> **本文件必填，强制入 Git**。视频文件本身是否入 Git 视体积而定（参见 plan 顶部"Git 入库策略"）。
+
+## 文件信息
+
+- **文件名**：`demo-recording.mp4`
+- **时长**：<实际秒数> 秒（≤ 420）
+- **分辨率**：<如 1920x1080>
+- **帧率**：<如 30fps>
+- **码率**：<如 8Mbps>
+- **文件大小**：<实际 MB>
+- **存放位置**：
+  - Git 路径：<入 Git 时填 `docs/demo/video/demo-recording.mp4`；否则填"未入 Git">
+  - 备选位置：<Releases URL / 团队共享盘 URL / 比赛提交包内路径>
+
+## 校验
+
+- **SHA256**：<实际校验值>
+- **MD5**（可选）：<实际校验值>
+
+## 入库状态
+
+- [ ] 已入 Git（≤ 50MB 时勾选）
+- [ ] 仅在最终提交压缩包中提供（> 50MB 时勾选）
+- [ ] 已上传到 Releases / 共享盘
+- [ ] 已包含在最终比赛提交包中
+```
+
+> ⚠️ **本文件禁止省略**——即使视频文件本身未入 Git，`demo-recording.md` 仍要 commit，确保评审/复盘能定位到视频并验证完整性。
+
+- [ ] **Step 8: Commit（按体积走 LFS 或仅提交元数据）**
 
 ```bash
-# 如果 .mp4 > 50MB，用 git-lfs
-git lfs track "*.mp4"
-git add .gitattributes
-git add docs/demo/video/demo-recording.mp4
-git commit -m "docs(demo): add 7-min demo recording"
+# 体积 < 50MB：直接 commit（或用 LFS）
+if [ "$FILE_SIZE" -lt 50 ]; then
+    git add docs/demo/video/demo-recording.mp4
+fi
+
+# 元数据 md 文件始终 commit（强制入库）
+git add docs/demo/video/demo-recording.md
+
+git commit -m "docs(demo): add 7-min demo recording + recording metadata"
 ```
+
+> **禁止**强制 commit 超过 50MB 的 .mp4——如不慎触发 size limit，先 `git rm --cached` 撤回，仅保留 `demo-recording.md`。
 
 ---
 
@@ -493,10 +573,12 @@ git push origin fix-04-demo-done
 
 Fix-04 完成必须满足：
 
-- [ ] `docs/demo/slides/kylinops-demo.pptx` 存在，10~15 页
-- [ ] `docs/demo/video/demo-recording.mp4` 存在，≤ 7 分钟
-- [ ] `docs/demo/video/demo-script-final.md` 完整（4 场景 + 3 段收尾）
-- [ ] `docs/demo/video/demo-checklist.md` 完整（环境/配置/冒烟/离线/备份）
-- [ ] `docs/demo/screenshots/` 含 7 张 PNG
+- [ ] `docs/demo/slides/kylinops-demo.pptx` 存在，10~15 页（体积大可走 LFS / 仅 Releases）
+- [ ] `docs/demo/video/demo-recording.mp4` 存在，≤ 7 分钟（**是否入 Git 视体积而定**，必须放入最终提交包）
+- [ ] `docs/demo/video/demo-script-final.md` 完整（4 场景 + 3 段收尾）— **必入 Git**
+- [ ] `docs/demo/video/demo-checklist.md` 完整（环境/配置/冒烟/离线/备份）— **必入 Git**
+- [ ] `docs/demo/video/demo-recording.md` 完整（文件名/时长/分辨率/码率/大小/SHA256/存放位置/入库状态）— **必入 Git**
+- [ ] `docs/demo/screenshots/` 含 7 张 PNG — **必入 Git**
+- [ ] 最终提交压缩包中包含 `demo-recording.mp4`（无论是否入 Git 历史）
 - [ ] tag `fix-04-demo-done` 已打
 - [ ] 录像前 tag `pre-recording` 已打

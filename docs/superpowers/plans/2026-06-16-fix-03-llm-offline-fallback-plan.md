@@ -58,9 +58,17 @@ class IntentClassifierSynonymTest {
     }
 
     @Test
-    void synonym_does_not_override_command_execution() {
-        // COMMAND_EXECUTION 优先级最高，synonym 不得覆盖
-        assertEquals(IntentType.COMMAND_EXECUTION, classifier.classify("mysql 慢"));
+    void mysql_slow_maps_to_service_diagnosis_via_synonym() {
+        // "mysql 慢" 不是命令执行，而是服务异常 → synonym 表中 "mysql" 应命中 SERVICE_DIAGNOSIS
+        assertEquals(IntentType.SERVICE_DIAGNOSIS, classifier.classify("mysql 慢"));
+    }
+
+    @Test
+    void synonym_does_not_override_command_execution_for_dangerous_commands() {
+        // COMMAND_EXECUTION 优先级最高，synonym 不得覆盖危险命令
+        // 用真正危险的命令（regex 优先匹配 COMMAND_EXECUTION）验证
+        assertEquals(IntentType.COMMAND_EXECUTION, classifier.classify("rm -rf /"));
+        assertEquals(IntentType.COMMAND_EXECUTION, classifier.classify("chmod -R 777 /"));
     }
 
     @Test
@@ -76,7 +84,7 @@ class IntentClassifierSynonymTest {
 cd backend && mvn test -Dtest=IntentClassifierSynonymTest -q
 ```
 
-Expected: 部分 FAIL（"mysql 慢" → 实际可能匹配 SERVICE_DIAGNOSIS 而不是 COMMAND_EXECUTION，需要 regex 优先）
+Expected: 部分 FAIL（"mysql 慢" → 旧断言期望 COMMAND_EXECUTION 不合理，已修正；新增"rm -rf /" / "chmod -R 777 /" 验证 regex 优先）
 
 - [ ] **Step 3: 修改 IntentClassifier.java**
 
@@ -127,7 +135,7 @@ for (var e : synonymMap.entrySet()) {
 cd backend && mvn test -Dtest=IntentClassifierSynonymTest -q
 ```
 
-Expected: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`
+Expected: `Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`
 
 - [ ] **Step 5: 跑全量基线确认不破坏**
 
@@ -135,7 +143,7 @@ Expected: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`
 cd backend && mvn test -q
 ```
 
-Expected: `Tests run: 515, Failures: 0, Errors: 0, Skipped: 1`（509 + 6 新增）
+Expected: `Tests run: 516, Failures: 0, Errors: 0, Skipped: 1`（509 + 7 新增）
 
 - [ ] **Step 6: Commit**
 

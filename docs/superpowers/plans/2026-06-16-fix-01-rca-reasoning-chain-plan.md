@@ -274,8 +274,9 @@ git commit -m "feat(rca): add RootCauseAnalyzer interface"
 
 **Files:**
 - Create: `backend/src/main/java/com/kylinops/rca/DiskDiagnosisAnalyzer.java`
-- Create: `backend/src/main/java/com/kylinops/rca/DefaultRootCauseAnalyzer.java`（主入口，按 intent 分发）
 - Test: `backend/src/test/java/com/kylinops/rca/DiskDiagnosisAnalyzerTest.java`
+
+> ⚠️ **执行顺序约束**：本 Task **不创建** `DefaultRootCauseAnalyzer`（主入口）。`DefaultRootCauseAnalyzer` 依赖 `HealthCheckAnalyzer`（Task 4）和 `ServiceDiagnosisAnalyzer`（Task 5），若在 Task 3 提前创建会导致 `mvn compile` 失败。`DefaultRootCauseAnalyzer` 的实现与单元测试在 **Task 5 末尾**统一提交。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -303,9 +304,13 @@ class DiskDiagnosisAnalyzerTest {
         ToolResult diskResult = ToolResult.success("disk_usage_tool",
                 Map.of("partitions", List.of("/: 86% used (12G/14G)")),
                 "/: 86% used", 0);
+        // 测试数据必须包含一个可处理大文件 + 一个敏感数据库目录，
+        // 否则 excludedCauses 断言会因输入数据不匹配而失败
         ToolResult largeFileResult = ToolResult.success("large_file_scan_tool",
-                Map.of("largeFiles", List.of("/var/log/app.log: 12GB")),
-                "Top 1: /var/log/app.log (12GB)", 0);
+                Map.of("largeFiles", List.of(
+                        "/var/log/app.log: 12GB",
+                        "/var/lib/mysql/binlog.00001: 8GB")),
+                "Top 2: /var/log/app.log (12GB), /var/lib/mysql/binlog.00001 (8GB)", 0);
 
         RootCauseChain chain = analyzer.analyze(
                 IntentType.DISK_DIAGNOSIS,
@@ -315,11 +320,24 @@ class DiskDiagnosisAnalyzerTest {
         assertNotNull(chain);
         assertTrue(chain.getSymptom().contains("86%"));
         assertEquals(2, chain.getEvidence().size());
+
+        // ① /var/log/app.log 必须被确认为主因
         assertTrue(chain.getHypotheses().stream().anyMatch(h -> h.isConfirmed()
-                && h.getCause().contains("/var/log/app.log")));
-        // 必须排除敏感数据库目录
+                && h.getCause().contains("/var/log/app.log")),
+                "应确认 /var/log/app.log 为主因");
+
+        // ② /var/lib/mysql 必须出现在 excludedCauses（敏感数据库目录）
         assertTrue(chain.getExcludedCauses().stream()
-                .anyMatch(e -> e.getCause().contains("/var/lib/mysql")));
+                .anyMatch(e -> e.getCause().contains("/var/lib/mysql")),
+                "应将 /var/lib/mysql 标记为 excludedCause（敏感数据库目录）");
+
+        // ③ 结论应指向 /var/log/app.log，不能指向数据库目录
+        assertTrue(chain.getConclusion().contains("/var/log/app.log"),
+                "conclusion 必须指向 /var/log/app.log");
+        assertFalse(chain.getConclusion().contains("/var/lib/mysql"),
+                "conclusion 不能误指 /var/lib/mysql（它是排除项）");
+
+        // ④ 置信度门槛
         assertTrue(chain.getConfidence() >= 0.7);
     }
 
@@ -480,54 +498,15 @@ cd backend && mvn test -Dtest=DiskDiagnosisAnalyzerTest -q
 
 Expected: `Tests run: 2, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 5: 实现 DefaultRootCauseAnalyzer（主入口）**
-
-`backend/src/main/java/com/kylinops/rca/DefaultRootCauseAnalyzer.java`:
-
-```java
-package com.kylinops.rca;
-
-import com.kylinops.common.enums.IntentType;
-import com.kylinops.common.enums.RiskDecision;
-import com.kylinops.tool.ToolResult;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
-import java.util.List;
-
-/**
- * 默认根因分析器：按 intent 分发给具体 analyzer。
- */
-@Component
-@RequiredArgsConstructor
-public class DefaultRootCauseAnalyzer implements RootCauseAnalyzer {
-
-    private final DiskDiagnosisAnalyzer diskAnalyzer;
-    private final HealthCheckAnalyzer healthAnalyzer;
-    private final ServiceDiagnosisAnalyzer serviceAnalyzer;
-
-    @Override
-    public RootCauseChain analyze(IntentType intent, List<ToolResult> results,
-                                  RiskDecision decision) {
-        if (intent == null || results == null || results.isEmpty()) {
-            return null;
-        }
-        return switch (intent) {
-            case DISK_DIAGNOSIS -> diskAnalyzer.analyze(intent, results, decision);
-            case SYSTEM_CHECK -> healthAnalyzer.analyze(intent, results, decision);
-            case SERVICE_DIAGNOSIS -> serviceAnalyzer.analyze(intent, results, decision);
-            default -> null;
-        };
-    }
-}
-```
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add backend/src/main/java/com/kylinops/rca/
-git commit -m "feat(rca): add DiskDiagnosisAnalyzer + DefaultRootCauseAnalyzer"
+git add backend/src/main/java/com/kylinops/rca/DiskDiagnosisAnalyzer.java \
+        backend/src/test/java/com/kylinops/rca/DiskDiagnosisAnalyzerTest.java
+git commit -m "feat(rca): add DiskDiagnosisAnalyzer"
 ```
+
+> ✅ Task 3 至此只交付 `DiskDiagnosisAnalyzer` + 单元测试。`DefaultRootCauseAnalyzer` 在 Task 5 末尾统一创建并提交。
 
 ---
 
@@ -826,6 +805,152 @@ git commit -m "feat(rca): add ServiceDiagnosisAnalyzer"
 
 ---
 
+## Task 5.5: DefaultRootCauseAnalyzer 主入口（按 intent 分发）
+
+> **执行顺序约束**：本 Task 必须在 Task 3/4/5 三个 analyzer 都实现并 commit 之后执行；否则会因 `HealthCheckAnalyzer` / `ServiceDiagnosisAnalyzer` 符号未定义而 `mvn compile` 失败。Task 3 已显式避开此陷阱。
+
+**Files:**
+- Create: `backend/src/main/java/com/kylinops/rca/DefaultRootCauseAnalyzer.java`
+- Test: `backend/src/test/java/com/kylinops/rca/DefaultRootCauseAnalyzerTest.java`
+
+- [ ] **Step 1: 写失败测试**
+
+`backend/src/test/java/com/kylinops/rca/DefaultRootCauseAnalyzerTest.java`:
+
+```java
+package com.kylinops.rca;
+
+import com.kylinops.common.enums.IntentType;
+import com.kylinops.common.enums.RiskDecision;
+import com.kylinops.tool.ToolResult;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class DefaultRootCauseAnalyzerTest {
+
+    private final DefaultRootCauseAnalyzer analyzer = new DefaultRootCauseAnalyzer(
+            new DiskDiagnosisAnalyzer(),
+            new HealthCheckAnalyzer(),
+            new ServiceDiagnosisAnalyzer());
+
+    @Test
+    void disk_intent_dispatches_to_disk_analyzer() {
+        ToolResult r = ToolResult.success("disk_usage_tool",
+                Map.of("partitions", List.of("/: 86% used (12G/14G)")),
+                "/: 86% used", 0);
+        ToolResult lf = ToolResult.success("large_file_scan_tool",
+                Map.of("largeFiles", List.of(
+                        "/var/log/app.log: 12GB",
+                        "/var/lib/mysql/binlog.00001: 8GB")),
+                "Top 2: app.log (12GB), binlog (8GB)", 0);
+        RootCauseChain chain = analyzer.analyze(
+                IntentType.DISK_DIAGNOSIS,
+                List.of(r, lf), RiskDecision.ALLOW);
+        assertNotNull(chain);
+        assertTrue(chain.getConclusion().contains("/var/log/app.log"));
+    }
+
+    @Test
+    void system_check_intent_dispatches_to_health_analyzer() {
+        ToolResult r = ToolResult.success("cpu_status_tool",
+                Map.of("summary", "CPU 12%"), "CPU 12%", 0);
+        RootCauseChain chain = analyzer.analyze(
+                IntentType.SYSTEM_CHECK,
+                List.of(r), RiskDecision.ALLOW);
+        assertNotNull(chain);
+        assertTrue(chain.getSymptom().contains("系统健康评分"));
+    }
+
+    @Test
+    void unsupported_intent_returns_null() {
+        assertNull(analyzer.analyze(IntentType.CHITCHAT,
+                List.of(), RiskDecision.ALLOW));
+        assertNull(analyzer.analyze(null, List.of(), RiskDecision.ALLOW));
+    }
+}
+```
+
+- [ ] **Step 2: 跑测试确认失败**
+
+```bash
+cd backend && mvn test -Dtest=DefaultRootCauseAnalyzerTest -q
+```
+
+Expected: `FAIL — symbol not found DefaultRootCauseAnalyzer`
+
+- [ ] **Step 3: 实现 DefaultRootCauseAnalyzer**
+
+`backend/src/main/java/com/kylinops/rca/DefaultRootCauseAnalyzer.java`:
+
+```java
+package com.kylinops.rca;
+
+import com.kylinops.common.enums.IntentType;
+import com.kylinops.common.enums.RiskDecision;
+import com.kylinops.tool.ToolResult;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+/**
+ * 默认根因分析器：按 intent 分发给具体 analyzer。
+ * 仅 Task 3/4/5 三个 analyzer 全部就位后才创建，避免编译顺序问题。
+ */
+@Component
+@RequiredArgsConstructor
+public class DefaultRootCauseAnalyzer implements RootCauseAnalyzer {
+
+    private final DiskDiagnosisAnalyzer diskAnalyzer;
+    private final HealthCheckAnalyzer healthAnalyzer;
+    private final ServiceDiagnosisAnalyzer serviceAnalyzer;
+
+    @Override
+    public RootCauseChain analyze(IntentType intent, List<ToolResult> results,
+                                  RiskDecision decision) {
+        if (intent == null || results == null || results.isEmpty()) {
+            return null;
+        }
+        return switch (intent) {
+            case DISK_DIAGNOSIS -> diskAnalyzer.analyze(intent, results, decision);
+            case SYSTEM_CHECK -> healthAnalyzer.analyze(intent, results, decision);
+            case SERVICE_DIAGNOSIS -> serviceAnalyzer.analyze(intent, results, decision);
+            default -> null;
+        };
+    }
+}
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```bash
+cd backend && mvn test -Dtest=DefaultRootCauseAnalyzerTest -q
+```
+
+Expected: `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`
+
+- [ ] **Step 5: 跑全量基线确认不破坏**
+
+```bash
+cd backend && mvn test -q
+```
+
+Expected: Tests run 数 ≥ 上一基线 + 3，Failures = 0，Errors = 0，Skipped = 1。
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add backend/src/main/java/com/kylinops/rca/DefaultRootCauseAnalyzer.java \
+        backend/src/test/java/com/kylinops/rca/DefaultRootCauseAnalyzerTest.java
+git commit -m "feat(rca): add DefaultRootCauseAnalyzer dispatcher (depends on Disk/Health/Service analyzers)"
+```
+
+---
+
 ## Task 6: 把 rootCauseChain 字段加入 AgentResult
 
 **Files:**
@@ -951,18 +1076,23 @@ class AgentOrchestratorRcaTest {
         when(analyzer.analyze(any(IntentType.class), anyList(), any(RiskDecision.class)))
                 .thenReturn(mockChain);
 
+        // 选用 master 上规则必然能命中的输入句（"帮我看看磁盘为什么快满了"）
+        // — 避免 "帮我看磁盘" 这种短语在某些规则下识别不稳定
         AgentOrchestrator.AgentRequest req = AgentOrchestrator.AgentRequest.builder()
-                .userInput("帮我看磁盘")
+                .userInput("帮我看看磁盘为什么快满了")
                 .requestId("test-audit-id-12345")
                 .operator(AuthenticatedOperator.ANONYMOUS)
                 .build();
 
         AgentResult result = orchestrator.process(req);
-        // 当 intent 是 DISK_DIAGNOSIS 时，RCA 应被填入
-        if (result.getIntentType() == IntentType.DISK_DIAGNOSIS) {
-            assertNotNull(result.getRootCauseChain());
-            assertEquals("test symptom", result.getRootCauseChain().getSymptom());
-        }
+
+        // 强断言：intent 与 RCA 字段必须同时满足，不再 if 守卫跳过
+        assertEquals(IntentType.DISK_DIAGNOSIS, result.getIntentType(),
+                "输入句应稳定识别为 DISK_DIAGNOSIS");
+        assertNotNull(result.getRootCauseChain(),
+                "RCA 必须被填入 AgentResult（演示场景 2 强契约）");
+        assertEquals("test symptom", result.getRootCauseChain().getSymptom(),
+                "RCA.symptom 必须来自 analyzer 返回值");
     }
 }
 ```

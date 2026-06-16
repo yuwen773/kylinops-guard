@@ -6,6 +6,13 @@
 
 **Architecture:** 仿照 `ServiceStatusTool.java` 模式 — 固定参数数组（`lsof -p <pid> -F 0nPt`）、`OsCommandExecutor` 调用、`BaseOSValidator` 校验 pid、5s 超时、Windows 直接降级。`-F 0nPt` 解析失败时返回 `rawLines` 不影响 success。
 
+> ⚠️ **PermissionType 枚举兼容约束（必读）**：`lsof_tool` 的 `permissionType` **必须复用项目当前已有的枚举值**，不得为这个工具新增任何枚举。
+>
+> - 如果 `com.kylinops.common.enums.PermissionType` 中已存在 `READ`，则 `setPermissionType(PermissionType.READ)`（与本 plan 现有代码一致）。
+> - 如果已存在 `READ_ONLY`，则改用 `setPermissionType(PermissionType.READ_ONLY)`。
+>
+> Coding Agent 在实现 Task 1/2 前，**先读 `PermissionType.java` 源文件**确认实际枚举值后二选一；对应的单元测试断言（Task 2 `definition_has_l0_read_only`）与 Task 3 的 `curl | python` 校验脚本里 `permissionType == 'READ_ONLY'` 也要同步替换为所选的实际值。**严禁**为 lsof_tool 引入新枚举（避免破坏现有 `tool_center` 前端分支判断与 19+3 E2E 基线）。
+
 **Tech Stack:** Java 17 + Spring Boot 3.x + JPA + Lombok
 
 **Spec 引用：** `docs/superpowers/specs/2026-06-16-p0-defect-fix-sprint-design.md` §4
@@ -401,7 +408,7 @@ Fix-02 完成必须满足：
 - [ ] 后端 509/509 + 1 skipped 通过
 - [ ] 前端 181/181 通过
 - [ ] E2E 19/19 + 3 skipped 通过
-- [ ] `GET /api/tools` 中可见 `lsof_tool`（riskLevel=L0, permissionType=READ_ONLY）
+- [ ] `GET /api/tools` 中可见 `lsof_tool`（riskLevel=L0, permissionType=READ 或 READ_ONLY，**与项目已有枚举保持一致**，见 Task 1 顶部枚举兼容约束）
 - [ ] pid 校验生效（0/-1/"abc" 全部返回 failed）
 - [ ] Windows 平台返回 failed
 - [ ] `-F` 解析失败返回 success + rawLines

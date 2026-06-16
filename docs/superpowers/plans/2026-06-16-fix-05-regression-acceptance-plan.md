@@ -31,9 +31,16 @@ Expected: 输出"无残留，OK"或目录为空
 cd backend && mvn test -q 2>&1 | tee /tmp/backend-test.log
 ```
 
-Expected: 末行包含 `Tests run: 523, Failures: 0, Errors: 0, Skipped: 1`
+Expected: 末行满足**动态验收口径**：
 
-> ⚠️ 如果数字偏差，**先回 Fix-01/02/03 排查**，不要跳过本步。
+| 字段 | 通过条件 |
+|---|---|
+| `Tests run` | ≥ 当前 master 基线 + Fix-01/02/03 期间已记录增量 |
+| `Failures` | = 0 |
+| `Errors` | = 0 |
+| `Skipped` | = 1（与当前基线一致，不允许新增 skipped） |
+
+> ⚠️ **不得用"Tests run 必须 = 523"这种硬编码数字做判定**。Fix-01/02/03 期间可能微调测试数量（如新增边界用例），只要 ≥ 已知下限即视为通过。具体下限记录见 §1.0 "已知基线"。
 
 - [ ] **Step 3: 跑前端单测基线**
 
@@ -41,7 +48,12 @@ Expected: 末行包含 `Tests run: 523, Failures: 0, Errors: 0, Skipped: 1`
 cd frontend && npm run test:unit -- --run 2>&1 | tee /tmp/frontend-unit.log
 ```
 
-Expected: 末行 `Test Files 181 passed (181)` 或 `Tests 181 passed`
+Expected：末行满足**动态验收口径**：
+
+| 字段 | 通过条件 |
+|---|---|
+| `passed` | ≥ 当前 master 基线（179）+ Fix-01/02/03 期间已记录增量（+2 = 181） |
+| `failed` | = 0 |
 
 - [ ] **Step 4: 跑前端 E2E 基线**
 
@@ -49,9 +61,15 @@ Expected: 末行 `Test Files 181 passed (181)` 或 `Tests 181 passed`
 cd frontend && npx playwright test 2>&1 | tee /tmp/frontend-e2e.log
 ```
 
-Expected: `19 passed (19+3 skipped)` 或类似
+Expected: 满足**动态验收口径**：
 
-- [ ] **Step 5: 记录基线数字到验收报告（草稿）**
+| 字段 | 通过条件 |
+|---|---|
+| `passed` | ≥ 当前 master 基线（18）+ Fix-01 期间已记录增量（+1 = 19） |
+| `failed` | = 0 |
+| `skipped` | 与当前基线一致（= 3） |
+
+- [ ] **Step 5: 记录实际基线数字到验收报告（草稿）**
 
 ```bash
 echo "Backend: $(grep 'Tests run' /tmp/backend-test.log | tail -1)"
@@ -59,13 +77,7 @@ echo "Frontend unit: $(grep -E 'Test Files|Tests' /tmp/frontend-unit.log | tail 
 echo "E2E: $(grep -E 'passed|skipped' /tmp/frontend-e2e.log | tail -1)"
 ```
 
-输出示例（实际数字可能因 Fix-01/02/03 期间微调而异）：
-
-```
-Backend: Tests run: 523, Failures: 0, Errors: 0, Skipped: 1
-Frontend unit: Test Files 181 passed (181)
-E2E: 19 passed (19+3 skipped)
-```
+> **记录时把"实际数字"原样写入验收报告**（不要写"523"这种硬编码值），详见 Task 4 报告模板 §1"实际测试数量"字段。
 
 ---
 
@@ -262,13 +274,27 @@ kill $BACKEND_PID 2>/dev/null
 
 ## 1. 测试基线（必须全绿）
 
-| 范围 | 命令 | 实际结果 | 期望 | 状态 |
-|---|---|---|---|---|
-| 后端全量 | `mvn test -q` | Tests run: 523, Failures: 0, Errors: 0, Skipped: 1 | 同左 | ✅ |
-| 前端单测 | `npm run test:unit -- --run` | Test Files 181 passed (181) | 同左 | ✅ |
-| E2E | `npx playwright test` | 19 passed (19+3 skipped) | 同左 | ✅ |
+### 1.0 验收口径（动态基线 + 已记录增量）
 
-> **注**：基线数字可能因 Fix-01/02/03 期间补充测试而略增；以实际数值为准，但**不能减少**（基线是 502+1 / 181 / 19+3 的下限）。
+> **禁止**使用 "Tests run 必须 = 523" 这种硬编码数字判定失败。Fix-01/02/03 期间可能新增边界用例，测试数量在 master 基线之上只增不减。
+
+| 范围 | master 基线（执行前实测） | 已记录增量（Fix-01/02/03 累计） | 期望下限 |
+|---|---|---|---|
+| 后端 | 502（+1 skipped） | +N（Fix-01: +X / Fix-02: +7 / Fix-03: +N） | ≥ 502 + N + 1 skipped |
+| 前端单测 | 179 | +2（Fix-01: +2 / Fix-02: 0 / Fix-03: 0） | ≥ 181 |
+| E2E | 18（+3 skipped） | +1（Fix-01: +1） | ≥ 19 + 3 skipped |
+
+> N 在验收时根据实际增量填写。**核心不变量：Failures = 0, Errors = 0, failed = 0, skipped 不允许新增**。
+
+### 1.1 实际测试数量（执行后原样填写）
+
+| 范围 | 命令 | 实际结果（**执行后回填**） | 状态 |
+|---|---|---|---|
+| 后端全量 | `mvn test -q` | Tests run: <实际数字>, Failures: 0, Errors: 0, Skipped: <实际数字> | ☐ |
+| 前端单测 | `npm run test:unit -- --run` | <Test Files / Tests> <实际数字> passed (<实际数字>) | ☐ |
+| E2E | `npx playwright test` | <实际数字> passed (<实际数字>+<实际数字> skipped) | ☐ |
+
+> **验收判据**：§1.1 实际数字 ≥ §1.0 期望下限 + Failures/Errors/failed = 0 + Skipped 不增。如不通过，**先回对应 Fix 排查**，不得跳过本步。
 
 ## 2. 4 个演示场景端到端
 
@@ -311,7 +337,7 @@ kill $BACKEND_PID 2>/dev/null
 ## 4. Fix-02 专项验收
 
 - [✅] `lsof_tool` 在 `GET /api/tools` 中可见
-- [✅] `toolName=lsof_tool`，`riskLevel=L0`，`permissionType=READ_ONLY`
+- [✅] `toolName=lsof_tool`，`riskLevel=L0`，`permissionType=READ` 或 `READ_ONLY`（与项目已有枚举一致）
 - [✅] pid 校验生效（0/-1/abc 全部返回 failed）
 - [✅] Windows 平台直接返回 failed
 - [✅] `-F` 解析失败回退 `rawLines`（status=success）
@@ -334,9 +360,9 @@ kill $BACKEND_PID 2>/dev/null
 
 ## 7. 回归验证
 
-- [✅] 现有 502/502 + 1 skipped backend 测试基线不动
-- [✅] 现有 179/179 frontend unit 测试基线不动
-- [✅] 现有 18/18 + 3 skipped E2E 测试基线不动
+- [✅] 后端测试基线（502 + 1 skipped）不动 — 实测下限见 §1.1
+- [✅] 前端单测基线（179）不动 — 实测下限见 §1.1
+- [✅] E2E 测试基线（18 + 3 skipped）不动 — 实测下限见 §1.1
 - [✅] 所有 RCA 字段为可选，旧调用方兼容
 - [✅] L4 拦截未弱化
 - [✅] L2 确认未跳过
@@ -422,11 +448,13 @@ git push origin master
 
 ## 数字一览
 
+> ⚠️ **数字均为执行时实测，不写死**。验收执行后用 `mvn test` / `npm run test:unit` / `npx playwright test` 输出的实际数字回填。
+
 - **5 个 Fix** 全部合入 master
-- **+ 36 个新测试**（不破坏任何基线）
-- **后端基线：** 502+1 → 523+1
-- **前端基线：** 179 → 181
-- **E2E 基线：** 18+3 → 19+3
+- **后端测试增量：** master 502（+1 skipped） → <执行后实测> (+N)
+- **前端单测增量：** master 179 → <执行后实测>
+- **E2E 增量：** master 18+3 skipped → <执行后实测>
+- **核心不变量：** Failures / Errors / failed = 0；Skipped 不增
 - **6 个演示交付物**（PPT / 视频 / 脚本 / 清单 / 7 张截图）
 - **6 个 tag**（fix-01..04 + pre-recording + p0-sprint-released）
 
@@ -464,15 +492,17 @@ git push origin master
 
 ## 完成标准（DoD）
 
-Fix-05 完成必须满足：
+Fix-05 完成必须满足（**动态基线**）：
 
-- [ ] 后端全量基线通过（≥ 502+1，实际可能 523+1）
-- [ ] 前端单测基线通过（≥ 181）
-- [ ] E2E 基线通过（≥ 19+3）
+- [ ] 后端全量基线通过：**Tests run ≥ master 基线 502 + Fix-01/02/03 累计增量**，Failures = 0，Errors = 0，Skipped = 1
+- [ ] 前端单测基线通过：**Tests ≥ 181**（master 179 + Fix-01 增量 2），failed = 0
+- [ ] E2E 基线通过：**passed ≥ 19 + 3 skipped**（master 18+3 + Fix-01 增量 1），failed = 0
 - [ ] 4 个演示场景端到端 ✅
 - [ ] LLM 离线模式 ✅
-- [ ] `docs/test/p0-fix-acceptance.md` 已生成
+- [ ] `docs/test/p0-fix-acceptance.md` 已生成（**实际测试数量**字段已回填）
 - [ ] `docs/test/p0-fix-sprint-summary.md` 已生成
 - [ ] tag `p0-sprint-released` 已打并推送
+
+> ⚠️ **不得**用"Tests run = 523"等硬编码数字判定失败。验收时按本节"动态基线"对比 §1.1 实际数字。
 
 至此 **P0 缺陷修复冲刺全部完成**。下一步可启动 P1 路线（多主机 / 告警 / RAG 等）。
