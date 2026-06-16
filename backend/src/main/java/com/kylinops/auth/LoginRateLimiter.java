@@ -113,16 +113,29 @@ public class LoginRateLimiter {
     /**
      * 记录一次失败登录 — 累加 IP 计数与 username 失败计数，必要时触发锁定。
      * <p>
-     * 若当前存在已过期的锁定条目，先清空失败计数，避免一次失败后立即把刚解锁的账号
-     * 因累计失败次数再次达到 maxFailures 而重新锁死。
+     * 锁定语义：
+     * <ul>
+     *   <li>若当前存在已过期的锁定条目，先清空失败计数。</li>
+     *   <li><b>若当前仍处于锁定中（now &lt; lockedUntil），不累加失败、不延长锁定</b>。
+     *       锁定时长是固定的 {@code lockDuration}，不随攻击者的请求频率滑动 —
+     *       否则高频轮询（&lt; {@code lockDuration}）会把账户永久锁死，
+     *       也是 CI 上 {@code lockoutExpiresAfterLockDuration} 不稳定的根因。</li>
+     * </ul>
      * </p>
      */
     public void recordFailure(String ip, String username) {
         Instant now = clock.instant();
-        // 若锁定已到期，先清空旧状态（与 isLocked / check 的清理行为保持一致）
         String k = key(ip, username);
         Instant lockedUntil = usernameLockedUntil.get(k);
-        if (lockedUntil != null && !now.isBefore(lockedUntil)) {
+        if (lockedUntil != null) {
+            if (now.isBefore(lockedUntil)) {
+                // 仍处于锁定中：失败次数不累加，锁定时间不延长。
+                // IP 维度攻击者只看到持续的 423，无信息泄露。
+                log.debug("recordFailure skipped (still locked) ip={} user={} until={}",
+                        ip, username, lockedUntil);
+                return;
+            }
+            // 锁定到期，清理（与 isLocked / check 的清理行为保持一致）
             usernameLockedUntil.remove(k);
             usernameFailures.remove(k);
         }
