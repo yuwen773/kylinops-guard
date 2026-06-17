@@ -4,6 +4,7 @@ import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
+import com.kylinops.notification.NotificationRecordSummary;
 import com.kylinops.rca.RootCauseChain;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -84,6 +85,8 @@ public class AuditLogDetail {
 
     /** 待确认动作 */
     private PendingActionInfo pendingAction;
+
+    private List<NotificationRecordSummary> notificationRecords;
 
     @Data
     @Builder
