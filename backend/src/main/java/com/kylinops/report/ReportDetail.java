@@ -1,6 +1,7 @@
 package com.kylinops.report;
 
 import com.kylinops.common.enums.RiskLevel;
+import com.kylinops.rca.RootCauseChain;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -43,4 +44,7 @@ public class ReportDetail {
 
     /** 创建时间。 */
     private LocalDateTime createdAt;
+
+    /** 根因分析链（反序列化自 rootCauseChainJson） */
+    private RootCauseChain rootCauseChain;
 }

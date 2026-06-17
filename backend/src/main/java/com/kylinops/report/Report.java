@@ -90,4 +90,9 @@ public class Report {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    /** 根因分析链 JSON 字符串（Lob TEXT，仅演示场景填充） */
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String rootCauseChainJson;
 }

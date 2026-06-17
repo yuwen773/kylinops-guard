@@ -327,6 +327,7 @@ public class ReportService {
                 .auditId(entity.getAuditId())
                 .bodyMarkdown(entity.getBodyMarkdown())
                 .createdAt(entity.getCreatedAt())
+                .rootCauseChain(auditLogService.deserializeRca(entity.getRootCauseChainJson()))
                 .build();
     }
 }
