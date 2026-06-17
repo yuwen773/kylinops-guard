@@ -415,3 +415,77 @@ Fix-02 完成必须满足：
 - [ ] tag `fix-02-lsof-done` 已打
 
 如未达任一项，**不得进入 Fix-03**，先解决问题再继续。
+
+---
+
+## 实施回填 / Plan 缺陷复盘（2026-06-17 合入后回填）
+
+> 实施 commit `e06cdda` / `828af30` / `89d9517`（base `81fd57a`）。
+> tag `fix-02-lsof-done` 已 push origin。
+> 实际基线：后端 **529/529 + 1 skipped**，前端 **190/190**，E2E **19 passed + 3 skipped**。
+
+### 1. `CommandResult` 构造器参数错误
+
+- Plan 中使用了 3-arg 构造器 `new CommandResult(0, output, List.of())`。
+- 实际项目 `OsCommandExecutor.CommandResult` 只有 6-arg 构造器 `(exitCode, stdout, stderr, truncated, errorMessage, elapsedNs)`。
+- 实施时已改用真实 6-arg API。
+
+### 2. `OsCommandExecutor.execute()` 签名错误
+
+- Plan 中 mock 使用 `executor.execute(anyList(), anyInt())`。
+- 实际签名是 `(List<String>, long timeoutMs)`。
+- 实施时已改用 `anyLong()`。
+
+### 3. `ToolInput` 构造方式错误
+
+- Plan 中使用 `new ToolInput(reqId, params)` 2-arg 构造器。
+- 实际 `ToolInput` 字段为 `toolName, params, requestId`，无 2-arg；现有测试统一使用 `ToolInput.builder().toolName(...).params(...).requestId(...).build()`。
+- 实施时改用 builder 模式，与既有测试风格一致（参考 `ServiceDiagnosticToolTest`）。
+
+### 4. 漏掉 `LlmToolContextPolicyRegistry` fail-closed 约束（**最严重**）
+
+- 每个 `OpsTool` 必须配套一个 `LlmToolContextPolicy` bean（`LlmToolContextPolicyRegistry.init()` fail-closed 校验）。
+- 否则 Spring Context 启动失败 → 全栈 181 个测试 errors。
+- 实施时新增：
+  - `backend/src/main/java/com/kylinops/agent/intelligence/LsofToolContextPolicy.java`
+  - `backend/src/test/java/com/kylinops/agent/intelligence/PerToolContextPolicyTest.java` 中 2 个新用例
+- 后续所有新增 Tool 的 plan 必须强制检查该项（详见 DoD 增补条目）。
+
+### 5. `parseOutput` 解析失败分支不可达
+
+- 原 production code 的 parser 对未识别前缀静默忽略、不抛异常 → 测试期望的 `parseError` 字段永不写入。
+- 实施时增强 production code：
+  - 解析时检测 `hasProcessHeader`（是否有 `p<pid>` 头）作为解析质量信号。
+  - 若 `!rawLines.isEmpty() && !hasProcessHeader && files.isEmpty() && sockets.isEmpty()` → 视为解析失败，写入 `data.parseError`。
+  - 解析异常 catch 块保留为另一条降级路径。
+- 解析失败时返回 `success + rawLines + parseError`（前端可显示）。
+
+### 6. `permissionType` 期望错误
+
+- Plan Task 3 Step 1 curl 脚本断言 `permissionType == 'READ_ONLY'`。
+- 项目真实枚举只有 `READ / WRITE / EXECUTE / ADMIN`（与 ServiceStatusTool 等其他 L0 工具一致），不存在 `READ_ONLY`。
+- 实施时使用 `PermissionType.READ`，`/api/tools` 响应确认。
+- 后续 plan 不应写死 `READ_ONLY`。
+
+### 7. 测试数字过期
+
+- Plan 期望后端 `509`（"506 + 7 - 4"）→ 实际为 `529`（基线 520 + 9 新测试）。
+- Plan 期望前端 `181/181` → 实际为 `190/190`（master 累积增量）。
+- 后续验收统一采用**动态基线**：
+  - 后端 `mvn test -q` → `Failures=0`, `Errors=0`, `Skipped` 不比基线多, `Tests run >= 记录基线`
+  - 前端 `npm run test:unit -- --run` → `failed=0`
+  - E2E `npx playwright test` → `failed=0`
+
+---
+
+## DoD 增补（**所有后续 P0 工具新增计划强制项**）
+
+后续凡是新增 OpsTool，必须同时确认：
+
+1. **ToolDefinition 注册** — `@Component` + `definition()` 返回完整元数据。
+2. **RiskLevel / PermissionType** — 必须复用现有枚举，禁止新增；`READ` 是 L0 只读工具的事实标准。
+3. **LlmToolContextPolicy bean** — `LlmToolContextPolicyRegistry` 启动时 fail-closed 校验，缺一个会让 Spring Context 启动失败 → 全栈测试炸裂。这是 Fix-02 漏掉的最关键路径。
+4. **ToolRegistry 可见** — `/api/tools` GET 应能返回新工具（通过 `admin/test-admin-pwd` 登录后）。
+5. **Spring Context 全量测试可启动** — `mvn test -q` 跑通，无 `BeanCreationException` / `IllegalStateException`。
+
+任何 plan 缺上述任意一条，**实施前必须补完**，否则会在 subagent 跑回归时炸出 100+ errors。
