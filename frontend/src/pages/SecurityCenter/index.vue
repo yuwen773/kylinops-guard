@@ -68,8 +68,23 @@ const sortedLevels = computed<RiskLevelView[]>(() => {
   );
 });
 
-const levelDecisionLabel = (decision: RiskDecision | undefined): string =>
-  decision ? `${decision} ${RISK_DECISION_LABELS[decision]}` : '—';
+const DECISION_ACTION_LABEL: Readonly<Record<RiskDecision, string>> = {
+  ALLOW: '允许执行',
+  CONFIRM: '确认后执行',
+  BLOCK: '阻断执行',
+};
+
+const DECISION_SYSTEM_ACTION: Readonly<Record<RiskDecision, string>> = {
+  ALLOW: '直接返回',
+  CONFIRM: '待用户确认',
+  BLOCK: '写入审计日志',
+};
+
+const decisionLabel = (decision: RiskDecision | undefined): string =>
+  decision ? DECISION_ACTION_LABEL[decision] : '—';
+
+const decisionSystemAction = (decision: RiskDecision | undefined): string =>
+  decision ? DECISION_SYSTEM_ACTION[decision] : '—';
 
 const levelChineseLabel = (level: RiskLevel): string =>
   RISK_LEVEL_LABELS[level] ?? level;
@@ -229,6 +244,25 @@ onMounted(async () => {
         subtitle="L0–L4 的等级与默认决策；前端仅展示后端结论，不参与决策"
       />
 
+      <div class="kg-safety-summary" data-testid="security-summary">
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">风险等级策略</span>
+          <span class="kg-safety-tile__value">{{ sortedLevels.length }} 级</span>
+        </div>
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">阻断事件</span>
+          <span class="kg-safety-tile__value">{{ eventsTotal }}</span>
+        </div>
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">注入检测</span>
+          <span class="kg-safety-tile__value" style="color: var(--kg-color-risk-inject)">独立旁路</span>
+        </div>
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">可审计追踪</span>
+          <span class="kg-safety-tile__value">{{ totalRuleCount }} 条</span>
+        </div>
+      </div>
+
       <div
         v-if="levelsLoading"
         data-testid="security-levels-loading"
@@ -272,7 +306,10 @@ onMounted(async () => {
             </div>
           </template>
           <p class="security-level-decision">
-            决策：{{ levelDecisionLabel(lv.decision) }}
+            决策：{{ decisionLabel(lv.decision) }}
+          </p>
+          <p v-if="lv.decision" class="security-level-system-action">
+            系统动作：{{ decisionSystemAction(lv.decision) }}
           </p>
           <p v-if="lv.description" class="security-level-description">
             {{ lv.description }}
@@ -284,6 +321,17 @@ onMounted(async () => {
             典型场景：{{ lv.examples.join('、') }}
           </p>
         </el-card>
+      </div>
+
+      <div class="kg-inject-card kg-card" data-testid="security-inject-card">
+        <div class="kg-card__header">
+          <p class="kg-card__title">Prompt 注入检测</p>
+        </div>
+        <div class="kg-card__body">
+          <p style="margin: 0; font-size: var(--kg-text-sm); color: var(--kg-color-text-secondary); line-height: var(--kg-line-base);">
+            独立于 L0-L4 矩阵的旁路检测层，对所有用户输入执行语义识别，命中规则后立即升级为 L4 阻断并写入审计日志。
+          </p>
+        </div>
       </div>
     </section>
 
@@ -363,7 +411,7 @@ onMounted(async () => {
                   v-if="rule.riskDecision"
                   class="security-rule-decision"
                 >
-                  {{ rule.riskDecision }} {{ levelDecisionLabel(rule.riskDecision) }}
+                  {{ decisionLabel(rule.riskDecision) }}
                 </span>
                 <span
                   v-if="rule.enabled === false"
@@ -442,66 +490,31 @@ onMounted(async () => {
       </div>
 
       <template v-else>
-        <el-table
-          class="security-events-table"
-          :data="events"
-          :row-style="{ cursor: 'pointer' }"
-          data-testid="security-events-table"
-          @row-click="(row: SecurityEventView) => onEventRowClick(row.auditId)"
-        >
-          <el-table-column label="审计 ID" min-width="200">
-            <template #default="{ row }">
-              <code
-                class="security-event-auditid"
-                :data-testid="`security-event-${row.auditId}`"
-              >{{ row.auditId }}</code>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="风险" width="120">
-            <template #default="{ row }">
-              <span class="security-event-level">
-                {{ row.riskLevel }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="决策" width="100">
-            <template #default="{ row }">
-              <span class="security-event-decision">
-                {{ row.decision }} {{ levelDecisionLabel(row.decision) }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="匹配规则" min-width="200">
-            <template #default="{ row }">
-              <span class="security-event-rules">
-                {{
-                  row.matchedRules && row.matchedRules.length > 0
-                    ? row.matchedRules.join('、')
-                    : '—'
-                }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="阻断原因" min-width="220">
-            <template #default="{ row }">
-              <span class="security-event-reason">
-                {{ row.reason || '—' }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="时间" width="180">
-            <template #default="{ row }">
-              <span class="security-event-time">
-                {{ formatTimestamp(row.createdAt) }}
-              </span>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="kg-event-list" data-testid="security-events-list">
+          <div
+            v-for="ev in events"
+            :key="ev.auditId"
+            class="kg-event-card"
+            :data-testid="`security-event-${ev.auditId}`"
+            @click="onEventRowClick(ev.auditId)"
+          >
+            <div class="kg-event-card__row">
+              <span class="kg-event-card__id">{{ ev.auditId }}</span>
+              <span class="security-event-level">{{ ev.riskLevel }}</span>
+              <span class="security-event-decision">{{ decisionLabel(ev.decision) }}</span>
+              <span class="kg-event-card__meta">{{ formatTimestamp(ev.createdAt) }}</span>
+            </div>
+            <p
+              v-if="ev.matchedRules && ev.matchedRules.length > 0"
+              class="kg-event-card__reason"
+            >
+              命中规则：{{ ev.matchedRules.join('、') }}
+            </p>
+            <p v-if="ev.reason" class="kg-event-card__reason">
+              原因：{{ ev.reason }}
+            </p>
+          </div>
+        </div>
 
         <el-pagination
           v-if="eventsTotal > 0"
@@ -556,6 +569,12 @@ onMounted(async () => {
   margin: var(--kg-space-1) 0;
   font-size: var(--kg-text-sm);
   color: var(--kg-color-text-secondary);
+}
+
+.security-level-system-action {
+  margin: 0 0 var(--kg-space-1) 0;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
 }
 
 .security-level-description {

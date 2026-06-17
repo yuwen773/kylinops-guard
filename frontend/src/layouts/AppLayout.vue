@@ -51,11 +51,10 @@ async function handleLogout(): Promise<void> {
       <span class="app-brand">
         <span class="app-brand__mark" aria-hidden="true">KG</span>
         <span class="app-brand__text">
-          <span class="app-title">{{ PRODUCT_NAME }}</span>
+          <span class="app-title">麒麟安全智能运维 Agent</span>
           <span class="app-codename">KylinOps Guard</span>
         </span>
       </span>
-      <span class="app-subtitle">安全智能运维 Agent</span>
       <span class="app-header-spacer" />
       <span v-if="username" class="app-user" data-testid="app-user">{{ username }}</span>
       <el-button
@@ -135,11 +134,18 @@ async function handleLogout(): Promise<void> {
   flex-shrink: 0;
 }
 
+.app-brand__text {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .app-title {
   font-size: var(--kg-text-md);
   font-weight: 600;
   color: var(--kg-color-text-primary);
   white-space: nowrap;
+  line-height: 1.3;
 }
 
 .app-codename {
@@ -148,20 +154,8 @@ async function handleLogout(): Promise<void> {
   font-family: var(--kg-font-mono);
   letter-spacing: 0.04em;
   white-space: nowrap;
-}
-
-.app-subtitle {
-  color: var(--kg-color-text-mute);
-  font-size: var(--kg-text-xs);
-  margin-left: var(--kg-space-3);
-  padding-left: var(--kg-space-3);
-  border-left: 1px solid var(--kg-color-border);
-  white-space: nowrap;
-  display: none;
-}
-
-@media (min-width: 1100px) {
-  .app-subtitle { display: inline; }
+  display: block;
+  line-height: 1.2;
 }
 
 .app-header-spacer {

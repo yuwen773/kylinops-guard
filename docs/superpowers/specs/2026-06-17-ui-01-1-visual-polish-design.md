@@ -1,9 +1,10 @@
 # UI-01.1 KylinOps Guard 视觉观感修正设计文档
 
-> **状态**：✅ 已批准 — 进入 writing-plans 阶段
+> **状态**：✅ 已批准（已合入 4 条修正：em-dash 占位统一 / 组件数量表述 / UI-02/03 暂不锁定 / Tool 分类增加"其他工具"兜底）
+> **下一步**：直接执行 UI-01.1
 > **版本**：v0.1
 > **日期**：2026-06-17
-> **作者**：UI-01.1 设计（基于 commit 8afc6c4 已落地的 design token + 8 个 common 组件 + 4 页试点 + brainstorming 确认）
+> **作者**：UI-01.1 设计（基于 commit 8afc6c4 已落地的 design token + design token + common 组件 + 页面试点 + 4 页试点 + brainstorming 确认）
 > **配套文档**：
 > - UI-01 commit：[`8afc6c4`](../../../)（`feature/frontend-ui-01-design-system` 分支）
 > - 设计纪律参考：`.claude/skills/design-taste-frontend/SKILL.md`（§0/§4/§9 适用层；§13 OUT OF SCOPE 显式声明）
@@ -13,16 +14,16 @@
 
 ## 0. 目标与原则
 
-**目标**：在 UI-01 已落地的 design token 和 8 个 common 组件基础上，做一次**轻量视觉观感修正**，让界面从"换了暗色皮肤的后台管理系统"提升为"克制 · 专业 · 有品牌感 · 有安全态势感的麒麟安全智能运维控制台"。本任务**不是大重构**，不新增后端功能，不改变业务逻辑。
+**目标**：在 UI-01 已落地的 design token 和 design token + common 组件 + 页面试点基础上，做一次**轻量视觉观感修正**，让界面从"换了暗色皮肤的后台管理系统"提升为"克制 · 专业 · 有品牌感 · 有安全态势感的麒麟安全智能运维控制台"。本任务**不是大重构**，不新增后端功能，不改变业务逻辑。
 
 **原则**：
 
 1. **不破坏基线**：现有 build + 237/237 unit + 19/19 + 3 skipped E2E 必须继续通过；动态基线，不锁死数字。
 2. **不扩展产品边界**：仅做视觉修正 + 轻量信息层级优化；不做 Demo Mode、不做 ChatConsole 三栏重构（属 UI-03）、不做 Dashboard 完整重构、不引入新 UI 库。
 3. **不动 backend**：Tool 分类走前端固定映射，不改 `ToolDefinition` / 不改 backend 任何接口 / 不改 `MockMvc` 测试。
-4. **不复用 UI-02 / UI-03 范围**：UI-02 留给交互动效与微交互强化；UI-03 留给 ChatConsole 三栏 / 工作台视图。本期仅做静态信息层级。
+4. **本期只做 UI-01.1**：后续路线（交互动效 / ChatConsole 三栏 / 工作台视图等）不在本 spec 锁定，本任务不新增 motion 类依赖。
 5. **设计纪律优先**：design-taste-frontend §0 brief 推断 + §4 anti-slop 纪律 + §9 AI Tells 清单；§13 OUT OF SCOPE 显式声明（dashboard 不走 landing aesthetic）。
-6. **Em-dash 零容忍**：所有新增文案不出现 `—`，含 welcome card / Hero / 安全态势摘要 / 工具能力概览；现存量 grep 排查。
+6. **Em-dash 零容忍**：所有新增文案不出现 em-dash 字符（`—` 或 `–`），含 welcome card / Hero / 安全态势摘要 / 工具能力概览；占位场景统一用中文词（例如"待接入"）。现存量 grep 排查。
 7. **Brand 一致性**：全站暗色 + `--kg-*` token + Element Plus 暗色覆写；无 light section 翻转、无 color inconsistency、无 radius inconsistency。
 8. **复用优先**：所有新增 UI 复用 `AppRiskBadge` / `AppSectionHeader` / `AppEmptyState` / `AppStateBanner` / `AppLoadingState` / `AppErrorState`。
 9. **测试覆盖**：新组件 + 新映射 + 新文案必须配单元测试；E2E 不强制加 case 但已有 case 必须不破。
@@ -36,7 +37,7 @@
 | **Header 方案** | 方案 A：中文优先（KG / 麒麟安全智能运维 Agent / KylinOps Guard） | 比赛答辩场景中文主标题优先；副标题英文品牌名做国际化感 |
 | **Tool 分类数据源** | 前端固定映射（`TOOL_CATEGORIES` 字典） | 不改 backend 不增 mock 字段；10 个工具分类确定，可枚举穷尽 |
 | **ChatConsole 快捷场景形态** | 5 个独立场景卡 + 2×2 + 1 网格（不规则） | 2+2+1 不规则网格比 5 等分按钮更有产品首屏感；§9.C "three-equal cards" 禁令规避 |
-| **Dashboard Hero 状态数据** | 复用已有 `/api/dashboard/overview` 字段映射：状态 from `score`+`degraded` / 风险事件占位 `—` / 审计 ID from `auditId` | 不新增后端接口；缺失字段用占位 |
+| **Dashboard Hero 状态数据** | 复用已有 `/api/dashboard/overview` 字段映射：状态 from `score`+`degraded` / 风险事件占位 `待接入` / 审计 ID from `auditId` | 不新增后端接口；缺失字段用占位 |
 | **Inject 在 Security Center 位置** | 独立说明卡，不挤进 L0-L4 矩阵 | 后端 L0-L4 不含 Inject enum；强行混入破坏矩阵语义；独立卡更清晰 |
 | **L4 视觉权重** | 边框 + tone-on-tone 底色强化（不依赖红/警示色重复） | §4.2 color consistency lock 约束下，强化层级用边框 + 底色而非第二色 |
 | **"BLOCK BLOCK 阻断"重复** | 拆为 `决策：阻断执行` + `系统动作：写入审计日志` 两行独立 row | 视觉一致；信息密度更合理 |
@@ -82,7 +83,7 @@
   - 副标：`实时汇聚系统健康、风险拦截、工具调用与审计追踪，帮助运维人员快速定位异常并安全处置`（≤20 词）
   - 右侧 3 个轻量状态：
     - 当前状态：从 `score` + `degraded` 派生；>85 绿色 Healthy / 60-85 黄色 Warning / <60 红色 Critical
-    - 今日风险事件：占位 `—`（后端无字段，标注待 P1-X 接入）
+    - 今日风险事件：占位 `待接入`（后端无字段，标注待 P1-X 接入）
     - 最近审计 ID：直接展示 `auditId`
 - 复用 `AppSectionHeader`，不写新组件
 
@@ -140,16 +141,17 @@
 - 截图覆盖：AppLayout+ChatConsole 首屏 / Dashboard Hero / Security Center 策略矩阵 + Inject / Tool Center 分类筛选
 - 输出：4 张主截图 + 交付报告草稿（路径记录即可，不强制 markdown）
 
-### 2.2 不做（UI-02 / UI-03 范围或显式约束）
+### 2.2 不做（显式约束）
 
 - 不新增后端接口；不改 backend 任何文件
-- 不引入新 UI 库 / 动画库
-- 不做 ChatConsole 三栏重构（属 UI-03）
+- 不引入新 UI 库 / 动画库 / motion 类依赖
+- 不做 ChatConsole 三栏重构
 - 不做 Dashboard 完整重构（仅顶部 Hero）
 - 不做 Demo Mode
 - 不改路由结构 / 路由守卫 / 认证契约
-- 不删 UI-01 已新增的 8 个 common 组件（即使本期未使用）
+- 不删 UI-01 已新增的 design token + common 组件 + 页面试点（即使本期未使用）
 - 不破坏现有 nav / auth / chat / dashboard / security / tool 契约测试
+- 本任务不锁定后续路线（交互动效 / 三栏 / 工作台视图等），后续另行 spec
 
 ---
 
@@ -175,7 +177,7 @@
 - §4.11 Page Theme Lock：全站暗色，无 light 段落插入
 - §4.4 Shape Consistency Lock：仅用 `--kg-radius-{sm,md,lg}`，不混用 6/10/14
 - §4.2 Color Consistency Lock：全站统一 risk 红 / 警告黄 / 成功绿
-- §9.G Em-dash 零容忍：所有新增文案 0 个 `—`；现存量 grep
+- §9.G Em-dash 零容忍：所有新增文案 0 个 em-dash 字符（`—` 或 `–`）；现存量 grep
 - §9.F No version labels in hero / No section-numbering eyebrows / No scroll cues / No micro-meta sentences
 - §9.D No fake-precise numbers：mock 数据去 `95.00%` 精确度
 - §9.C No three-equal feature cards：5 场景卡 2+2+1 不规则网格
@@ -232,8 +234,15 @@ export type ToolCategory =
   | '资源监控'
   | '磁盘诊断'
   | '服务诊断'
-  | '安全治理';
+  | '安全治理'
+  | '其他工具';
 
+export const OTHER_CATEGORY: ToolCategory = '其他工具';
+
+/**
+ * 已知工具分类映射。**未命中工具必须走兜底**，不能报错也不能隐藏：
+ * `getCategoryFor(toolName)` 对未列入映射的工具返回 `OTHER_CATEGORY`。
+ */
 export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   system_info_tool: '系统信息',
   cpu_status_tool: '资源监控',
@@ -259,11 +268,33 @@ export const CATEGORY_META: CategoryMeta[] = [
   { label: '磁盘诊断', icon: 'Files',       order: 3 },
   { label: '服务诊断', icon: 'Tools',       order: 4 },
   { label: '安全治理', icon: 'Lock',        order: 5 },
+  { label: '其他工具', icon: 'More',        order: 6 },
 ];
 
 export const ALL_CATEGORIES_FILTER: Array<ToolCategory | '全部'> = [
-  '全部', '系统信息', '资源监控', '磁盘诊断', '服务诊断', '安全治理',
+  '全部', '系统信息', '资源监控', '磁盘诊断', '服务诊断', '安全治理', '其他工具',
 ];
+
+/**
+ * 工具名 → 分类。**未命中走兜底**返回 `其他工具`，不抛错不返回空。
+ */
+export function getCategoryFor(toolName: string): ToolCategory {
+  return TOOL_CATEGORIES[toolName] ?? OTHER_CATEGORY;
+}
+
+/**
+ * 工具列表按当前选中的分类筛选。
+ * `selectedCategory === '全部'` 时返回原列表；否则用 `getCategoryFor` 兜底匹配。
+ */
+export function filterToolsByCategory<T extends { toolName: string }>(
+  tools: readonly T[],
+  selectedCategory: ToolCategory | '全部',
+): T[] {
+  if (selectedCategory === '全部') {
+    return [...tools];
+  }
+  return tools.filter((t) => getCategoryFor(t.toolName) === selectedCategory);
+}
 ```
 
 ### 5.2 Dashboard Hero 状态派生
@@ -271,7 +302,7 @@ export const ALL_CATEGORIES_FILTER: Array<ToolCategory | '全部'> = [
 | 来源字段 | 派生逻辑 |
 |---|---|
 | `score` + `degraded` | `score >= 85 && !degraded` → Healthy（绿）/ `60 <= score < 85` 或 `degraded` → Warning（黄）/ `score < 60` → Critical（红） |
-| 今日风险事件 | 后端无字段 → 显示 `—` 占位 |
+| 今日风险事件 | 后端无字段 → 显示 `待接入` 占位 |
 | 最近审计 ID | 直接展示 `auditId` |
 
 ### 5.3 Security Center 阻断文案统一表
@@ -303,7 +334,7 @@ export const ALL_CATEGORIES_FILTER: Array<ToolCategory | '全部'> = [
 - [ ] `npm run build` exit 0（vue-tsc + vite build）
 - [ ] 不修改 backend 任何文件
 - [ ] 不引入新 UI 库
-- [ ] 不删除 UI-01 已新增的 8 个 common 组件
+- [ ] 不删除 UI-01 已新增的 design token + common 组件 + 页面试点
 
 ### 6.3 设计纪律验收
 
@@ -340,12 +371,9 @@ export const ALL_CATEGORIES_FILTER: Array<ToolCategory | '全部'> = [
 
 ---
 
-## 8. 后续路径（UI-02 / UI-03 入口，不在本期做）
+## 8. 后续路径（不在本期 spec 锁定）
 
-- **UI-02**：交互动效与微交互强化（hover 物理 / scroll-reveal / 状态过渡）；`MOTION_INTENSITY` 升到 5-6；新增 GSAP / Motion 引入评估
-- **UI-03**：ChatConsole 三栏重构（左历史 / 中会话 / 右上下文）+ 工作台视图
-- **P1-X**：Dashboard Hero「今日风险事件」字段接入 / 安全态势摘要区接真实接口
-- **P1-X**：Security Center 安全事件卡片接 `/api/security/events` 真实分页
+后续路线（交互动效 / ChatConsole 三栏 / 工作台视图 / Dashboard「今日风险事件」字段接入 / Security Center 事件卡片接真实分页等）由后续 spec 单独确定。本 spec 不锁定任何后续范围，不新增任何 motion 类依赖。
 
 ---
 

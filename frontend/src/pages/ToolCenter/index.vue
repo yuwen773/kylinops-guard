@@ -29,6 +29,13 @@ import AppSectionHeader from '@/components/common/AppSectionHeader.vue';
 import AppLoadingState from '@/components/common/AppLoadingState.vue';
 import AppErrorState from '@/components/common/AppErrorState.vue';
 import AppEmptyState from '@/components/common/AppEmptyState.vue';
+import {
+  ALL_CATEGORIES_FILTER,
+  CATEGORY_META,
+  filterToolsByCategory,
+  getCategoryFor,
+} from '@/tool/categories';
+import type { ToolCategory } from '@/tool/categories';
 
 // ---------------------------------------------------------------------------
 // State
@@ -140,7 +147,19 @@ const refreshButtonText = computed<string>(() =>
   loading.value ? '加载中…' : '刷新',
 );
 
+const selectedCategory = ref<ToolCategory | '全部'>('全部');
+
+const filteredTools = computed<ToolDefinition[]>(() =>
+  filterToolsByCategory(tools.value, selectedCategory.value),
+);
+
 const toolCount = computed<number>(() => tools.value.length);
+const l0Count = computed<number>(() => tools.value.filter((t) => t.riskLevel === 'L0').length);
+const l2Count = computed<number>(() => tools.value.filter((t) => t.riskLevel === 'L2').length);
+const highRiskCount = computed<number>(() =>
+  tools.value.filter((t) => t.riskLevel === 'L3' || t.riskLevel === 'L4').length,
+);
+
 const emptyVisible = computed<boolean>(
   () => !loading.value && !error.value && hasLoaded.value && tools.value.length === 0,
 );
@@ -186,16 +205,34 @@ const riskTone = (
         </AppSectionHeader>
       </template>
 
-      <section class="tool-summary" data-testid="tool-summary">
-        <span class="summary-line">
-          <strong>已注册：</strong>
-          <span data-testid="tool-count">{{ toolCount }}</span>
-          个工具
-        </span>
-        <span class="summary-line">
-          <strong>需审计：</strong>
-          <span data-testid="tool-audited-count">{{ auditedCount }}</span>
-          个
+      <section class="kg-overview-stats" data-testid="tool-overview-stats">
+        <div class="kg-overview-stat">
+          <span class="kg-overview-stat__label">已注册工具</span>
+          <span class="kg-overview-stat__value" data-testid="tool-count">{{ toolCount }}</span>
+        </div>
+        <div class="kg-overview-stat">
+          <span class="kg-overview-stat__label">只读工具</span>
+          <span class="kg-overview-stat__value">{{ l0Count }}</span>
+        </div>
+        <div class="kg-overview-stat">
+          <span class="kg-overview-stat__label">需确认工具</span>
+          <span class="kg-overview-stat__value">{{ l2Count }}</span>
+        </div>
+        <div class="kg-overview-stat">
+          <span class="kg-overview-stat__label">高风险工具</span>
+          <span class="kg-overview-stat__value">{{ highRiskCount }}</span>
+        </div>
+      </section>
+
+      <section class="kg-category-chips" data-testid="tool-category-chips">
+        <span
+          v-for="cat in ALL_CATEGORIES_FILTER"
+          :key="cat"
+          class="kg-category-chip"
+          :class="{ 'kg-category-chip--active': selectedCategory === cat }"
+          @click="selectedCategory = cat"
+        >
+          {{ cat }}
         </span>
       </section>
 
@@ -239,9 +276,9 @@ const riskTone = (
       </div>
 
       <el-table
-        v-else-if="tools.length > 0"
+        v-else-if="filteredTools.length > 0"
         class="tool-table"
-        :data="tools"
+        :data="filteredTools"
         :row-key="(row: ToolDefinition) => row.toolName"
         data-testid="tool-table"
       >
@@ -334,7 +371,7 @@ const riskTone = (
           </template>
         </el-table-column>
 
-        <el-table-column label="调用次数" width="100">
+        <el-table-column label="调用次数" width="90">
           <template #default="{ row }">
             <span
               class="tool-stat-num"
@@ -343,7 +380,7 @@ const riskTone = (
           </template>
         </el-table-column>
 
-        <el-table-column label="成功率" width="120">
+        <el-table-column label="成功率" width="100">
           <template #default="{ row }">
             <el-tag
               :type="successRateTone(row.successRate)"
@@ -355,7 +392,7 @@ const riskTone = (
           </template>
         </el-table-column>
 
-        <el-table-column label="最近调用" width="200">
+        <el-table-column label="最近调用" min-width="150">
           <template #default="{ row }">
             <span
               class="tool-last-called"

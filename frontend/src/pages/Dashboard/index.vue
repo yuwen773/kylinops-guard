@@ -97,6 +97,24 @@ const scoreText = computed<string>(() => {
   return String(s);
 });
 
+const healthLabel = computed<string>(() => {
+  const s = overview.value?.score;
+  const d = overview.value?.degraded;
+  if (s === null || s === undefined) return '—';
+  if (s >= 85 && !d) return 'Healthy';
+  if (s >= 60) return 'Warning';
+  return 'Critical';
+});
+
+const healthToneColor = computed<string>(() => {
+  switch (healthLabel.value) {
+    case 'Healthy': return 'var(--kg-color-success)';
+    case 'Warning': return 'var(--kg-color-warning)';
+    case 'Critical': return 'var(--kg-color-danger)';
+    default: return 'var(--kg-color-text-mute)';
+  }
+});
+
 const scoreTone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
   const s = overview.value?.score;
   if (s === null || s === undefined) return 'info';
@@ -469,6 +487,30 @@ const metricViews = computed<MetricView[]>(() => {
     </div>
 
     <template v-if="overview">
+      <section class="kg-hero-area" data-testid="dashboard-hero">
+        <div class="kg-hero-text">
+          <p class="kg-hero-title">麒麟安全智能运维态势台</p>
+          <p class="kg-hero-subtitle">实时汇聚系统健康、风险拦截、工具调用与审计追踪，帮助运维人员快速定位异常并安全处置。</p>
+        </div>
+        <div class="kg-hero-statuses">
+          <div class="kg-hero-status-item">
+            <span class="kg-hero-status-label">当前状态</span>
+            <span
+              class="kg-hero-status-value"
+              :style="{ color: healthToneColor }"
+              data-testid="dashboard-hero-status"
+            >{{ healthLabel }}</span>
+          </div>
+          <div class="kg-hero-status-item">
+            <span class="kg-hero-status-label">今日风险事件</span>
+            <span class="kg-hero-status-value" data-testid="dashboard-hero-risk-events">待接入</span>
+          </div>
+          <div class="kg-hero-status-item">
+            <span class="kg-hero-status-label">最近审计 ID</span>
+            <span class="kg-hero-status-value" data-testid="dashboard-hero-audit-id">{{ auditIdText }}</span>
+          </div>
+        </div>
+      </section>
       <section
         class="dashboard-summary"
         data-testid="dashboard-summary"

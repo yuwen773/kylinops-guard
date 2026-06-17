@@ -170,7 +170,7 @@ describe('ChatConsole — in-flight guard', () => {
     // While pending: every quick action is disabled, the input is disabled.
     for (const action of QUICK_ACTIONS) {
       const btn = wrapper.find(`[data-testid="quick-action-${action.id}"]`);
-      expect(btn.attributes('disabled')).toBeDefined();
+      expect(btn.attributes('aria-disabled')).toBe('true');
     }
     const input = wrapper.find('[data-testid="chat-input-field"]');
     expect(input.attributes('disabled')).toBeDefined();
