@@ -20,6 +20,8 @@ import com.kylinops.executor.ActionConfirmService;
 import com.kylinops.executor.AuthenticatedOperator;
 import com.kylinops.executor.PendingAction;
 import com.kylinops.executor.PendingActionStatus;
+import com.kylinops.rca.RootCauseAnalyzer;
+import com.kylinops.rca.RootCauseChain;
 import com.kylinops.security.PromptInjectionDetector;
 import com.kylinops.security.RiskCheckResult;
 import com.kylinops.security.RiskCheckService;
@@ -86,6 +88,7 @@ public class AgentOrchestrator {
     private final ActionConfirmService actionConfirmService;
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
+    private final RootCauseAnalyzer rootCauseAnalyzer;
 
     /**
      * 并行工具执行线程池。
@@ -245,6 +248,16 @@ public class AgentOrchestrator {
                 }
             }
 
+            // ── Step 7.5: 生成根因分析链（演示场景 1/2/3 重点） ──
+            RootCauseChain rootCauseChain = null;
+            if (decision == RiskDecision.ALLOW && !toolResults.isEmpty()) {
+                rootCauseChain = rootCauseAnalyzer.analyze(intent, toolResults, decision);
+                if (rootCauseChain != null) {
+                    log.info("生成根因分析链: symptom={}, confidence={}",
+                            rootCauseChain.getSymptom(), rootCauseChain.getConfidence());
+                }
+            }
+
             // ── Step 8: 生成回复 ──
             // P3-T4: HybridResponseService 接管生成回复
             // - BLOCK/CONFIRM/GENERAL_CHAT/UNKNOWN/空 results → 立即走 AgentResponseBuilder (fail-closed)
@@ -280,6 +293,7 @@ public class AgentOrchestrator {
                     .needConfirmation(needConfirmation)
                     .pendingAction(pendingAction)
                     .auditId(auditId)
+                    .rootCauseChain(rootCauseChain)
                     .build();
 
         } catch (Exception e) {

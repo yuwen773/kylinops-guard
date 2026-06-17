@@ -48,6 +48,7 @@ class AgentOrchestratorSecurityTest {
     @Mock private ActionConfirmService actionConfirmService;
     @Mock private SessionRepository sessionRepository;
     @Mock private MessageRepository messageRepository;
+    @Mock private com.kylinops.rca.RootCauseAnalyzer rootCauseAnalyzer;
 
     private AgentOrchestrator orchestrator;
 
@@ -56,7 +57,7 @@ class AgentOrchestratorSecurityTest {
         orchestrator = new AgentOrchestrator(
                 injectionDetector, intentClassifier, hybridIntentService, toolPlanningService, toolExecutor,
                 riskCheckService, responseBuilder, hybridResponseService, auditLogService, actionConfirmService,
-                sessionRepository, messageRepository);
+                sessionRepository, messageRepository, rootCauseAnalyzer);
         when(injectionDetector.detect(anyString()))
                 .thenReturn(PromptInjectionDetector.DetectionResult.builder()
                         .injectionDetected(false)
