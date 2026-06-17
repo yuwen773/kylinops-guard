@@ -6,7 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -36,6 +39,33 @@ public class IntentClassifier {
 
     /** 规则列表（按优先级降序排列） */
     private final List<IntentRule> rules = new ArrayList<>();
+
+    // ==================== Synonym 扩展（P0 Fix-03） ====================
+    // 注意：synonym 不覆盖 COMMAND_EXECUTION（regex 已优先匹配危险命令）。
+    // 字段级实例初始化块，与 initRules() 是两条独立路径，互斥。
+    private final Map<IntentType, List<String>> synonymMap = new HashMap<>();
+
+    {
+        synonymMap.put(IntentType.DISK_DIAGNOSIS,
+                List.of("磁盘空间", "硬盘满了", "空间不足", "清理磁盘", "存储满了"));
+        synonymMap.put(IntentType.SERVICE_DIAGNOSIS,
+                List.of("服务挂了", "服务异常", "服务正常吗", "db", "mysql", "redis",
+                        "mariadb", "postgresql"));
+        synonymMap.put(IntentType.PROCESS_QUERY,
+                List.of("卡死", "僵死", "僵死进程", "僵尸进程", "zombie", "进程僵死"));
+        synonymMap.put(IntentType.NETWORK_QUERY,
+                List.of("端口被占", "端口占用", "端口冲突", "listen"));
+        synonymMap.put(IntentType.LOG_QUERY,
+                List.of("查日志", "错误日志", "应用日志", "系统日志"));
+    }
+
+    /**
+     * 对外暴露：测试 / 扩展用。
+     */
+    public void addSynonym(IntentType intent, String... keywords) {
+        synonymMap.computeIfAbsent(intent, k -> new ArrayList<>())
+                .addAll(Arrays.asList(keywords));
+    }
 
     public IntentClassifier() {
         initRules();
@@ -125,6 +155,16 @@ public class IntentClassifier {
                 log.debug("意图识别 [关键词匹配]: input='{}', intent={}, priority={}",
                         truncate(normalized, 40), rule.getIntent(), rule.getPriority());
                 return rule.getIntent();
+            }
+        }
+
+        // synonym 兜底（仅 regex/keyword 都未命中时；不覆盖 COMMAND_EXECUTION，
+        // 因为 COMMAND_EXECUTION 是 priority=15 且 regex 已在第一轮匹配）
+        for (Map.Entry<IntentType, List<String>> e : synonymMap.entrySet()) {
+            if (matchKeywords(normalized, e.getValue())) {
+                log.debug("意图识别 [synonym 匹配]: input='{}', intent={}",
+                        truncate(normalized, 40), e.getKey());
+                return e.getKey();
             }
         }
 
