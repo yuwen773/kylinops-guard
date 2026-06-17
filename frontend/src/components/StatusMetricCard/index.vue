@@ -110,37 +110,37 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: var(--kg-space-2);
+  margin-bottom: var(--kg-space-2);
 }
 
 .status-metric-title {
-  font-size: 0.85rem;
-  color: #606266;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
   font-weight: 500;
 }
 
 .status-metric-value {
   display: flex;
   align-items: baseline;
-  gap: 0.25rem;
+  gap: var(--kg-space-1);
 }
 
 .status-metric-number {
-  font-size: 1.75rem;
+  font-size: var(--kg-text-2xl);
   font-weight: 600;
-  color: #1f2d3d;
-  line-height: 1.2;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
 }
 
 .status-metric-unit {
-  font-size: 0.85rem;
-  color: #909399;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
 }
 
 .status-metric-threshold {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: #909399;
+  margin-top: var(--kg-space-1);
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
 }
 </style>

@@ -31,6 +31,10 @@ import { computed, onMounted, ref } from 'vue';
 import { getDashboardOverview } from '@/api/dashboard';
 import { ApiError } from '@/api/client';
 import StatusMetricCard, { type StatusMetricStatus } from '@/components/StatusMetricCard/index.vue';
+import AppSectionHeader from '@/components/common/AppSectionHeader.vue';
+import AppLoadingState from '@/components/common/AppLoadingState.vue';
+import AppErrorState from '@/components/common/AppErrorState.vue';
+import AppStateBanner from '@/components/common/AppStateBanner.vue';
 import type { DashboardMetric, DashboardOverview } from '@/types/dashboard';
 
 // ---------------------------------------------------------------------------
@@ -402,52 +406,67 @@ const metricViews = computed<MetricView[]>(() => {
 
 <template>
   <div class="dashboard-page" data-testid="dashboard-page">
-    <header class="dashboard-header">
-      <div>
-        <h2 class="dashboard-title">系统总览</h2>
-        <p class="dashboard-subtitle">
-          基于只读 OpsTool 实时采集，任意单条工具失败不影响整体刷新
-        </p>
-      </div>
-      <el-button
-        type="primary"
-        :loading="inFlight"
-        :disabled="inFlight"
-        class="dashboard-refresh-button"
-        data-testid="dashboard-refresh-button"
-        @click="onRefreshClick"
-      >
-        {{ refreshButtonText }}
-      </el-button>
-    </header>
+    <AppSectionHeader
+      level="page"
+      title="系统总览"
+      subtitle="基于只读 OpsTool 实时采集，任意单条工具失败不影响整体刷新"
+    >
+      <template #actions>
+        <el-button
+          type="primary"
+          :loading="inFlight"
+          :disabled="inFlight"
+          class="dashboard-refresh-button"
+          data-testid="dashboard-refresh-button"
+          @click="onRefreshClick"
+        >
+          {{ refreshButtonText }}
+        </el-button>
+      </template>
+    </AppSectionHeader>
 
-    <p
+    <div
       v-if="!hasLoaded && !initialError"
-      class="dashboard-loading"
       data-testid="dashboard-loading"
     >
-      正在采集系统概览…
-    </p>
+      <AppLoadingState
+        title="正在采集系统概览…"
+        description="并行调用 10 个只读工具，单条失败不影响整体"
+      />
+    </div>
 
-    <el-alert
+    <div
       v-if="initialError"
-      class="dashboard-error"
-      type="error"
-      :closable="false"
-      show-icon
       data-testid="dashboard-initial-error"
-      :title="`概览加载失败：${initialError}`"
-    />
+    >
+      <AppErrorState
+        variant="transient"
+        :title="`概览加载失败：${initialError}`"
+        description="请检查后端服务状态后点击刷新重试。"
+      >
+        <template #action>
+          <el-button
+            size="small"
+            type="primary"
+            :disabled="inFlight"
+            @click="onRefreshClick"
+          >
+            立即重试
+          </el-button>
+        </template>
+      </AppErrorState>
+    </div>
 
-    <el-alert
+    <div
       v-if="staleError"
-      class="dashboard-stale-banner"
-      type="warning"
-      :closable="false"
-      show-icon
       data-testid="dashboard-stale-banner"
-      :title="`刷新失败：${staleError}。当前展示的是上一次成功采集的数据。`"
-    />
+    >
+      <AppStateBanner
+        tone="warning"
+        :title="`刷新失败：${staleError}`"
+        description="当前展示的是上一次成功采集的数据。"
+      />
+    </div>
 
     <template v-if="overview">
       <section
@@ -556,12 +575,11 @@ const metricViews = computed<MetricView[]>(() => {
         class="dashboard-metrics"
         data-testid="dashboard-metrics"
       >
-        <header class="section-header">
-          <h3 class="section-title">核心指标</h3>
-          <p class="section-subtitle">
-            每张卡片对应一次只读工具调用，失败项独立显示数据不可用
-          </p>
-        </header>
+        <AppSectionHeader
+          level="section"
+          title="核心指标"
+          subtitle="每张卡片对应一次只读工具调用，失败项独立显示数据不可用"
+        />
         <div class="dashboard-metrics-grid">
           <div
             v-for="view in metricViews"
@@ -594,50 +612,16 @@ const metricViews = computed<MetricView[]>(() => {
 .dashboard-page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--kg-space-4);
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
 }
 
-.dashboard-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.dashboard-title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2d3d;
-}
-
-.dashboard-subtitle {
-  margin: 0.25rem 0 0 0;
-  font-size: 0.8rem;
-  color: #909399;
-}
-
-.dashboard-loading {
-  margin: 0.5rem 0;
-  padding: 1.25rem;
-  text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
-}
-
-.dashboard-error,
-.dashboard-stale-banner {
-  margin: 0.5rem 0;
-}
-
 .dashboard-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
+  gap: var(--kg-space-3);
 }
 
 .dashboard-summary-card {
@@ -648,93 +632,74 @@ const metricViews = computed<MetricView[]>(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--kg-space-2);
 }
 
 .summary-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .summary-audit-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.75rem;
-  color: #909399;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
   word-break: break-all;
 }
 
 .summary-score-row {
   display: flex;
   align-items: baseline;
-  gap: 0.25rem;
+  gap: var(--kg-space-1);
 }
 
 .summary-score-number {
-  font-size: 1.75rem;
+  font-size: var(--kg-text-2xl);
   font-weight: 600;
-  color: #1f2d3d;
-  line-height: 1.2;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
 }
 
 .summary-score-unit {
-  font-size: 0.85rem;
-  color: #909399;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
 }
 
 .summary-collected {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.95rem;
-  color: #1f2d3d;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-md);
+  color: var(--kg-color-text-primary);
   word-break: break-all;
 }
 
 .summary-help {
-  margin: 0.5rem 0 0 0;
-  font-size: 0.75rem;
-  color: #909399;
+  margin: var(--kg-space-2) 0 0 0;
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
 }
 
 .dashboard-metrics {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-
-.section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1f2d3d;
-}
-
-.section-subtitle {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #909399;
+  gap: var(--kg-space-3);
 }
 
 .dashboard-metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
+  gap: var(--kg-space-3);
 }
 
 .dashboard-metric-cell {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--kg-space-1);
 }
 
 .dashboard-metric-reason {
   margin: 0;
-  padding: 0 0.25rem;
-  font-size: 0.75rem;
-  color: #909399;
+  padding: 0 var(--kg-space-1);
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
 }
 </style>

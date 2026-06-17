@@ -92,7 +92,7 @@ const confidencePercent = (c: number) => Math.round(c * 100);
 
 <style scoped>
 .reasoning-chain {
-  margin-top: 0.5rem;
+  margin-top: var(--kg-space-2);
 }
 .rc-header {
   display: flex;
@@ -101,23 +101,24 @@ const confidencePercent = (c: number) => Math.round(c * 100);
 }
 .rc-title {
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 .rc-section {
-  margin-top: 0.75rem;
+  margin-top: var(--kg-space-3);
 }
 .rc-section-label {
-  font-size: 0.75rem;
-  color: #909399;
-  margin-bottom: 0.25rem;
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+  margin-bottom: var(--kg-space-1);
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .rc-symptom,
 .rc-conclusion {
   margin: 0;
-  color: #303133;
-  line-height: 1.6;
+  color: var(--kg-color-text-secondary);
+  line-height: var(--kg-line-relaxed);
 }
 .rc-evidence,
 .rc-hypotheses,
@@ -125,28 +126,31 @@ const confidencePercent = (c: number) => Math.round(c * 100);
 .rc-suggestions {
   margin: 0;
   padding-left: 1.25rem;
-  color: #303133;
+  color: var(--kg-color-text-secondary);
 }
 .rc-evidence li,
 .rc-hypotheses li,
 .rc-excluded li,
 .rc-suggestions li {
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--kg-space-1);
 }
 .rc-source {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85rem;
-  color: #5d6d7e;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
 }
 .rc-confirmed {
   font-weight: 600;
+  color: var(--kg-color-text-primary);
 }
 .rc-reasoning {
-  color: #909399;
-  margin-left: 0.5rem;
-  font-size: 0.85rem;
+  color: var(--kg-color-text-mute);
+  margin-left: var(--kg-space-2);
+  font-size: var(--kg-text-sm);
 }
 .rc-risks ul {
-  color: #e6a23c;
+  color: var(--kg-color-warning);
+  margin: 0;
+  padding-left: 1.25rem;
 }
 </style>

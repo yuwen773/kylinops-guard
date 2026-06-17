@@ -48,8 +48,14 @@ async function handleLogout(): Promise<void> {
 <template>
   <el-container class="app-shell">
     <el-header class="app-header">
-      <span class="app-title">{{ PRODUCT_NAME }}</span>
-      <span class="app-codename">KylinOps Guard</span>
+      <span class="app-brand">
+        <span class="app-brand__mark" aria-hidden="true">KG</span>
+        <span class="app-brand__text">
+          <span class="app-title">{{ PRODUCT_NAME }}</span>
+          <span class="app-codename">KylinOps Guard</span>
+        </span>
+      </span>
+      <span class="app-subtitle">安全智能运维 Agent</span>
       <span class="app-header-spacer" />
       <span v-if="username" class="app-user" data-testid="app-user">{{ username }}</span>
       <el-button
@@ -91,25 +97,71 @@ async function handleLogout(): Promise<void> {
 <style scoped>
 .app-shell {
   min-height: 100vh;
+  background-color: var(--kg-color-bg);
 }
 
 .app-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  background: #1f2d3d;
-  color: #fff;
-  padding: 0 1.5rem;
+  gap: var(--kg-space-4);
+  background: var(--kg-color-surface);
+  color: var(--kg-color-text-primary);
+  padding: 0 var(--kg-space-6);
+  border-bottom: 1px solid var(--kg-color-border);
+  height: 56px;
+  z-index: var(--kg-z-header);
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kg-space-2);
+  min-width: 0;
+}
+
+.app-brand__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--kg-radius-sm);
+  background: var(--kg-color-primary-soft);
+  color: var(--kg-color-primary-hover);
+  font-family: var(--kg-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
 }
 
 .app-title {
-  font-size: 1.1rem;
+  font-size: var(--kg-text-md);
   font-weight: 600;
+  color: var(--kg-color-text-primary);
+  white-space: nowrap;
 }
 
 .app-codename {
-  color: #8a99b3;
-  font-size: 0.85rem;
+  color: var(--kg-color-text-mute);
+  font-size: var(--kg-text-xs);
+  font-family: var(--kg-font-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.app-subtitle {
+  color: var(--kg-color-text-mute);
+  font-size: var(--kg-text-xs);
+  margin-left: var(--kg-space-3);
+  padding-left: var(--kg-space-3);
+  border-left: 1px solid var(--kg-color-border);
+  white-space: nowrap;
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .app-subtitle { display: inline; }
 }
 
 .app-header-spacer {
@@ -117,23 +169,22 @@ async function handleLogout(): Promise<void> {
 }
 
 .app-user {
-  color: #d4dae3;
-  font-size: 0.85rem;
+  color: var(--kg-color-text-secondary);
+  font-size: var(--kg-text-sm);
 }
 
 .app-logout {
-  /* Element Plus default button styling — overriding only spacing so it
-     fits the dark header. */
-  margin-left: 0.5rem;
+  margin-left: var(--kg-space-2);
 }
 
 .app-body {
-  min-height: calc(100vh - 60px);
+  min-height: calc(100vh - 56px);
 }
 
 .app-aside {
-  background: #ffffff;
-  border-right: 1px solid #e6e8eb;
+  background: var(--kg-color-surface);
+  border-right: 1px solid var(--kg-color-border);
+  width: 220px;
 }
 
 .app-menu {
@@ -141,8 +192,9 @@ async function handleLogout(): Promise<void> {
 }
 
 .app-main {
-  background: #f5f7fa;
-  padding: 1.5rem;
+  background: var(--kg-color-bg);
+  padding: var(--kg-space-6);
+  min-height: calc(100vh - 56px);
 }
 
 .is-active-item {

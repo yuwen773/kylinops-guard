@@ -86,61 +86,64 @@ const durationText = computed(() => {
 
 <style scoped>
 .tool-call-card {
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--kg-space-3);
 }
 
 .tool-call-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  gap: var(--kg-space-3);
+  margin-bottom: var(--kg-space-2);
 }
 
 .tool-call-name {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .tool-call-section {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  margin-top: 0.5rem;
+  gap: var(--kg-space-1);
+  margin-top: var(--kg-space-2);
 }
 
 .tool-call-label {
-  font-size: 0.75rem;
-  color: #909399;
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .tool-call-mono {
   margin: 0;
-  padding: 0.5rem 0.75rem;
-  background: #f5f7fa;
-  border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
+  padding: var(--kg-space-2) var(--kg-space-3);
+  background: var(--kg-color-surface-code);
+  border-radius: var(--kg-radius-sm);
+  border: 1px solid var(--kg-color-border-mute);
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
   white-space: pre-wrap;
   word-break: break-all;
-  color: #303133;
+  color: var(--kg-color-text-secondary);
+  line-height: var(--kg-line-base);
 }
 
 .tool-call-error .tool-call-mono {
-  background: #fef0f0;
-  color: #c45656;
+  background: var(--kg-color-danger-soft);
+  border-color: var(--kg-color-danger);
+  color: var(--kg-color-danger);
 }
 
 .tool-call-meta {
   flex-direction: row;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--kg-space-2);
 }
 
 .tool-call-meta .tool-call-label {
-  margin-right: 0.25rem;
+  margin-right: var(--kg-space-1);
 }
 </style>

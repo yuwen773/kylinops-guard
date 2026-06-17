@@ -25,6 +25,10 @@ import { computed, onMounted, ref } from 'vue';
 import { getTools } from '@/api/tools';
 import { ApiError } from '@/api/client';
 import type { ToolDefinition } from '@/types/tool';
+import AppSectionHeader from '@/components/common/AppSectionHeader.vue';
+import AppLoadingState from '@/components/common/AppLoadingState.vue';
+import AppErrorState from '@/components/common/AppErrorState.vue';
+import AppEmptyState from '@/components/common/AppEmptyState.vue';
 
 // ---------------------------------------------------------------------------
 // State
@@ -162,24 +166,24 @@ const riskTone = (
   <div class="tool-center-page" data-testid="tool-center-page">
     <el-card class="page-card" shadow="never">
       <template #header>
-        <div class="page-header">
-          <div>
-            <span class="page-title">工具中心</span>
-            <span class="page-subtitle">
-              注册的 OpsTool 目录与调用统计；统计由后端单次聚合，禁止前端逐工具查询
-            </span>
-          </div>
-          <el-button
-            type="primary"
-            :loading="loading"
-            :disabled="loading"
-            class="page-refresh-button"
-            data-testid="tool-refresh-button"
-            @click="onRefreshClick"
-          >
-            {{ refreshButtonText }}
-          </el-button>
-        </div>
+        <AppSectionHeader
+          level="section"
+          title="工具中心"
+          subtitle="注册的 OpsTool 目录与调用统计；统计由后端单次聚合，禁止前端逐工具查询"
+        >
+          <template #actions>
+            <el-button
+              type="primary"
+              :loading="loading"
+              :disabled="loading"
+              class="page-refresh-button"
+              data-testid="tool-refresh-button"
+              @click="onRefreshClick"
+            >
+              {{ refreshButtonText }}
+            </el-button>
+          </template>
+        </AppSectionHeader>
       </template>
 
       <section class="tool-summary" data-testid="tool-summary">
@@ -195,31 +199,44 @@ const riskTone = (
         </span>
       </section>
 
-      <p
+      <div
         v-if="loading && !hasLoaded"
-        class="tool-loading"
         data-testid="tool-loading"
       >
-        正在加载工具目录…
-      </p>
+        <AppLoadingState title="正在加载工具目录…" />
+      </div>
 
-      <el-alert
+      <div
         v-else-if="error"
-        class="tool-error"
-        type="error"
-        :closable="false"
-        show-icon
         data-testid="tool-error"
-        :title="`工具目录加载失败：${error}`"
-      />
+      >
+        <AppErrorState
+          variant="transient"
+          :title="`工具目录加载失败：${error}`"
+        >
+          <template #action>
+            <el-button
+              size="small"
+              type="primary"
+              :disabled="loading"
+              @click="onRefreshClick"
+            >
+              立即重试
+            </el-button>
+          </template>
+        </AppErrorState>
+      </div>
 
-      <p
+      <div
         v-else-if="emptyVisible"
-        class="tool-empty"
         data-testid="tool-empty"
       >
-        暂无注册工具
-      </p>
+        <AppEmptyState
+          variant="no-tool"
+          title="暂无注册工具"
+          description="后端尚未注册任何 OpsTool，请联系管理员检查启动配置。"
+        />
+      </div>
 
       <el-table
         v-else-if="tools.length > 0"
@@ -362,126 +379,87 @@ const riskTone = (
   width: 100%;
 }
 
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.page-title {
-  font-weight: 600;
-  font-size: 1.05rem;
-  color: #1f2d3d;
-}
-
-.page-subtitle {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: #909399;
-}
-
 .tool-summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  background: #f5f7fa;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  color: #303133;
+  gap: var(--kg-space-4);
+  margin-bottom: var(--kg-space-3);
+  padding: var(--kg-space-2) var(--kg-space-3);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
 }
 
 .summary-line strong {
-  margin-right: 0.25rem;
-  color: #1f2d3d;
-}
-
-.tool-loading {
-  margin: 1rem 0;
-  padding: 1.25rem;
-  text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
-}
-
-.tool-error {
-  margin: 0.5rem 0;
-}
-
-.tool-empty {
-  margin: 1rem 0;
-  padding: 1.5rem;
-  text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
+  margin-right: var(--kg-space-1);
+  color: var(--kg-color-text-primary);
 }
 
 .tool-table {
-  margin-top: 0.25rem;
+  margin-top: var(--kg-space-1);
 }
 
 .tool-cell {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: var(--kg-space-1);
 }
 
 .tool-name {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85rem;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .tool-description {
-  font-size: 0.8rem;
-  color: #606266;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
 }
 
 .tool-stat-num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-weight: 600;
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .tool-last-called {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
-  color: #606266;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
   white-space: nowrap;
 }
 
 .tool-schema {
-  padding: 0.5rem 1rem;
-  background: #fafbfc;
+  padding: var(--kg-space-2) var(--kg-space-4);
+  background: var(--kg-color-surface-soft);
 }
 
 .tool-schema-descriptions {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--kg-space-2);
 }
 
 .tool-schema-name {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
-  color: #1f2d3d;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-primary);
 }
 
 .tool-schema-block {
   margin: 0;
-  padding: 0.5rem 0.75rem;
-  background: #1f2d3d;
-  color: #e6f1ff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
+  padding: var(--kg-space-2) var(--kg-space-3);
+  background: var(--kg-color-surface-code);
+  color: var(--kg-color-text-secondary);
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
   white-space: pre-wrap;
   word-break: break-all;
-  border-radius: 4px;
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
   max-height: 200px;
   overflow: auto;
+  line-height: var(--kg-line-base);
 }
 </style>

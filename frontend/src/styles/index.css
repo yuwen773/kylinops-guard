@@ -1,11 +1,138 @@
+/* ============================================================================
+ * KylinOps Guard — Global design tokens and theme.
+ *
+ * Token naming: --kg-* (kylinops-guard). Semantic by intent, not by literal
+ * color value. Components MUST consume these tokens instead of hard-coded
+ * colors, so the whole surface can be re-themed (or audited) in one place.
+ *
+ * Theme: dark "security ops console" baseline. Element Plus variables are
+ * overridden in :root so the same defaults work for el-tag, el-card,
+ * el-menu, etc. without flipping a runtime theme flag.
+ *
+ * Risk spectrum (semantic, not marketing):
+ *   L0  sky   - read-only / informational
+ *   L1  green - low-risk diagnostics
+ *   L2  amber - confirm-before-execute
+ *   L3  orange - restricted / strong confirm
+ *   L4  red   - absolute block
+ *   Inject purple - prompt-injection anomaly (NOT a system operation, kept
+ *                  distinct from L4 red for audit readability)
+ * ========================================================================== */
+
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  line-height: 1.5;
-  color: #1f2d3d;
-  background-color: #f5f7fa;
+  /* ---------- Surface ---------- */
+  --kg-color-bg: #0b1220;            /* deepest page background */
+  --kg-color-surface: #111c2e;       /* primary card / panel */
+  --kg-color-surface-soft: #182236;  /* elevated card / hover */
+  --kg-color-surface-mute: #1f2a3d;  /* nested / code block */
+  --kg-color-surface-code: #0a1322;  /* dark code / schema */
+
+  /* ---------- Border ---------- */
+  --kg-color-border: rgba(148, 163, 184, 0.16);
+  --kg-color-border-strong: rgba(148, 163, 184, 0.32);
+  --kg-color-border-mute: rgba(148, 163, 184, 0.08);
+
+  /* ---------- Text ---------- */
+  --kg-color-text-primary: #e2e8f0;
+  --kg-color-text-secondary: #cbd5e1;
+  --kg-color-text-mute: #94a3b8;
+  --kg-color-text-placeholder: #64748b;
+  --kg-color-text-inverse: #0b1220;
+  --kg-color-text-on-risk: #0b1220;  /* for L1/L2/L3 with light fills */
+
+  /* ---------- Brand / Primary ---------- */
+  --kg-color-primary: #3b82f6;
+  --kg-color-primary-hover: #60a5fa;
+  --kg-color-primary-soft: rgba(59, 130, 246, 0.16);
+  --kg-color-primary-strong: #2563eb;
+
+  /* ---------- Risk spectrum (L0..L4 + Inject) ---------- */
+  --kg-color-risk-l0: #38bdf8;
+  --kg-color-risk-l0-soft: rgba(56, 189, 248, 0.14);
+  --kg-color-risk-l1: #22c55e;
+  --kg-color-risk-l1-soft: rgba(34, 197, 94, 0.14);
+  --kg-color-risk-l2: #facc15;
+  --kg-color-risk-l2-soft: rgba(250, 204, 21, 0.16);
+  --kg-color-risk-l3: #fb923c;
+  --kg-color-risk-l3-soft: rgba(251, 146, 60, 0.18);
+  --kg-color-risk-l4: #ef4444;
+  --kg-color-risk-l4-soft: rgba(239, 68, 68, 0.18);
+  --kg-color-risk-inject: #a855f7;
+  --kg-color-risk-inject-soft: rgba(168, 85, 247, 0.20);
+
+  /* ---------- State ---------- */
+  --kg-color-success: #22c55e;
+  --kg-color-success-soft: rgba(34, 197, 94, 0.14);
+  --kg-color-warning: #facc15;
+  --kg-color-warning-soft: rgba(250, 204, 21, 0.14);
+  --kg-color-danger: #ef4444;
+  --kg-color-danger-soft: rgba(239, 68, 68, 0.14);
+  --kg-color-info: #38bdf8;
+  --kg-color-info-soft: rgba(56, 189, 248, 0.14);
+
+  /* ---------- Spacing scale ---------- */
+  --kg-space-1: 4px;
+  --kg-space-2: 8px;
+  --kg-space-3: 12px;
+  --kg-space-4: 16px;
+  --kg-space-5: 20px;
+  --kg-space-6: 24px;
+  --kg-space-7: 32px;
+  --kg-space-8: 48px;
+
+  /* ---------- Radius ---------- */
+  --kg-radius-sm: 4px;
+  --kg-radius-md: 8px;
+  --kg-radius-lg: 12px;
+  --kg-radius-pill: 999px;
+
+  /* ---------- Shadow (tinted to bg hue, never pure black) ---------- */
+  --kg-shadow-card: 0 8px 24px rgba(2, 6, 16, 0.32);
+  --kg-shadow-elevated: 0 12px 32px rgba(2, 6, 16, 0.42);
+  --kg-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* ---------- Type ---------- */
+  --kg-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    sans-serif;
+  --kg-font-mono: 'Cascadia Code', 'JetBrains Mono', ui-monospace,
+    SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+
+  --kg-text-xs: 12px;
+  --kg-text-sm: 13px;
+  --kg-text-base: 14px;
+  --kg-text-md: 15px;
+  --kg-text-lg: 17px;
+  --kg-text-xl: 20px;
+  --kg-text-2xl: 24px;
+
+  --kg-line-tight: 1.25;
+  --kg-line-base: 1.5;
+  --kg-line-relaxed: 1.65;
+
+  /* ---------- Motion (克制, 运维面板只保留状态反馈) ---------- */
+  --kg-transition-fast: 120ms ease-out;
+  --kg-transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------- Z-index scale ---------- */
+  --kg-z-header: 100;
+  --kg-z-dropdown: 200;
+  --kg-z-modal: 1000;
+  --kg-z-toast: 2000;
+}
+
+/* ============================================================================
+ * Base
+ * ========================================================================== */
+
+:root {
+  font-family: var(--kg-font-sans);
+  line-height: var(--kg-line-base);
+  color: var(--kg-color-text-primary);
+  background-color: var(--kg-color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: var(--kg-text-base);
 }
 
 * {
@@ -18,9 +145,401 @@ body,
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  background-color: var(--kg-color-bg);
+  color: var(--kg-color-text-primary);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+code,
+pre {
+  font-family: var(--kg-font-mono);
+}
+
+/* ============================================================================
+ * Element Plus — dark surface overrides via CSS variables.
+ * Element Plus 2.x reads these --el-* variables; overriding them in :root
+ * is the supported way to re-theme without rebuilding the component set.
+ *
+ * Scope: surface + border + text. We keep the default primary hue but
+ * desaturate slightly to fit the dark ops-console mood.
+ * ========================================================================== */
+
+:root {
+  /* Backgrounds */
+  --el-bg-color: var(--kg-color-surface);
+  --el-bg-color-page: var(--kg-color-bg);
+  --el-bg-color-overlay: var(--kg-color-surface-soft);
+
+  /* Text */
+  --el-text-color-primary: var(--kg-color-text-primary);
+  --el-text-color-regular: var(--kg-color-text-secondary);
+  --el-text-color-secondary: var(--kg-color-text-mute);
+  --el-text-color-placeholder: var(--kg-color-text-placeholder);
+  --el-text-color-disabled: var(--kg-color-text-placeholder);
+
+  /* Border */
+  --el-border-color: var(--kg-color-border);
+  --el-border-color-light: var(--kg-color-border);
+  --el-border-color-lighter: var(--kg-color-border-mute);
+  --el-border-color-extra-light: var(--kg-color-border-mute);
+  --el-border-color-dark: var(--kg-color-border-strong);
+  --el-border-color-darker: var(--kg-color-border-strong);
+  --el-border-color-hover: var(--kg-color-border-strong);
+
+  /* Fill (used for inputs, table rows, etc.) */
+  --el-fill-color: var(--kg-color-surface-mute);
+  --el-fill-color-light: var(--kg-color-surface-soft);
+  --el-fill-color-lighter: var(--kg-color-surface);
+  --el-fill-color-extra-light: var(--kg-color-surface);
+  --el-fill-color-blank: var(--kg-color-surface);
+  --el-fill-color-dark: var(--kg-color-surface-mute);
+  --el-fill-color-darker: var(--kg-color-surface-mute);
+
+  /* Mask / overlay */
+  --el-mask-color: rgba(11, 18, 32, 0.7);
+  --el-overlay-color: rgba(11, 18, 32, 0.5);
+
+  /* Disabled */
+  --el-disabled-bg-color: var(--kg-color-surface-mute);
+  --el-disabled-text-color: var(--kg-color-text-placeholder);
+  --el-disabled-border-color: var(--kg-color-border-mute);
+
+  /* Card-specific (Element Plus 2.x exposes --el-card-*) */
+  --el-card-bg-color: var(--kg-color-surface);
+  --el-card-border-color: var(--kg-color-border);
+  --el-card-padding: var(--kg-space-5);
+}
+
+/* Element Plus card body — pin the dark surface; preserve test selectors. */
+.el-card {
+  background-color: var(--kg-color-surface);
+  border-color: var(--kg-color-border);
+  color: var(--kg-color-text-primary);
+}
+
+.el-card__header {
+  border-bottom: 1px solid var(--kg-color-border);
+  padding: var(--kg-space-4) var(--kg-space-5);
+}
+
+/* Tag dark theme — desaturated to fit dark surface.
+   Test contract: el-tag--{success|warning|danger|info} class names must
+   remain on the rendered el-tag for both RiskLevelTag and StatusMetricCard. */
+.el-tag.el-tag--dark {
+  border-color: transparent;
+}
+
+.el-tag--success.el-tag--dark {
+  background-color: var(--kg-color-success-soft);
+  color: var(--kg-color-success);
+  border-color: var(--kg-color-success-soft);
+}
+
+.el-tag--warning.el-tag--dark {
+  background-color: var(--kg-color-warning-soft);
+  color: var(--kg-color-warning);
+  border-color: var(--kg-color-warning-soft);
+}
+
+.el-tag--danger.el-tag--dark {
+  background-color: var(--kg-color-danger-soft);
+  color: var(--kg-color-danger);
+  border-color: var(--kg-color-danger-soft);
+}
+
+.el-tag--info.el-tag--dark {
+  background-color: var(--kg-color-info-soft);
+  color: var(--kg-color-info);
+  border-color: var(--kg-color-info-soft);
+}
+
+.el-tag--primary.el-tag--dark {
+  background-color: var(--kg-color-primary-soft);
+  color: var(--kg-color-primary);
+  border-color: var(--kg-color-primary-soft);
+}
+
+/* Plain (un-filled) tag — used in tables for permission / status. */
+.el-tag--success.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-success);
+  border-color: var(--kg-color-success);
+}
+
+.el-tag--warning.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-warning);
+  border-color: var(--kg-color-warning);
+}
+
+.el-tag--danger.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-danger);
+  border-color: var(--kg-color-danger);
+}
+
+.el-tag--info.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-info);
+  border-color: var(--kg-color-info);
+}
+
+/* Menu (sidebar) — dark surface, left active accent in primary. */
+.el-menu {
+  background-color: transparent;
+  border-right: none;
+}
+
+.el-menu-item {
+  color: var(--kg-color-text-secondary);
+}
+
+.el-menu-item:hover {
+  background-color: var(--kg-color-surface-soft);
+  color: var(--kg-color-text-primary);
+}
+
+.el-menu-item.is-active {
+  color: var(--kg-color-primary-hover);
+  background-color: var(--kg-color-primary-soft);
+  border-left: 2px solid var(--kg-color-primary);
+}
+
+/* Table — dark surface, hairline borders. */
+.el-table {
+  --el-table-bg-color: var(--kg-color-surface);
+  --el-table-tr-bg-color: var(--kg-color-surface);
+  --el-table-header-bg-color: var(--kg-color-surface-soft);
+  --el-table-header-text-color: var(--kg-color-text-secondary);
+  --el-table-row-hover-bg-color: var(--kg-color-surface-soft);
+  --el-table-border-color: var(--kg-color-border);
+  --el-table-border: 1px solid var(--kg-color-border);
+  color: var(--kg-color-text-primary);
+}
+
+/* Alert — used for page-level errors. Pin to dark surface, retain severity. */
+.el-alert {
+  background-color: var(--kg-color-surface-soft);
+  border-color: var(--kg-color-border);
+  color: var(--kg-color-text-primary);
+}
+
+.el-alert--error {
+  background-color: var(--kg-color-danger-soft);
+  border-color: var(--kg-color-danger);
+  color: var(--kg-color-danger);
+}
+
+.el-alert--warning {
+  background-color: var(--kg-color-warning-soft);
+  border-color: var(--kg-color-warning);
+  color: var(--kg-color-warning);
+}
+
+.el-alert--info {
+  background-color: var(--kg-color-info-soft);
+  border-color: var(--kg-color-info);
+  color: var(--kg-color-info);
+}
+
+/* Pagination on dark surface. */
+.el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: var(--kg-color-surface-soft);
+  --el-pagination-hover-color: var(--kg-color-primary-hover);
+  color: var(--kg-color-text-secondary);
+}
+
+/* Descriptions (used in tool schema expand) */
+.el-descriptions {
+  color: var(--kg-color-text-primary);
+}
+
+.el-descriptions__label {
+  color: var(--kg-color-text-mute);
+}
+
+.el-descriptions__border {
+  border-color: var(--kg-color-border);
+}
+
+.el-descriptions__cell {
+  background-color: var(--kg-color-surface) !important;
+  border-color: var(--kg-color-border) !important;
+  color: var(--kg-color-text-primary) !important;
+}
+
+.el-descriptions__label.is-bordered-label {
+  background-color: var(--kg-color-surface-soft) !important;
+  color: var(--kg-color-text-mute) !important;
+}
+
+/* Timeline */
+.el-timeline-item__node {
+  background-color: var(--kg-color-primary);
+}
+
+.el-timeline-item__timestamp {
+  color: var(--kg-color-text-mute);
+}
+
+/* ============================================================================
+ * Utility classes — shared visual language for cards, badges, status blocks.
+ * Components should prefer these classes over duplicating styles.
+ * ========================================================================== */
+
+.kg-card {
+  background-color: var(--kg-color-surface);
+  border: 1px solid var(--kg-color-border);
+  border-radius: var(--kg-radius-md);
+  box-shadow: var(--kg-shadow-card);
+  transition: border-color var(--kg-transition-base),
+    box-shadow var(--kg-transition-base);
+}
+
+.kg-card--elevated {
+  background-color: var(--kg-color-surface-soft);
+  box-shadow: var(--kg-shadow-elevated);
+}
+
+.kg-card--flat {
+  background-color: var(--kg-color-surface);
+  border: 1px solid var(--kg-color-border-mute);
+  box-shadow: none;
+}
+
+.kg-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kg-space-3);
+  padding: var(--kg-space-4) var(--kg-space-5);
+  border-bottom: 1px solid var(--kg-color-border);
+}
+
+.kg-card__title {
+  font-size: var(--kg-text-md);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+  margin: 0;
+}
+
+.kg-card__body {
+  padding: var(--kg-space-5);
+}
+
+.kg-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-1);
+  margin-bottom: var(--kg-space-3);
+}
+
+.kg-section-header__title {
+  margin: 0;
+  font-size: var(--kg-text-lg);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
+}
+
+.kg-section-header__subtitle {
+  margin: 0;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+  line-height: var(--kg-line-base);
+}
+
+.kg-section-header__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kg-space-4);
+  flex-wrap: wrap;
+}
+
+.kg-section-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-2);
+}
+
+/* Mono / numeric content. */
+.kg-mono {
+  font-family: var(--kg-font-mono);
+  font-size: 0.85em;
+  color: var(--kg-color-text-secondary);
+  word-break: break-all;
+}
+
+.kg-metric {
+  font-size: var(--kg-text-2xl);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
+}
+
+.kg-metric__unit {
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+  margin-left: var(--kg-space-1);
+}
+
+/* Code / schema block — used by ToolCallCard, ExecutionConfirmCard, etc. */
+.kg-code-block {
+  margin: 0;
+  padding: var(--kg-space-3) var(--kg-space-4);
+  background-color: var(--kg-color-surface-code);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--kg-color-text-secondary);
+  line-height: var(--kg-line-base);
+}
+
+.kg-code-block--muted {
+  background-color: var(--kg-color-surface-mute);
+  color: var(--kg-color-text-secondary);
+}
+
+.kg-code-block--warning {
+  background-color: var(--kg-color-warning-soft);
+  border-color: var(--kg-color-warning);
+  color: var(--kg-color-warning);
+}
+
+.kg-code-block--danger {
+  background-color: var(--kg-color-danger-soft);
+  border-color: var(--kg-color-danger);
+  color: var(--kg-color-danger);
+}
+
+/* Risk-aware border accent (used by ExecutionConfirmCard and risk groups). */
+.kg-border-l-l0 { border-left: 3px solid var(--kg-color-risk-l0); }
+.kg-border-l-l1 { border-left: 3px solid var(--kg-color-risk-l1); }
+.kg-border-l-l2 { border-left: 3px solid var(--kg-color-risk-l2); }
+.kg-border-l-l3 { border-left: 3px solid var(--kg-color-risk-l3); }
+.kg-border-l-l4 { border-left: 3px solid var(--kg-color-risk-l4); }
+.kg-border-l-inject { border-left: 3px solid var(--kg-color-risk-inject); }
+.kg-border-l-info { border-left: 3px solid var(--kg-color-info); }
+.kg-border-l-warning { border-left: 3px solid var(--kg-color-warning); }
+.kg-border-l-danger { border-left: 3px solid var(--kg-color-danger); }
+
+/* Reduced motion — gate any non-essential animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
