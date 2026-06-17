@@ -47,3 +47,14 @@
 | Fix-05 | 回归验收 | ✅ | `p0-sprint-released` |
 
 **下一步可启动 P1 路线（多主机 / 告警 / RAG 等）。**
+
+## 收官动作记录
+
+| 动作 | 状态 | 备注 |
+|---|---|---|
+| 合并到 master | ✅ | commit `b16095a`（`Merge branch 'fix-05-regression-acceptance' into master`） |
+| 打 tag `p0-sprint-released` | ✅ | 在 worktree 内打，包含 2 个 docs 改动（p0-fix-acceptance.md + p0-fix-sprint-summary.md） |
+| 推 `p0-sprint-released` 到 origin | ⚠️ 未达 | 本机 `HTTPS_PROXY=127.0.0.1:7892` 不可达（与 `npm install` 失败同根因），`git push origin p0-sprint-released` 返回 connection refused |
+| 推 master 到 origin | ⚠️ 未达 | 同上（代理不可达） |
+
+> **运维建议**：在有公网出口的 CI runner / 维护机上 `git push origin master --tags` 即可。tag + commits 已就位，**不影响本地代码状态**。
