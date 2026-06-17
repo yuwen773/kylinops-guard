@@ -36,6 +36,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import MarkdownIt from 'markdown-it';
 import RiskLevelTag from '@/components/RiskLevelTag/index.vue';
+import ReasoningChain from '@/components/ReasoningChain/index.vue';
+import { rcaTitleFor } from '@/utils/intentType';
 import { getReports, getReportDetail, type ReportListQuery } from '@/api/reports';
 import { ApiError } from '@/api/client';
 import {
@@ -391,6 +393,13 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
           class="report-detail-body markdown-body"
           data-testid="report-detail-body"
           v-html="renderedBody"
+        />
+
+        <ReasoningChain
+          v-if="detail.rootCauseChain"
+          :chain="detail.rootCauseChain"
+          :title="rcaTitleFor(detail.reportType) ?? '推理链'"
+          :data-testid="`report-rca-${detail.reportId}`"
         />
 
         <pre
