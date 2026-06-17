@@ -43,6 +43,7 @@ public class NotificationConfig {
         /** 通道类型(WEBHOOK / FEISHU) */
         private ChannelType type;
         /** 是否启用(默认 true) */
+        @Builder.Default
         private boolean enabled = true;
         /**
          * 通道 URL。
