@@ -337,6 +337,41 @@ class PerToolContextPolicyTest {
         assertThat(policy.sanitize(result, MAX_BYTES)).isEqualTo(EMPTY_PLACEHOLDER);
     }
 
+    // ==================== LsofToolContextPolicy (Fix-02) ====================
+
+    @Test
+    @DisplayName("LsofToolContextPolicy — 成功时返回 pid/fdCount + 文件 + socket 摘要")
+    void lsof_success() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("pid", 1234);
+        data.put("fdCount", 3);
+        data.put("files", List.of(
+                Map.of("fd", "3", "type", "REG", "path", "/var/log/app.log"),
+                Map.of("fd", "0", "type", "CHR", "path", "/dev/null")
+        ));
+        data.put("sockets", List.of(
+                Map.of("fd", "12", "type", "IPv4", "path", "TCP *:8080 (LISTEN)")
+        ));
+
+        LsofToolContextPolicy policy = new LsofToolContextPolicy(sanitizer);
+        ToolResult result = ToolResult.success("lsof_tool", data, "ok", 10);
+
+        String sanitized = policy.sanitize(result, MAX_BYTES);
+
+        assertThat(sanitized).contains("pid=1234").contains("fd 数=3");
+        assertThat(sanitized).contains("文件").contains("Socket")
+                .contains("/var/log/app.log").contains("TCP *:8080 (LISTEN)");
+    }
+
+    @Test
+    @DisplayName("LsofToolContextPolicy — 失败时返回 '（无数据）'")
+    void lsof_failed() {
+        LsofToolContextPolicy policy = new LsofToolContextPolicy(sanitizer);
+        ToolResult result = ToolResult.failed("lsof_tool", "Windows 环境降级", 10);
+
+        assertThat(policy.sanitize(result, MAX_BYTES)).isEqualTo(EMPTY_PLACEHOLDER);
+    }
+
     // ==================== JournalLogContextPolicy (sensitive) ====================
 
     @Test
