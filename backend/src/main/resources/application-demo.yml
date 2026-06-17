@@ -1,0 +1,23 @@
+# ============================================================
+# Demo Profile — Notification Center 演示场景
+# 激活: --spring.profiles.active=demo (或叠加在已有 profile 之上)
+# 注意: URL/secret 全部走 env,空值则该通道不生效
+# ============================================================
+
+kylinops:
+  notification:
+    enabled: true          # 演示场景开启通知
+    dry-run: false
+    channels:
+      - id: webhook-demo
+        type: WEBHOOK
+        enabled: true
+        url: ${KYLINOPS_DEMO_WEBHOOK_URL:}
+        secret: ${KYLINOPS_DEMO_WEBHOOK_SECRET:}
+        timeoutMs: 3000
+      - id: feishu-demo
+        type: FEISHU
+        enabled: true
+        url: ${KYLINOPS_DEMO_FEISHU_URL:}
+        secret: ${KYLINOPS_DEMO_FEISHU_SECRET:}
+        timeoutMs: 3000

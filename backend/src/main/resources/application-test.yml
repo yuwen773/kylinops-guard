@@ -42,3 +42,8 @@ kylinops:
     absolute-timeout: 8h
     max-failures: 5
     lock-duration: 15m
+  # P1-01: 测试环境强制关闭通知,零外网请求
+  notification:
+    enabled: false
+    dry-run: false
+    channels: []

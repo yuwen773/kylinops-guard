@@ -92,3 +92,8 @@ kylinops:
     # /api/chat/send 限流：每会话每窗口最多请求数
     chat-rate-limit: 30
     chat-rate-window: 1m
+  # P1-01 Notification Center — 默认关闭(零外网);demo profile 开启
+  notification:
+    enabled: false
+    dry-run: false
+    channels: []
