@@ -13,6 +13,7 @@
 //     sent to the backend; the frontend never auto-confirms.
 
 import type { RiskDecision, RiskLevel, ToolCallDisplayStatus } from './safety';
+import type { RootCauseChain } from './rca';
 
 /** Mirrors com.kylinops.common.enums.IntentType (string form). */
 export type IntentType =
@@ -54,6 +55,7 @@ export interface AgentResult {
   pendingAction?: PendingActionDto;
   auditId?: string;
   errorMessage?: string;
+  rootCauseChain?: RootCauseChain;
 }
 
 /** Request body for POST /api/chat/send. */

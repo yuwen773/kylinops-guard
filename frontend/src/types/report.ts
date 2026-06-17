@@ -15,6 +15,7 @@
 //     through v-html without that renderer gating it first.
 
 import type { RiskDecision, RiskLevel } from './safety';
+import type { RootCauseChain } from './rca';
 
 /** Mirrors com.kylinops.report.ReportType (string form). */
 export type ReportType = 'HEALTH' | 'DISK' | 'SERVICE' | 'SECURITY' | 'AUDIT';
@@ -56,6 +57,7 @@ export interface ReportDetail {
    */
   bodyMarkdown?: string;
   createdAt?: string;
+  rootCauseChain?: RootCauseChain;
 }
 
 /** Mirrors com.kylinops.report.ReportGenerateRequest. */
