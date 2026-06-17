@@ -23,6 +23,8 @@ import { useRouter } from 'vue-router';
 import RiskLevelTag from '@/components/RiskLevelTag/index.vue';
 import ToolCallCard from '@/components/ToolCallCard/index.vue';
 import ExecutionConfirmCard from '@/components/ExecutionConfirmCard/index.vue';
+import ReasoningChain from '@/components/ReasoningChain/index.vue';
+import { rcaTitleFor, normalizeIntentType } from '@/utils/intentType';
 import { sendChat } from '@/api/chat';
 import { confirmAction } from '@/api/actions';
 import { getAuditDetail } from '@/api/audit';
@@ -495,6 +497,13 @@ const handleGenerateReport = async () => {
             >
               {{ turn.result.answer }}
             </p>
+
+            <ReasoningChain
+              v-if="turn.result.rootCauseChain"
+              :chain="turn.result.rootCauseChain"
+              :title="rcaTitleFor(normalizeIntentType(turn.result.intentType)) ?? '推理链'"
+              :data-testid="`chat-rca-${turn.result.auditId}`"
+            />
 
             <p
               v-if="turn.result.riskDecision === 'BLOCK'"
