@@ -5,6 +5,7 @@ import com.kylinops.audit.AuditContextHolder;
 import com.kylinops.audit.LlmCallStage;
 import com.kylinops.common.enums.IntentType;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -41,10 +42,21 @@ public class HybridIntentService {
 
     private final IntentClassifier intentClassifier;
     private final LlmIntentParser llmParser;
+    private final OfflineFaqService offlineFaqService;
 
+    // 保留 2-arg 构造器（兼容现有测试：HybridIntentServiceTest 等用此形式）
     public HybridIntentService(IntentClassifier intentClassifier, LlmIntentParser llmParser) {
+        this(intentClassifier, llmParser, null);
+    }
+
+    // 新增 3-arg 构造器（生产路径，Spring 注入 OfflineFaqService bean）
+    @Autowired
+    public HybridIntentService(IntentClassifier intentClassifier,
+                               LlmIntentParser llmParser,
+                               OfflineFaqService offlineFaqService) {
         this.intentClassifier = intentClassifier;
         this.llmParser = llmParser;
+        this.offlineFaqService = offlineFaqService;
     }
 
     /**
@@ -82,7 +94,17 @@ public class HybridIntentService {
                     parsed.getParams());
         }
 
-        // 3) Fallback
+        // 3) OfflineFaqService 兜底（仅 LLM 失败时；现有 keyword/regex/synonym 已匹配过）
+        if (offlineFaqService != null) {
+            java.util.Optional<IntentResolution> faqHit = offlineFaqService.fuzzyMatch(userInput);
+            if (faqHit.isPresent()) {
+                log.info("意图识别走 OfflineFaq 兜底: intent={}",
+                        faqHit.get().getIntentType());
+                return faqHit.get();
+            }
+        }
+
+        // 4) Fallback
         log.debug("意图识别回退 FALLBACK: input_len={}", inputLength(userInput));
         return IntentResolution.fallback();
     }
