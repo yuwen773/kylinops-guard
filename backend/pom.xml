@@ -115,6 +115,15 @@
             <version>4.12.0</version>
             <scope>test</scope>
         </dependency>
+        <!--
+            OkHttp (P1-01: WebhookChannel / FeishuChannel 生产 HTTP 客户端)。
+            复用 mockwebserver 的同版本,避免版本不一致。
+        -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.12.0</version>
+        </dependency>
         <!-- Testcontainers PostgreSQL: 后续 Task 3 集成测试使用，本 Task 引入是为 Phase 1 数据库强化做准备 -->
         <dependency>
             <groupId>org.testcontainers</groupId>
