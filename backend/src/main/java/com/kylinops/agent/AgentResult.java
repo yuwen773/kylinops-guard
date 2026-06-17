@@ -2,6 +2,7 @@ package com.kylinops.agent;
 
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskLevel;
+import com.kylinops.rca.RootCauseChain;
 import lombok.Builder;
 import lombok.Data;
 
@@ -56,6 +57,9 @@ public class AgentResult {
 
     /** 错误信息（仅在异常时填充） */
     private String errorMessage;
+
+    /** 根因分析链（仅演示场景 1/2/3 填充；其他场景为 null） */
+    private RootCauseChain rootCauseChain;
 
     // ==================== 内部类型 ====================
 
