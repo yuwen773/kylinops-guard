@@ -1,10 +1,13 @@
 package com.kylinops.audit;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.executor.PendingActionRepository;
+import com.kylinops.rca.RootCauseChain;
 import com.kylinops.security.RiskCheckRecordRepository;
 import com.kylinops.tool.ToolCallRecordRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -49,6 +52,28 @@ public class AuditLogService {
     private final ToolCallRecordRepository toolCallRecordRepository;
     private final RiskCheckRecordRepository riskCheckRecordRepository;
     private final PendingActionRepository pendingActionRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public String serializeRca(RootCauseChain chain) {
+        if (chain == null) return null;
+        try {
+            return objectMapper.writeValueAsString(chain);
+        } catch (JsonProcessingException e) {
+            log.warn("RCA 序列化失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public RootCauseChain deserializeRca(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json, RootCauseChain.class);
+        } catch (JsonProcessingException e) {
+            log.warn("RCA 反序列化失败: {}", e.getMessage());
+            return null;
+        }
+    }
 
     /**
      * 创建一次 Dashboard / 工具批量采集的审计记录。
@@ -439,6 +464,7 @@ public class AuditLogService {
                 .toolCalls(toolCalls)
                 .riskChecks(riskChecks)
                 .pendingAction(pendingAction)
+                .rootCauseChain(deserializeRca(log.getRootCauseChainJson()))
                 .build();
     }
 }

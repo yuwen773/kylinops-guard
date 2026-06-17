@@ -4,6 +4,7 @@ import com.kylinops.common.enums.AuditStatus;
 import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
+import com.kylinops.rca.RootCauseChain;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -120,4 +121,7 @@ public class AuditLogDetail {
         private String status;
         private String executionResult;
     }
+
+    /** 根因分析链（反序列化自 rootCauseChainJson） */
+    private RootCauseChain rootCauseChain;
 }

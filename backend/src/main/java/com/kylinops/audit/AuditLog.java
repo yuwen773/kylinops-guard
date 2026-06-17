@@ -91,6 +91,11 @@ public class AuditLog extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String warning;
 
+    /** 根因分析链 JSON 字符串（Lob TEXT，仅演示场景填充） */
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String rootCauseChainJson;
+
     @PrePersist
     @Override
     protected void onCreate() {
