@@ -20,6 +20,8 @@ import com.kylinops.executor.ActionConfirmService;
 import com.kylinops.executor.AuthenticatedOperator;
 import com.kylinops.executor.PendingAction;
 import com.kylinops.executor.PendingActionStatus;
+import com.kylinops.notification.NotificationEventFactory;
+import com.kylinops.notification.NotificationService;
 import com.kylinops.rca.RootCauseAnalyzer;
 import com.kylinops.rca.RootCauseChain;
 import com.kylinops.security.PromptInjectionDetector;
@@ -30,7 +32,6 @@ import com.kylinops.tool.ToolNotRegisteredException;
 import com.kylinops.tool.ToolResult;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -73,7 +74,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AgentOrchestrator {
 
     private final PromptInjectionDetector injectionDetector;
@@ -89,6 +89,76 @@ public class AgentOrchestrator {
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final RootCauseAnalyzer rootCauseAnalyzer;
+    // P1-01 Plan 01: 3 emit points. 旧 14 字段保持 final,新增 2 字段在老构造器中初始化为 null
+    // (保留旧测试的 14 参构造器调用兼容),新 16 参构造器委托老构造器后再赋值(Fix-03 模式)。
+    private final NotificationService notificationService;
+    private final NotificationEventFactory notificationEventFactory;
+
+    /**
+     * 老构造器(14 参)— 保留向后兼容(测试用),新 2 字段在通知关闭的路径上不调用。
+     * 委托给本构造器的 16 参版本最后会覆盖这 2 个字段;此处设为 null 是为了让 final
+     * 字段在每个构造器路径上都已被赋值(javac 要求)。
+     */
+    public AgentOrchestrator(
+            PromptInjectionDetector injectionDetector,
+            IntentClassifier intentClassifier,
+            HybridIntentService hybridIntentService,
+            ToolPlanningService toolPlanningService,
+            ToolExecutor toolExecutor,
+            RiskCheckService riskCheckService,
+            AgentResponseBuilder responseBuilder,
+            HybridResponseService hybridResponseService,
+            AuditLogService auditLogService,
+            ActionConfirmService actionConfirmService,
+            SessionRepository sessionRepository,
+            MessageRepository messageRepository,
+            RootCauseAnalyzer rootCauseAnalyzer) {
+        this(injectionDetector, intentClassifier, hybridIntentService, toolPlanningService,
+                toolExecutor, riskCheckService, responseBuilder, hybridResponseService,
+                auditLogService, actionConfirmService, sessionRepository, messageRepository,
+                rootCauseAnalyzer, null, null);
+    }
+
+    /**
+     * 新构造器(16 参)— Spring DI 优先选这个(参数最多)。委托老构造器初始化 14 老字段,
+     * 再单独赋值 2 个新字段 — 老字段保持 final,新字段也保持 final(Fix-03 模式)。
+     *
+     * <p><b>@Autowired 必加</b>:类中存在两个构造器(14 参 + 16 参),Spring 不会自动选,
+     * 必须显式标记 16 参为主构造器。老构造器仅供直接 new 调用(测试用例)。</p>
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    public AgentOrchestrator(
+            PromptInjectionDetector injectionDetector,
+            IntentClassifier intentClassifier,
+            HybridIntentService hybridIntentService,
+            ToolPlanningService toolPlanningService,
+            ToolExecutor toolExecutor,
+            RiskCheckService riskCheckService,
+            AgentResponseBuilder responseBuilder,
+            HybridResponseService hybridResponseService,
+            AuditLogService auditLogService,
+            ActionConfirmService actionConfirmService,
+            SessionRepository sessionRepository,
+            MessageRepository messageRepository,
+            RootCauseAnalyzer rootCauseAnalyzer,
+            NotificationService notificationService,
+            NotificationEventFactory notificationEventFactory) {
+        this.injectionDetector = injectionDetector;
+        this.intentClassifier = intentClassifier;
+        this.hybridIntentService = hybridIntentService;
+        this.toolPlanningService = toolPlanningService;
+        this.toolExecutor = toolExecutor;
+        this.riskCheckService = riskCheckService;
+        this.responseBuilder = responseBuilder;
+        this.hybridResponseService = hybridResponseService;
+        this.auditLogService = auditLogService;
+        this.actionConfirmService = actionConfirmService;
+        this.sessionRepository = sessionRepository;
+        this.messageRepository = messageRepository;
+        this.rootCauseAnalyzer = rootCauseAnalyzer;
+        this.notificationService = notificationService;
+        this.notificationEventFactory = notificationEventFactory;
+    }
 
     /**
      * 并行工具执行线程池。
@@ -240,11 +310,23 @@ public class AgentOrchestrator {
                             .params(Map.of())
                             .description("待确认操作: " + pa.getActionType() + " - " + pa.getToolName())
                             .build();
+                    // P1-01: 通知中心 emit(L2 待确认事件)
+                    notificationService.emit(notificationEventFactory.l2ConfirmRequired(
+                            auditId, session.getSessionId(), intent, riskLevel,
+                            pa.getActionId(), plan.getAction().getActionType()));
                     log.info("已创建待确认动作: actionId={}", pa.getActionId());
                 }
                 case BLOCK -> {
                     // L3/L4: 不执行任何工具
                     log.warn("请求被阻断: level={}, reason={}", riskLevel, riskResult.getReason());
+                    // P1-01: 仅 L4 触发通知(规则命中的绝对阻断);L3 不发通知(由 RCA/Service 异常走专用通道)
+                    if (riskLevel == RiskLevel.L4) {
+                        notificationService.emit(notificationEventFactory.l4Block(
+                                auditId, session.getSessionId(), riskLevel, decision,
+                                riskResult.getMatchedRules() != null && !riskResult.getMatchedRules().isEmpty()
+                                        ? riskResult.getMatchedRules().get(0) : null,
+                                riskResult.getReason()));
+                    }
                 }
             }
 
@@ -333,6 +415,12 @@ public class AgentOrchestrator {
                                               PromptInjectionDetector.DetectionResult injection) {
         log.warn("Prompt 注入阻断: patterns={}, level={}",
                 injection.getMatchedPatterns(), injection.getRiskLevel());
+
+        // P1-01: 通知中心 emit(注入拦截事件,工厂方法统一构造)
+        notificationService.emit(notificationEventFactory.promptInjectionBlock(
+                auditId, session.getSessionId(),
+                String.join(",", injection.getMatchedPatterns()),
+                injection.getReason()));
 
         // 更新已有审计日志（BLOCKED）
         auditLogService.updateAuditLog(auditId, injection.getRiskLevel(), RiskDecision.BLOCK,

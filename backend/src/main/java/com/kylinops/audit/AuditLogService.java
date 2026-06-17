@@ -7,6 +7,8 @@ import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.executor.PendingActionRepository;
+import com.kylinops.notification.NotificationRecordRepository;
+import com.kylinops.notification.NotificationRecordSummary;
 import com.kylinops.rca.RootCauseChain;
 import com.kylinops.security.RiskCheckRecordRepository;
 import com.kylinops.tool.ToolCallRecordRepository;
@@ -52,6 +54,7 @@ public class AuditLogService {
     private final ToolCallRecordRepository toolCallRecordRepository;
     private final RiskCheckRecordRepository riskCheckRecordRepository;
     private final PendingActionRepository pendingActionRepository;
+    private final NotificationRecordRepository notificationRecordRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -464,6 +467,11 @@ public class AuditLogService {
                 .toolCalls(toolCalls)
                 .riskChecks(riskChecks)
                 .pendingAction(pendingAction)
+                .notificationRecords(notificationRecordRepository
+                        .findByAuditIdOrderByCreatedAtDesc(log.getAuditId())
+                        .stream()
+                        .map(NotificationRecordSummary::from)
+                        .toList())
                 .rootCauseChain(deserializeRca(log.getRootCauseChainJson()))
                 .build();
     }

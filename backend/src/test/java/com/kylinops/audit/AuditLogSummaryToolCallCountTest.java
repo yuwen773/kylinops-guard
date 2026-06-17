@@ -5,6 +5,7 @@ import com.kylinops.common.enums.IntentType;
 import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import com.kylinops.executor.PendingActionRepository;
+import com.kylinops.notification.NotificationRecordRepository;
 import com.kylinops.security.RiskCheckRecordRepository;
 import com.kylinops.tool.ToolCallRecordRepository;
 import com.kylinops.tool.ToolCallRecordRepository.ToolCallCountProjection;
@@ -51,6 +52,7 @@ class AuditLogSummaryToolCallCountTest {
     private ToolCallRecordRepository toolCallRecordRepository;
     private RiskCheckRecordRepository riskCheckRecordRepository;
     private PendingActionRepository pendingActionRepository;
+    private NotificationRecordRepository notificationRecordRepository;
     private AuditLogService auditLogService;
 
     @BeforeEach
@@ -59,11 +61,13 @@ class AuditLogSummaryToolCallCountTest {
         toolCallRecordRepository = mock(ToolCallRecordRepository.class);
         riskCheckRecordRepository = mock(RiskCheckRecordRepository.class);
         pendingActionRepository = mock(PendingActionRepository.class);
+        notificationRecordRepository = mock(NotificationRecordRepository.class);
         auditLogService = new AuditLogService(
                 auditLogRepository,
                 toolCallRecordRepository,
                 riskCheckRecordRepository,
-                pendingActionRepository);
+                pendingActionRepository,
+                notificationRecordRepository);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.kylinops.notification;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -21,6 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 @Configuration
 @EnableAsync
+@EnableConfigurationProperties(NotificationConfig.class)
 public class NotificationAsyncConfig {
 
     @Bean(name = "notificationExecutor")

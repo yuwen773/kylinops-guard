@@ -3,6 +3,7 @@ package com.kylinops.notification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -27,4 +28,6 @@ public interface NotificationRecordRepository extends JpaRepository<Notification
      * @return 存在则返回对应记录，否则 Optional.empty()
      */
     Optional<NotificationRecord> findFirstByEventIdAndChannelId(String eventId, String channelId);
+
+    List<NotificationRecord> findByAuditIdOrderByCreatedAtDesc(String auditId);
 }
