@@ -6,6 +6,7 @@ import org.mockito.ArgumentCaptor;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.RejectedExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -111,6 +112,21 @@ class NotificationServiceTest {
                 .title("t").summary("s").build());
 
         // 确认 dispatcher 被调用过(异常被 service 内部 catch)
+        verify(dispatcher, times(1)).dispatchAsync(any());
+    }
+    @Test
+    void emit_dispatcherRejected_doesNotPropagate() {
+        NotificationConfig config = new NotificationConfig();
+        config.setEnabled(true);
+        NotificationDispatcher dispatcher = mock(NotificationDispatcher.class);
+        org.mockito.Mockito.doThrow(new RejectedExecutionException("queue full"))
+                .when(dispatcher).dispatchAsync(any());
+        NotificationService service = new NotificationService(config, dispatcher, Clock.systemUTC());
+
+        service.emit(NotificationEvent.builder()
+                .eventType(NotificationEventType.L4_BLOCK)
+                .title("t").summary("s").build());
+
         verify(dispatcher, times(1)).dispatchAsync(any());
     }
 }
