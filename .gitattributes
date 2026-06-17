@@ -1,0 +1,11 @@
+# Git LFS tracking rules for binary demo deliverables
+# (see docs/demo/README.md for context)
+
+# Demo PPT — large binary, prefer LFS
+*.pptx filter=lfs diff=lfs merge=lfs -text
+
+# Demo video — only commit if < 50MB; metadata in demo-recording.md
+# NOTE: large videos should be excluded from git via .gitignore, not LFS-tracked
+# (LFS still bloats LFS storage, and the plan explicitly says: > 50MB → not in Git)
+
+# Screenshots are small (< 5MB each); keep in git as-is, no LFS
