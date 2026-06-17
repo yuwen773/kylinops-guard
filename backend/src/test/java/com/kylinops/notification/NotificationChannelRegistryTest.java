@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,9 +34,13 @@ class NotificationChannelRegistryTest {
 
     @Test
     void resolveHandler_returnsEmptyForUnknownType() {
-        Optional<NotificationChannel> result = registry.resolveHandler(ChannelType.WEBHOOK);
-        // 尚未注册 WebhookChannel bean,Optional 应为空
-        assertNotNull(result);
+        NotificationChannelRegistry emptyRegistry = new NotificationChannelRegistry(List.of());
+        emptyRegistry.init();
+
+        Optional<NotificationChannel> result = emptyRegistry.resolveHandler(ChannelType.WEBHOOK);
+
+        assertFalse(result.isPresent());
+        assertFalse(emptyRegistry.hasAnyHandler());
     }
 
     @Test

@@ -122,4 +122,33 @@ class AgentOrchestratorSecurityTest {
                 isNull(), eq(AuditStatus.FAILED), contains("classifier failed"), eq(IntentType.UNKNOWN));
         verifyNoInteractions(toolExecutor, actionConfirmService);
     }
+
+    @Test
+    void legacyConstructorSkipsNotificationPathWithoutChangingL4BlockResult() {
+        ToolPlanningService.ToolPlan plan = ToolPlanningService.ToolPlan.builder()
+                .intent(IntentType.COMMAND_EXECUTION)
+                .steps(List.of())
+                .requiresRiskCheck(true)
+                .build();
+        when(hybridIntentService.resolve(anyString()))
+                .thenReturn(IntentResolution.ruleHit(IntentType.COMMAND_EXECUTION));
+        when(toolPlanningService.createPlan(eq(IntentType.COMMAND_EXECUTION), anyMap())).thenReturn(plan);
+        when(riskCheckService.checkPlan(plan, "rm -rf /", "audit-l4"))
+                .thenReturn(RiskCheckResult.block(
+                        RiskLevel.L4, List.of("block_rm_rf_root"),
+                        "dangerous", "blocked"));
+        when(hybridResponseService.build(any(), anyList(), any(), any(), any()))
+                .thenReturn("blocked");
+
+        AgentResult result = orchestrator.process(AgentRequest.builder()
+                .sessionId("session-1")
+                .userInput("rm -rf /")
+                .requestId("audit-l4")
+                .build());
+
+        assertThat(result.getRiskLevel()).isEqualTo(RiskLevel.L4);
+        assertThat(result.getRiskDecision()).isEqualTo("BLOCK");
+        assertThat(result.getErrorMessage()).isNull();
+        verifyNoInteractions(toolExecutor, actionConfirmService);
+    }
 }

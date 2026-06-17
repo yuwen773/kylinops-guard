@@ -38,6 +38,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -311,7 +312,7 @@ public class AgentOrchestrator {
                             .description("待确认操作: " + pa.getActionType() + " - " + pa.getToolName())
                             .build();
                     // P1-01: 通知中心 emit(L2 待确认事件)
-                    notificationService.emit(notificationEventFactory.l2ConfirmRequired(
+                    emitNotification(() -> notificationEventFactory.l2ConfirmRequired(
                             auditId, session.getSessionId(), intent, riskLevel,
                             pa.getActionId(), plan.getAction().getActionType()));
                     log.info("已创建待确认动作: actionId={}", pa.getActionId());
@@ -321,7 +322,7 @@ public class AgentOrchestrator {
                     log.warn("请求被阻断: level={}, reason={}", riskLevel, riskResult.getReason());
                     // P1-01: 仅 L4 触发通知(规则命中的绝对阻断);L3 不发通知(由 RCA/Service 异常走专用通道)
                     if (riskLevel == RiskLevel.L4) {
-                        notificationService.emit(notificationEventFactory.l4Block(
+                        emitNotification(() -> notificationEventFactory.l4Block(
                                 auditId, session.getSessionId(), riskLevel, decision,
                                 riskResult.getMatchedRules() != null && !riskResult.getMatchedRules().isEmpty()
                                         ? riskResult.getMatchedRules().get(0) : null,
@@ -417,7 +418,7 @@ public class AgentOrchestrator {
                 injection.getMatchedPatterns(), injection.getRiskLevel());
 
         // P1-01: 通知中心 emit(注入拦截事件,工厂方法统一构造)
-        notificationService.emit(notificationEventFactory.promptInjectionBlock(
+        emitNotification(() -> notificationEventFactory.promptInjectionBlock(
                 auditId, session.getSessionId(),
                 String.join(",", injection.getMatchedPatterns()),
                 injection.getReason()));
@@ -451,6 +452,14 @@ public class AgentOrchestrator {
      * 执行工具调用计划，按 order 分组执行。
      * 同 order 的 PARALLEL 工具并发执行，SEQUENTIAL 工具按序执行。
      */
+    private void emitNotification(Supplier<com.kylinops.notification.NotificationEvent> eventSupplier) {
+        if (notificationService == null || notificationEventFactory == null) {
+            log.debug("notification dependencies unavailable, skip notification");
+            return;
+        }
+        notificationService.emit(eventSupplier.get());
+    }
+
     private List<ToolResult> executeToolPlan(ToolPlan plan, String auditId) {
         if (plan.getSteps().isEmpty()) {
             return List.of();
