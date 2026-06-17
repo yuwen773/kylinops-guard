@@ -3,16 +3,19 @@
 // 字段渲染严格用 v-text，不使用 v-html（XSS 安全契约）。
 import type { RootCauseChain } from '@/types/rca';
 
-defineProps<{
+withDefaults(defineProps<{
   chain: RootCauseChain;
   title: string;
-}>();
+  dataTestid?: string;
+}>(), {
+  dataTestid: 'reasoning-chain',
+});
 
 const confidencePercent = (c: number) => Math.round(c * 100);
 </script>
 
 <template>
-  <el-card class="reasoning-chain" shadow="never" data-testid="reasoning-chain">
+  <el-card class="reasoning-chain" shadow="never" :data-testid="dataTestid">
     <template #header>
       <div class="rc-header">
         <span class="rc-title">{{ title }}</span>

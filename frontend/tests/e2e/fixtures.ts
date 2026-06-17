@@ -78,6 +78,7 @@ export interface AgentResultFixtureOptions {
   pendingAction?: PendingActionDto;
   auditId?: string;
   errorMessage?: string;
+  rootCauseChain?: AgentResult['rootCauseChain'];
 }
 
 export function mockAgentResult(opts: AgentResultFixtureOptions = {}): AgentResult {
@@ -92,6 +93,7 @@ export function mockAgentResult(opts: AgentResultFixtureOptions = {}): AgentResu
   if (opts.pendingAction !== undefined) result.pendingAction = opts.pendingAction;
   if (opts.auditId !== undefined) result.auditId = opts.auditId;
   if (opts.errorMessage !== undefined) result.errorMessage = opts.errorMessage;
+  if (opts.rootCauseChain !== undefined) result.rootCauseChain = opts.rootCauseChain;
   return result;
 }
 
@@ -181,6 +183,46 @@ export function mockDiskAgentResult(auditId = 'audit-disk-001'): AgentResult {
     riskDecision: 'ALLOW',
     needConfirmation: false,
     auditId,
+    rootCauseChain: {
+      symptom: '磁盘根分区使用率 86%',
+      evidence: [
+        {
+          evidenceId: 'ev-1',
+          source: 'disk_usage_tool',
+          sourceToolCallId: 'tc-1',
+          observation: '/ 86% used',
+          numericValue: 86,
+          unit: '%',
+        },
+        {
+          evidenceId: 'ev-2',
+          source: 'large_file_scan_tool',
+          sourceToolCallId: 'tc-2',
+          observation: '/var/log/app.log: 12GB',
+          numericValue: 12,
+          unit: 'GB',
+        },
+      ],
+      hypotheses: [
+        {
+          cause: '/var/log/app.log 占用 12GB',
+          probability: 0.86,
+          confirmed: true,
+          reasoning: 'large_file_scan_tool 直接定位',
+        },
+      ],
+      excludedCauses: [
+        {
+          cause: '/var/lib/mysql（敏感数据库目录）',
+          reason: '数据库目录不建议直接清理，可能影响数据完整性',
+          evidenceIds: ['ev-2'],
+        },
+      ],
+      conclusion: '主要根因是 /var/log/app.log 占用 12GB 持续增长',
+      confidence: 0.86,
+      suggestions: ['先归档或截断 /var/log/app.log', '再检查服务是否循环报错'],
+      riskTips: ['清理前需先归档，确认业务不依赖'],
+    },
   });
 }
 
