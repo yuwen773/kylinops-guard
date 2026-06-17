@@ -1,6 +1,6 @@
 # P1-01 告警通道 / Notification Center 设计文档
 
-> **状态**：⏳ 待评审（v0.1 草稿，2026-06-17 提交评审）
+> **状态**：✅ 已批准 — 进入 writing-plans 阶段
 > **版本**：v0.1
 > **日期**：2026-06-17
 > **作者**：P1-01 设计（基于 `docs/product/functional-defect-and-roadmap.md` §二 P1 项 D-06 + brainstorming 确认 B-lite 方案）
@@ -970,7 +970,7 @@ public class NotificationService {
                 event.setOccurredAt(LocalDateTime.now(clock));
             }
 
-            // 异步调度（Dispatcher 内部同步创建 Record 并异步发送）
+            // 异步调度（Dispatcher 在 notificationExecutor 线程中创建 Record、发送通知并更新状态）
             dispatcher.dispatchAsync(event);
 
         } catch (Exception e) {
@@ -1185,7 +1185,7 @@ public class NotificationEventFactory {
 | 10 | 测试环境无外网 | WebhookChannel 单测失败 | 依赖检查后在 Plan 01 Task 0 锁定的 HTTP 客户端 mock 方案（MockWebServer / MockRestServiceServer / WireMock）；真实 URL 走 mock | ⚠️ 必须实现 |
 | 11 | Windows dev vs Linux/Kylin 差异 | 路径解析不同 | 通知层不直接调 OS，**无此风险** | ❌ 不阻塞 |
 | 12 | E2E 依赖第三方 webhook 不稳定 | E2E flaky | E2E 用 mock webhook 端点（HTTP mock server，由 Plan 01 Task 0 锁定客户端后确定 mock 工具） | ⚠️ 必须实现 |
-| 13 | dispatcher 在主流程同步执行 | 主流程变慢 | 同步部分只入库；发送在 `notificationExecutor` | ❌ 不阻塞 |
+| 13 | 误把 dispatcher 写成同步执行 | chat/send 响应变慢 | `NotificationService.emit()` 只补 eventId / occurredAt 并提交异步任务；NotificationRecord 创建、HTTP 发送、状态更新全部在 `notificationExecutor` 线程中执行；**禁止在主线程调用 `channel.send()`** | ❌ 不阻塞 |
 | 14 | `Clock` 未注入 | 时间相关测试 flaky | 注入 `Clock` bean，测试用 `Clock.fixed()` | ❌ 不阻塞 |
 | 15 | 飞书签名算法错误 | 所有飞书通知失败 | 严格按飞书官方文档实现 + 单测覆盖 sign 计算 | ⚠️ 必须验证 |
 | 16 | `AgentOrchestrator` 改造打破现有测试 | Fix-03 教训 | 走"新增构造器 + 老构造器委托"模式；**不得用** `@RequiredArgsConstructor` 替换现有显式构造器 | ❌ 不阻塞 |
@@ -1206,7 +1206,7 @@ public class NotificationEventFactory {
 | 4 | `FeishuChannelTest` | timestamp + sign 算法 / markdown payload | HTTP mock server（同上） |
 | 5 | `NotificationChannelRegistryTest` | fail-open 启动 / enabled 过滤 / supports | `@SpringBootTest` + mock channel |
 | 6 | `NotificationDispatcherTest` | 通道选择 / 异步执行 / 失败隔离 | mock 2 个 channel + 注入 fake `TaskExecutor` |
-| 7 | `NotificationServiceTest` | emit API / eventId 补全 / 永不抛 | mock dispatcher + JPA repository |
+| 7 | `NotificationServiceTest` | emit API / enabled=false 不调 dispatcher / enabled=true 补 eventId+occurredAt / dispatcher 或线程池异常时不抛 | mock dispatcher（**不 mock JPA repository** — emit() 不写 DB） |
 | 8 | `NotificationRecordRepositoryTest` | JPA CRUD / 唯一约束 / 索引 | `@DataJpaTest` + H2 |
 | 9 | `L4BlockNotificationIntegrationTest` | L4 触发 / payload 内容 | `@SpringBootTest` + mock channel |
 | 10 | `PromptInjectionNotificationTest` | handleInjectionBlock 路径 | 同上 |
