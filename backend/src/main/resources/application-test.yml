@@ -47,3 +47,8 @@ kylinops:
     enabled: false
     dry-run: false
     channels: []
+    # 管理平面 — 测试使用合法 Base64 32 字节主密钥,验证 Bean 绑定
+    # (对应 32 字节 0x42 重复,仅用于单元测试)
+    management:
+      master-key: ${KYLINOPS_NOTIFICATION_MASTER_KEY:QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=}
+      public-base-url: ${KYLINOPS_PUBLIC_BASE_URL:http://localhost:8080}
