@@ -118,8 +118,11 @@ class NotificationManagementBeansConfigTest {
     /**
      * 最小化配置 — 仅启用 NotificationManagementProperties + 注册 cipher Bean。
      * 避免拖入整个 Spring Boot 上下文。
+     *
+     * <p>注:使用 {@code @Configuration} 而非 {@code @SpringBootConfiguration},避免 {@code @DataJpaTest}
+     * 把它当作 boot config 而找不到 {@code @EnableAutoConfiguration} 基础包。</p>
      */
-    @org.springframework.boot.SpringBootConfiguration
+    @org.springframework.context.annotation.Configuration
     @EnableConfigurationProperties(NotificationManagementProperties.class)
     @Import(NotificationManagementBeansConfig.class)
     static class TestConfig {
