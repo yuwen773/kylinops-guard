@@ -68,7 +68,7 @@ class AuditLogNotificationDetailTest {
                 .extracting(NotificationRecordSummary::getStatus)
                 .containsExactly(NotificationStatus.FAILED, NotificationStatus.SENT);
 
-        assertThat(NotificationRecordSummary.class.getDeclaredFields()).hasSize(11);
+        assertThat(NotificationRecordSummary.class.getDeclaredFields()).hasSize(12);
         assertThat(Arrays.stream(NotificationRecordSummary.class.getDeclaredFields())
                 .map(java.lang.reflect.Field::getName))
                 .doesNotContain("requestPayload", "responseBody");

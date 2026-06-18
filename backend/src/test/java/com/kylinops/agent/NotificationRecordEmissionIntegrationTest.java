@@ -1,9 +1,14 @@
 package com.kylinops.agent;
 
 import com.kylinops.agent.AgentOrchestrator.AgentRequest;
+import com.kylinops.notification.NotificationConfig;
 import com.kylinops.notification.NotificationRecord;
 import com.kylinops.notification.NotificationRecordRepository;
 import com.kylinops.notification.NotificationStatus;
+import com.kylinops.notification.config.NotificationChannelRepository;
+import com.kylinops.notification.config.NotificationConfigurationService;
+import com.kylinops.notification.config.NotificationSettingsRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +39,32 @@ class NotificationRecordEmissionIntegrationTest {
 
     @Autowired
     private NotificationRecordRepository notificationRecordRepository;
+
+    @Autowired
+    private NotificationConfigurationService configurationService;
+
+    @Autowired
+    private NotificationConfig notificationConfig;
+
+    @Autowired
+    private NotificationSettingsRepository settingsRepository;
+
+    @Autowired
+    private NotificationChannelRepository channelRepository;
+
+    /**
+     * 每次测试前清空管理表并重新从 {@link NotificationConfig} 导入,确保 snapshot
+     * 反映当前测试类的 {@code kylinops.notification.*} 属性。
+     *
+     * <p>H2 DB_CLOSE_DELAY=-1 导致多个 {@code @SpringBootTest} 上下文间数据残留,
+     * ApplicationRunner 在后续上下文中不会再导入。</p>
+     */
+    @BeforeEach
+    void ensureRuntimeConfiguration() {
+        channelRepository.deleteAllInBatch();
+        settingsRepository.deleteAllInBatch();
+        configurationService.initialize(notificationConfig);
+    }
 
     @Test
     void l4BlockWritesNotificationRecord() {

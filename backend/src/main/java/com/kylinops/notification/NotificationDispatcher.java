@@ -1,5 +1,7 @@
 package com.kylinops.notification;
 
+import com.kylinops.notification.config.NotificationConfigurationService;
+import com.kylinops.notification.config.RuntimeNotificationConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,10 +21,20 @@ import java.util.UUID;
  * <ul>
  *   <li>由 {@link NotificationService#emit(NotificationEvent)} 异步触发(@Async 线程池)</li>
  *   <li><b>不在主线程执行任何 HTTP 请求</b></li>
- *   <li>遍历 config.channels,对每个 enabled + handler 存在的通道,分别发送、分别记录状态</li>
+ *   <li>遍历 snapshot.channels,对每个 enabled + handler 存在的通道,分别发送、分别记录状态</li>
  *   <li>dryRun=true → 遍历有效配置通道写 SKIPPED 记录,不真实发送;无有效通道时只 log debug</li>
  *   <li>AbortPolicy 拒绝 → catch RejectedExecutionException → 只 log error,不写 record</li>
  *   <li>保存 record 时 DataIntegrityViolationException → log warn,跳过该 channel(不阻碍其他)</li>
+ * </ul>
+ *
+ * <p><b>运行时配置契约 (P1-01 Plan 01 — Task 4)</b>:</p>
+ * <ul>
+ *   <li>不再持有启动期 {@link NotificationConfig};{@link #doDispatch(NotificationEvent)}
+ *       在入口捕获一次 {@link RuntimeNotificationConfig},保证同一条事件对所有通道
+ *       看到同一个版本的 snapshot</li>
+ *   <li>{@code auditId} 为 {@code null} 时记录保持 {@code null}(如 TEST 事件),
+ *       <b>不允许</b>转换为空字符串</li>
+ *   <li>{@code eventType} 必须从事件继承,便于按事件类型筛选</li>
  * </ul>
  */
 @Slf4j
@@ -33,7 +45,7 @@ public class NotificationDispatcher {
     private final NotificationChannelRegistry registry;
     private final NotificationPayloadSanitizer sanitizer;
     private final NotificationRecordRepository recordRepository;
-    private final NotificationConfig config;
+    private final NotificationConfigurationService configurationService;
     private final Clock clock;
 
     /**
@@ -52,7 +64,10 @@ public class NotificationDispatcher {
     }
 
     private void doDispatch(NotificationEvent event) {
-        List<NotificationConfig.ChannelConfig> configs = config.getChannels().stream()
+        // Task 4 关键不变量:在 doDispatch 入口捕获一次快照,
+        // 保证一条事件在所有 channel 上看到的 enabled / dryRun / channels 完全一致。
+        RuntimeNotificationConfig runtime = configurationService.snapshot();
+        List<NotificationConfig.ChannelConfig> configs = runtime.channels().stream()
                 .filter(NotificationConfig.ChannelConfig::isEnabled)
                 .filter(cc -> cc.getUrl() != null && !cc.getUrl().isBlank())
                 .toList();
@@ -82,7 +97,7 @@ public class NotificationDispatcher {
             }
 
             // dryRun — 写 SKIPPED 记录,不真实发送
-            if (config.isDryRun()) {
+            if (runtime.dryRun()) {
                 writeSkippedRecord(event, channelConfig, maskedPayload);
                 continue;
             }
@@ -117,13 +132,16 @@ public class NotificationDispatcher {
         NotificationRecord record = NotificationRecord.builder()
                 .recordId(UUID.randomUUID().toString())
                 .eventId(event.getEventId())
-                .auditId(event.getAuditId() != null ? event.getAuditId() : "")
+                // Task 4:auditId 为 null 时原样保留(TEST 类记录允许为 NULL)
+                .auditId(event.getAuditId())
                 .channelId(channelConfig.getId())
                 .channelType(channelConfig.getType())
                 .status(NotificationStatus.PENDING)
                 .requestPayload(maskedPayload)
                 .retryCount(0)
                 .createdAt(LocalDateTime.now(clock))
+                // Task 4:必须从事件继承 eventType,便于按事件类型筛选
+                .eventType(event.getEventType())
                 .build();
         try {
             return recordRepository.save(record);
@@ -139,7 +157,8 @@ public class NotificationDispatcher {
         NotificationRecord record = NotificationRecord.builder()
                 .recordId(UUID.randomUUID().toString())
                 .eventId(event.getEventId())
-                .auditId(event.getAuditId() != null ? event.getAuditId() : "")
+                // Task 4:auditId 为 null 时原样保留
+                .auditId(event.getAuditId())
                 .channelId(channelConfig.getId())
                 .channelType(channelConfig.getType())
                 .status(NotificationStatus.SKIPPED)
@@ -147,6 +166,8 @@ public class NotificationDispatcher {
                 .retryCount(0)
                 .createdAt(LocalDateTime.now(clock))
                 .sentAt(LocalDateTime.now(clock))
+                // Task 4:必须从事件继承 eventType
+                .eventType(event.getEventType())
                 .build();
         try {
             recordRepository.save(record);

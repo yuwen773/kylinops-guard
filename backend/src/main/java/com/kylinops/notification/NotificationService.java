@@ -1,5 +1,6 @@
 package com.kylinops.notification;
 
+import com.kylinops.notification.config.NotificationConfigurationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,9 +14,17 @@ import java.util.UUID;
  *
  * <p><b>职责</b>(仅同步操作,无 DB 写入、无 HTTP 请求):</p>
  * <ul>
- *   <li>判断 {@link NotificationConfig#enabled} — false 时直接 return</li>
+ *   <li>判断 {@link com.kylinops.notification.config.RuntimeNotificationConfig#enabled}
+ *       — false 时直接 return</li>
  *   <li>补 eventId / occurredAt</li>
  *   <li>调 {@link NotificationDispatcher#dispatchAsync(NotificationEvent)} — 异步发送</li>
+ * </ul>
+ *
+ * <p><b>运行时配置契约 (P1-01 Plan 01 — Task 4)</b>:</p>
+ * <ul>
+ *   <li>不再持有启动期 {@link NotificationConfig};每次 emit 时从
+ *       {@link NotificationConfigurationService#snapshot()} 读取最新已发布的快照</li>
+ *   <li>快照仅在事务 after-commit 后由 ConfigurationService 发布,杜绝回滚前状态泄漏</li>
  * </ul>
  *
  * <p><b>安全约束</b>:</p>
@@ -30,7 +39,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private final NotificationConfig config;
+    private final NotificationConfigurationService configurationService;
     private final NotificationDispatcher dispatcher;
     private final Clock clock;
 
@@ -42,8 +51,9 @@ public class NotificationService {
      */
     public void emit(NotificationEvent event) {
         try {
-            // 全局开关检查(必须在最前)
-            if (!config.isEnabled()) {
+            // 全局开关检查(必须在最前)— 从运行时快照读取,保证业务看到的开关与
+            // Management API 最近一次 updateSettings 完全一致。
+            if (!configurationService.snapshot().enabled()) {
                 log.debug("通知已禁用,跳过: eventType={}", event != null ? event.getEventType() : null);
                 return;
             }
