@@ -1,11 +1,157 @@
+/* ============================================================================
+ * KylinOps Guard — Global design tokens and theme.
+ *
+ * Token naming: --kg-* (kylinops-guard). Semantic by intent, not by literal
+ * color value. Components MUST consume these tokens instead of hard-coded
+ * colors, so the whole surface can be re-themed (or audited) in one place.
+ *
+ * Theme: dark "security ops console" baseline. Element Plus variables are
+ * overridden in :root so the same defaults work for el-tag, el-card,
+ * el-menu, etc. without flipping a runtime theme flag.
+ *
+ * Risk spectrum (semantic, not marketing):
+ *   L0  sky   - read-only / informational
+ *   L1  green - low-risk diagnostics
+ *   L2  amber - confirm-before-execute
+ *   L3  orange - restricted / strong confirm
+ *   L4  red   - absolute block
+ *   Inject purple - prompt-injection anomaly (NOT a system operation, kept
+ *                  distinct from L4 red for audit readability)
+ * ========================================================================== */
+
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  line-height: 1.5;
-  color: #1f2d3d;
-  background-color: #f5f7fa;
+  /* ---------- Surface ---------- */
+  --kg-color-bg: #0b1220;            /* deepest page background */
+  --kg-color-surface: #111c2e;       /* primary card / panel */
+  --kg-color-surface-soft: #182236;  /* elevated card / hover */
+  --kg-color-surface-mute: #1f2a3d;  /* nested / code block */
+  --kg-color-surface-code: #0a1322;  /* dark code / schema */
+
+  /* ---------- Border ---------- */
+  --kg-color-border: rgba(148, 163, 184, 0.16);
+  --kg-color-border-strong: rgba(148, 163, 184, 0.32);
+  --kg-color-border-mute: rgba(148, 163, 184, 0.08);
+
+  /* ---------- Text ---------- */
+  --kg-color-text-primary: #e2e8f0;
+  --kg-color-text-secondary: #cbd5e1;
+  --kg-color-text-mute: #94a3b8;
+  --kg-color-text-placeholder: #64748b;
+  --kg-color-text-inverse: #0b1220;
+  --kg-color-text-on-risk: #0b1220;  /* for L1/L2/L3 with light fills */
+
+  /* ---------- Brand / Primary ---------- */
+  --kg-color-primary: #3b82f6;
+  --kg-color-primary-hover: #60a5fa;
+  --kg-color-primary-soft: rgba(59, 130, 246, 0.16);
+  --kg-color-primary-strong: #2563eb;
+
+  /* ---------- Risk spectrum (L0..L4 + Inject) ---------- */
+  --kg-color-risk-l0: #38bdf8;
+  --kg-color-risk-l0-soft: rgba(56, 189, 248, 0.14);
+  --kg-color-risk-l1: #22c55e;
+  --kg-color-risk-l1-soft: rgba(34, 197, 94, 0.14);
+  --kg-color-risk-l2: #facc15;
+  --kg-color-risk-l2-soft: rgba(250, 204, 21, 0.16);
+  --kg-color-risk-l3: #fb923c;
+  --kg-color-risk-l3-soft: rgba(251, 146, 60, 0.18);
+  --kg-color-risk-l4: #ef4444;
+  --kg-color-risk-l4-soft: rgba(239, 68, 68, 0.18);
+  --kg-color-risk-inject: #a855f7;
+  --kg-color-risk-inject-soft: rgba(168, 85, 247, 0.20);
+
+  /* ---------- State ---------- */
+  --kg-color-success: #22c55e;
+  --kg-color-success-soft: rgba(34, 197, 94, 0.14);
+  --kg-color-warning: #facc15;
+  --kg-color-warning-soft: rgba(250, 204, 21, 0.14);
+  --kg-color-danger: #ef4444;
+  --kg-color-danger-soft: rgba(239, 68, 68, 0.14);
+  --kg-color-info: #38bdf8;
+  --kg-color-info-soft: rgba(56, 189, 248, 0.14);
+
+  /* ---------- Spacing scale ---------- */
+  --kg-space-1: 4px;
+  --kg-space-2: 8px;
+  --kg-space-3: 12px;
+  --kg-space-4: 16px;
+  --kg-space-5: 20px;
+  --kg-space-6: 24px;
+  --kg-space-7: 32px;
+  --kg-space-8: 48px;
+
+  /* ---------- Radius ---------- */
+  --kg-radius-sm: 4px;
+  --kg-radius-md: 8px;
+  --kg-radius-lg: 12px;
+  --kg-radius-pill: 999px;
+
+  /* ---------- Shadow (tinted to bg hue, never pure black) ---------- */
+  --kg-shadow-card: 0 8px 24px rgba(2, 6, 16, 0.32);
+  --kg-shadow-elevated: 0 12px 32px rgba(2, 6, 16, 0.42);
+  --kg-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* ---------- Type ---------- */
+  --kg-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    sans-serif;
+  --kg-font-mono: 'Cascadia Code', 'JetBrains Mono', ui-monospace,
+    SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+
+  --kg-text-xs: 12px;
+  --kg-text-sm: 13px;
+  --kg-text-base: 14px;
+  --kg-text-md: 15px;
+  --kg-text-lg: 17px;
+  --kg-text-xl: 20px;
+  --kg-text-2xl: 24px;
+
+  --kg-line-tight: 1.25;
+  --kg-line-base: 1.5;
+  --kg-line-relaxed: 1.65;
+
+  /* ---------- Motion (克制, 运维面板只保留状态反馈) ---------- */
+  --kg-transition-fast: 120ms ease-out;
+  --kg-transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --kg-transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------- Accent (数据可视化 / 命令中心氛围) ---------- */
+  --kg-color-accent: #06b6d4;
+  --kg-color-accent-hover: #22d3ee;
+  --kg-color-accent-soft: rgba(6, 182, 212, 0.12);
+  --kg-color-accent-glow: 0 0 20px rgba(6, 182, 212, 0.15);
+
+  /* ---------- Glow effects ---------- */
+  --kg-glow-primary: 0 0 16px rgba(59, 130, 246, 0.12);
+  --kg-glow-accent: 0 0 16px rgba(6, 182, 212, 0.12);
+  --kg-glow-danger: 0 0 16px rgba(239, 68, 68, 0.12);
+  --kg-glow-warning: 0 0 16px rgba(250, 204, 21, 0.10);
+
+  /* ---------- Glass morphism ---------- */
+  --kg-glass-bg: rgba(8, 14, 26, 0.82);
+  --kg-glass-border: rgba(255, 255, 255, 0.06);
+  --kg-glass-shadow: 0 8px 32px rgba(2, 6, 16, 0.48);
+  --kg-scan-line: rgba(6, 182, 212, 0.15);
+
+  /* ---------- Z-index scale ---------- */
+  --kg-z-header: 100;
+  --kg-z-dropdown: 200;
+  --kg-z-modal: 1000;
+  --kg-z-toast: 2000;
+}
+
+/* ============================================================================
+ * Base
+ * ========================================================================== */
+
+:root {
+  font-family: var(--kg-font-sans);
+  line-height: var(--kg-line-base);
+  color: var(--kg-color-text-primary);
+  background-color: var(--kg-color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: var(--kg-text-base);
 }
 
 * {
@@ -18,9 +164,924 @@ body,
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  background-color: var(--kg-color-bg);
+  color: var(--kg-color-text-primary);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+code,
+pre {
+  font-family: var(--kg-font-mono);
+}
+
+/* ============================================================================
+ * Element Plus — dark surface overrides via CSS variables.
+ * Element Plus 2.x reads these --el-* variables; overriding them in :root
+ * is the supported way to re-theme without rebuilding the component set.
+ *
+ * Scope: surface + border + text. We keep the default primary hue but
+ * desaturate slightly to fit the dark ops-console mood.
+ * ========================================================================== */
+
+:root {
+  /* Backgrounds */
+  --el-bg-color: var(--kg-color-surface);
+  --el-bg-color-page: var(--kg-color-bg);
+  --el-bg-color-overlay: var(--kg-color-surface-soft);
+
+  /* Text */
+  --el-text-color-primary: var(--kg-color-text-primary);
+  --el-text-color-regular: var(--kg-color-text-secondary);
+  --el-text-color-secondary: var(--kg-color-text-mute);
+  --el-text-color-placeholder: var(--kg-color-text-placeholder);
+  --el-text-color-disabled: var(--kg-color-text-placeholder);
+
+  /* Border */
+  --el-border-color: var(--kg-color-border);
+  --el-border-color-light: var(--kg-color-border);
+  --el-border-color-lighter: var(--kg-color-border-mute);
+  --el-border-color-extra-light: var(--kg-color-border-mute);
+  --el-border-color-dark: var(--kg-color-border-strong);
+  --el-border-color-darker: var(--kg-color-border-strong);
+  --el-border-color-hover: var(--kg-color-border-strong);
+
+  /* Fill (used for inputs, table rows, etc.) */
+  --el-fill-color: var(--kg-color-surface-mute);
+  --el-fill-color-light: var(--kg-color-surface-soft);
+  --el-fill-color-lighter: var(--kg-color-surface);
+  --el-fill-color-extra-light: var(--kg-color-surface);
+  --el-fill-color-blank: var(--kg-color-surface);
+  --el-fill-color-dark: var(--kg-color-surface-mute);
+  --el-fill-color-darker: var(--kg-color-surface-mute);
+
+  /* Mask / overlay */
+  --el-mask-color: rgba(11, 18, 32, 0.7);
+  --el-overlay-color: rgba(11, 18, 32, 0.5);
+
+  /* Disabled */
+  --el-disabled-bg-color: var(--kg-color-surface-mute);
+  --el-disabled-text-color: var(--kg-color-text-placeholder);
+  --el-disabled-border-color: var(--kg-color-border-mute);
+
+  /* Card-specific (Element Plus 2.x exposes --el-card-*) */
+  --el-card-bg-color: var(--kg-color-surface);
+  --el-card-border-color: var(--kg-color-border);
+  --el-card-padding: var(--kg-space-5);
+}
+
+/* Element Plus card body — pin the dark surface; preserve test selectors. */
+.el-card {
+  background-color: var(--kg-color-surface);
+  border-color: var(--kg-color-border);
+  color: var(--kg-color-text-primary);
+}
+
+.el-card__header {
+  border-bottom: 1px solid var(--kg-color-border);
+  padding: var(--kg-space-4) var(--kg-space-5);
+}
+
+/* Tag dark theme — desaturated to fit dark surface.
+   Test contract: el-tag--{success|warning|danger|info} class names must
+   remain on the rendered el-tag for both RiskLevelTag and StatusMetricCard. */
+.el-tag.el-tag--dark {
+  border-color: transparent;
+}
+
+.el-tag--success.el-tag--dark {
+  background-color: var(--kg-color-success-soft);
+  color: var(--kg-color-success);
+  border-color: var(--kg-color-success-soft);
+}
+
+.el-tag--warning.el-tag--dark {
+  background-color: var(--kg-color-warning-soft);
+  color: var(--kg-color-warning);
+  border-color: var(--kg-color-warning-soft);
+}
+
+.el-tag--danger.el-tag--dark {
+  background-color: var(--kg-color-danger-soft);
+  color: var(--kg-color-danger);
+  border-color: var(--kg-color-danger-soft);
+}
+
+.el-tag--info.el-tag--dark {
+  background-color: var(--kg-color-info-soft);
+  color: var(--kg-color-info);
+  border-color: var(--kg-color-info-soft);
+}
+
+.el-tag--primary.el-tag--dark {
+  background-color: var(--kg-color-primary-soft);
+  color: var(--kg-color-primary);
+  border-color: var(--kg-color-primary-soft);
+}
+
+/* Plain (un-filled) tag — used in tables for permission / status. */
+.el-tag--success.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-success);
+  border-color: var(--kg-color-success);
+}
+
+.el-tag--warning.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-warning);
+  border-color: var(--kg-color-warning);
+}
+
+.el-tag--danger.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-danger);
+  border-color: var(--kg-color-danger);
+}
+
+.el-tag--info.el-tag--plain {
+  background-color: transparent;
+  color: var(--kg-color-info);
+  border-color: var(--kg-color-info);
+}
+
+/* Menu (sidebar) — dark surface, left active accent in primary. */
+.el-menu {
+  background-color: transparent;
+  border-right: none;
+}
+
+.el-menu-item {
+  color: var(--kg-color-text-secondary);
+}
+
+.el-menu-item:hover {
+  background-color: var(--kg-color-surface-soft);
+  color: var(--kg-color-text-primary);
+}
+
+.el-menu-item.is-active {
+  color: var(--kg-color-primary-hover);
+  background-color: var(--kg-color-primary-soft);
+  border-left: 2px solid var(--kg-color-primary);
+}
+
+/* Table — dark surface, hairline borders. */
+.el-table {
+  --el-table-bg-color: var(--kg-color-surface);
+  --el-table-tr-bg-color: var(--kg-color-surface);
+  --el-table-header-bg-color: var(--kg-color-surface-soft);
+  --el-table-header-text-color: var(--kg-color-text-secondary);
+  --el-table-row-hover-bg-color: var(--kg-color-surface-soft);
+  --el-table-border-color: var(--kg-color-border);
+  --el-table-border: 1px solid var(--kg-color-border);
+  color: var(--kg-color-text-primary);
+}
+
+/* Alert — used for page-level errors. Pin to dark surface, retain severity. */
+.el-alert {
+  background-color: var(--kg-color-surface-soft);
+  border-color: var(--kg-color-border);
+  color: var(--kg-color-text-primary);
+}
+
+.el-alert--error {
+  background-color: var(--kg-color-danger-soft);
+  border-color: var(--kg-color-danger);
+  color: var(--kg-color-danger);
+}
+
+.el-alert--warning {
+  background-color: var(--kg-color-warning-soft);
+  border-color: var(--kg-color-warning);
+  color: var(--kg-color-warning);
+}
+
+.el-alert--info {
+  background-color: var(--kg-color-info-soft);
+  border-color: var(--kg-color-info);
+  color: var(--kg-color-info);
+}
+
+/* Pagination on dark surface. */
+.el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: var(--kg-color-surface-soft);
+  --el-pagination-hover-color: var(--kg-color-primary-hover);
+  color: var(--kg-color-text-secondary);
+}
+
+/* Descriptions (used in tool schema expand) */
+.el-descriptions {
+  color: var(--kg-color-text-primary);
+}
+
+.el-descriptions__label {
+  color: var(--kg-color-text-mute);
+}
+
+.el-descriptions__border {
+  border-color: var(--kg-color-border);
+}
+
+.el-descriptions__cell {
+  background-color: var(--kg-color-surface) !important;
+  border-color: var(--kg-color-border) !important;
+  color: var(--kg-color-text-primary) !important;
+}
+
+.el-descriptions__label.is-bordered-label {
+  background-color: var(--kg-color-surface-soft) !important;
+  color: var(--kg-color-text-mute) !important;
+}
+
+/* Timeline */
+.el-timeline-item__node {
+  background-color: var(--kg-color-primary);
+}
+
+.el-timeline-item__timestamp {
+  color: var(--kg-color-text-mute);
+}
+
+/* ============================================================================
+ * Utility classes — shared visual language for cards, badges, status blocks.
+ * Components should prefer these classes over duplicating styles.
+ * ========================================================================== */
+
+.kg-card {
+  background-color: var(--kg-color-surface);
+  border: 1px solid var(--kg-color-border);
+  border-radius: var(--kg-radius-md);
+  box-shadow: var(--kg-shadow-card);
+  transition: border-color var(--kg-transition-base),
+    box-shadow var(--kg-transition-base);
+}
+
+.kg-card--elevated {
+  background-color: var(--kg-color-surface-soft);
+  box-shadow: var(--kg-shadow-elevated);
+}
+
+.kg-card--flat {
+  background-color: var(--kg-color-surface);
+  border: 1px solid var(--kg-color-border-mute);
+  box-shadow: none;
+}
+
+.kg-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kg-space-3);
+  padding: var(--kg-space-4) var(--kg-space-5);
+  border-bottom: 1px solid var(--kg-color-border);
+}
+
+.kg-card__title {
+  font-size: var(--kg-text-md);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+  margin: 0;
+}
+
+.kg-card__body {
+  padding: var(--kg-space-5);
+}
+
+.kg-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-1);
+  margin-bottom: var(--kg-space-3);
+}
+
+.kg-section-header__title {
+  margin: 0;
+  font-size: var(--kg-text-lg);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
+}
+
+.kg-section-header__subtitle {
+  margin: 0;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+  line-height: var(--kg-line-base);
+}
+
+.kg-section-header__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kg-space-4);
+  flex-wrap: wrap;
+}
+
+.kg-section-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-2);
+}
+
+/* Mono / numeric content. */
+.kg-mono {
+  font-family: var(--kg-font-mono);
+  font-size: 0.85em;
+  color: var(--kg-color-text-secondary);
+  word-break: break-all;
+}
+
+.kg-metric {
+  font-size: var(--kg-text-2xl);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
+}
+
+.kg-metric__unit {
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+  margin-left: var(--kg-space-1);
+}
+
+/* Code / schema block — used by ToolCallCard, ExecutionConfirmCard, etc. */
+.kg-code-block {
+  margin: 0;
+  padding: var(--kg-space-3) var(--kg-space-4);
+  background-color: var(--kg-color-surface-code);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--kg-color-text-secondary);
+  line-height: var(--kg-line-base);
+}
+
+.kg-code-block--muted {
+  background-color: var(--kg-color-surface-mute);
+  color: var(--kg-color-text-secondary);
+}
+
+.kg-code-block--warning {
+  background-color: var(--kg-color-warning-soft);
+  border-color: var(--kg-color-warning);
+  color: var(--kg-color-warning);
+}
+
+.kg-code-block--danger {
+  background-color: var(--kg-color-danger-soft);
+  border-color: var(--kg-color-danger);
+  color: var(--kg-color-danger);
+}
+
+/* Risk-aware border accent (used by ExecutionConfirmCard and risk groups). */
+.kg-border-l-l0 { border-left: 3px solid var(--kg-color-risk-l0); }
+.kg-border-l-l1 { border-left: 3px solid var(--kg-color-risk-l1); }
+.kg-border-l-l2 { border-left: 3px solid var(--kg-color-risk-l2); }
+.kg-border-l-l3 { border-left: 3px solid var(--kg-color-risk-l3); }
+.kg-border-l-l4 { border-left: 3px solid var(--kg-color-risk-l4); }
+.kg-border-l-inject { border-left: 3px solid var(--kg-color-risk-inject); }
+.kg-border-l-info { border-left: 3px solid var(--kg-color-info); }
+.kg-border-l-warning { border-left: 3px solid var(--kg-color-warning); }
+.kg-border-l-danger { border-left: 3px solid var(--kg-color-danger); }
+
+/* ============================================================================
+ * UI-01.1 additions — hero, scenario cards, matrix L4 emphasis, chip filter.
+ * ========================================================================== */
+
+/* Dashboard hero */
+.kg-hero-area {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kg-space-6);
+  padding: var(--kg-space-6) var(--kg-space-6);
+  background: linear-gradient(135deg, var(--kg-color-surface), var(--kg-color-surface-soft));
+  border: 1px solid var(--kg-color-border);
+  border-radius: var(--kg-radius-md);
+  margin-bottom: var(--kg-space-4);
+}
+
+.kg-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-2);
+  max-width: 560px;
+}
+
+.kg-hero-title {
+  margin: 0;
+  font-size: var(--kg-text-xl);
+  font-weight: 700;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
+  letter-spacing: 0.02em;
+}
+
+.kg-hero-subtitle {
+  margin: 0;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+  line-height: var(--kg-line-base);
+}
+
+.kg-hero-statuses {
+  display: flex;
+  gap: var(--kg-space-4);
+  flex-shrink: 0;
+}
+
+.kg-hero-status-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.kg-hero-status-label {
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+  white-space: nowrap;
+}
+
+.kg-hero-status-value {
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-md);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+  white-space: nowrap;
+}
+
+/* Scenario cards (ChatConsole) */
+.kg-scenario-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--kg-space-3);
+  margin-top: var(--kg-space-4);
+}
+
+.kg-scenario-grid .kg-scenario-card:nth-child(5) {
+  grid-column: 1 / -1;
+}
+
+.kg-scenario-card {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-3);
+  padding: var(--kg-space-4) var(--kg-space-4);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-md);
+  cursor: pointer;
+  transition: background var(--kg-transition-fast), border-color var(--kg-transition-fast);
+}
+
+.kg-scenario-card:hover {
+  background: var(--kg-color-surface-mute);
+  border-color: var(--kg-color-border);
+}
+
+.kg-scenario-card:active {
+  transform: translateY(1px);
+}
+
+.kg-scenario-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--kg-radius-sm);
+  background: var(--kg-color-primary-soft);
+  color: var(--kg-color-primary-hover);
+  font-size: 18px;
+}
+
+.kg-scenario-card__label {
+  font-size: var(--kg-text-md);
+  font-weight: 600;
+  color: var(--kg-color-text-primary);
+}
+
+.kg-scenario-card__desc {
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+  margin-top: 1px;
+}
+
+/* Strategy matrix L4 emphasis */
+.kg-matrix-level-l4 {
+  border-color: var(--kg-color-danger) !important;
+  background: var(--kg-color-danger-soft) !important;
+}
+
+.kg-matrix-level-l4 .kg-card__title {
+  color: var(--kg-color-danger) !important;
+}
+
+/* Inject independent card */
+.kg-inject-card {
+  border-color: var(--kg-color-risk-inject) !important;
+  background: var(--kg-color-risk-inject-soft) !important;
+}
+
+/* Safety summary tiles (SecurityCenter) */
+.kg-safety-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--kg-space-3);
+  margin-bottom: var(--kg-space-4);
+}
+
+.kg-safety-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-1);
+  padding: var(--kg-space-4) var(--kg-space-4);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-md);
+}
+
+.kg-safety-tile__label {
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+}
+
+.kg-safety-tile__value {
+  font-size: var(--kg-text-md);
+  font-weight: 700;
+  color: var(--kg-color-text-primary);
+  font-family: var(--kg-font-mono);
+}
+
+/* Tool center — category filter chips */
+.kg-category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kg-space-2);
+  margin-bottom: var(--kg-space-3);
+}
+
+.kg-category-chip {
+  padding: 4px var(--kg-space-3);
+  font-size: var(--kg-text-sm);
+  border-radius: var(--kg-radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--kg-color-text-secondary);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  transition: background var(--kg-transition-fast), border-color var(--kg-transition-fast), color var(--kg-transition-fast);
+}
+
+.kg-category-chip:hover {
+  background: var(--kg-color-surface-mute);
+  border-color: var(--kg-color-border);
+  color: var(--kg-color-text-primary);
+}
+
+.kg-category-chip--active {
+  background: var(--kg-color-primary-soft) !important;
+  border-color: var(--kg-color-primary) !important;
+  color: var(--kg-color-primary-hover) !important;
+}
+
+/* Tool center — 4-overview stats */
+.kg-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--kg-space-3);
+  margin-bottom: var(--kg-space-3);
+}
+
+@media (max-width: 900px) {
+  .kg-overview-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+.kg-overview-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-1);
+  padding: var(--kg-space-3) var(--kg-space-4);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
+}
+
+.kg-overview-stat__label {
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+}
+
+.kg-overview-stat__value {
+  font-size: var(--kg-text-xl);
+  font-weight: 700;
+  color: var(--kg-color-text-primary);
+  font-family: var(--kg-font-mono);
+}
+
+/* Event card (SecurityCenter) */
+.kg-event-card {
+  padding: var(--kg-space-3) var(--kg-space-4);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
+  cursor: pointer;
+  transition: background var(--kg-transition-fast);
+}
+
+.kg-event-card:hover {
+  background: var(--kg-color-surface-mute);
+}
+
+.kg-event-card__row {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-3);
+  flex-wrap: wrap;
+}
+
+.kg-event-card__id {
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-primary);
+  font-weight: 600;
+}
+
+.kg-event-card__meta {
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+  font-family: var(--kg-font-mono);
+}
+
+.kg-event-card__reason {
+  margin-top: var(--kg-space-1);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
+}
+
+/* ============================================================================
+ * Animations — Command Center motion language.
+ * Restrained but deliberate: page transitions, data updates, pulse emphasis.
+ * ========================================================================== */
+
+@keyframes kg-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes kg-slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kg-slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kg-scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes kg-pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(59, 130, 246, 0); }
+  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.2); }
+}
+
+@keyframes kg-pulseDanger {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0); }
+  50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.25); }
+}
+
+@keyframes kg-dataFlash {
+  0% { background-color: rgba(6, 182, 212, 0); }
+  40% { background-color: rgba(6, 182, 212, 0.10); }
+  100% { background-color: rgba(6, 182, 212, 0); }
+}
+
+@keyframes kg-scanLine {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes kg-ripple {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
+  100% { box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
+}
+
+/* Page enter transition */
+.kg-page-enter {
+  animation: kg-fadeIn 0.35s ease-out, kg-slideUp 0.4s ease-out;
+}
+
+/* Staggered reveal (used in Dashboard metric grid) */
+.kg-stagger-1 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.03s; }
+.kg-stagger-2 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.06s; }
+.kg-stagger-3 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.09s; }
+.kg-stagger-4 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.12s; }
+.kg-stagger-5 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.15s; }
+.kg-stagger-6 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.18s; }
+.kg-stagger-7 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.21s; }
+.kg-stagger-8 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.24s; }
+.kg-stagger-9 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.27s; }
+.kg-stagger-10 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.30s; }
+
+/* ============================================================================
+ * Background patterns — Command Center grid / atmosphere.
+ * ========================================================================== */
+
+.kg-bg-grid {
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.kg-bg-grid--subtle {
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.02) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Glass morphism card */
+.kg-glass {
+  background: var(--kg-glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--kg-glass-border);
+  box-shadow: var(--kg-glass-shadow);
+}
+
+/* Scan line overlay (used sparingly for drama) */
+.kg-scan-overlay {
+  position: relative;
+  overflow: hidden;
+}
+
+.kg-scan-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--kg-scan-line, rgba(6, 182, 212, 0.15)), transparent);
+  animation: kg-scanLine 4s linear infinite;
+  animation-play-state: paused; /* default: do not run; opt-in via --active modifier */
+  pointer-events: none;
+}
+
+.kg-scan-overlay--active::after {
+  animation-play-state: running;
+}
+
+/* Progress bar (inline, used in StatusMetricCard) */
+.kg-progress-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--kg-color-surface-mute);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.kg-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--kg-transition-base), background-color var(--kg-transition-base);
+}
+
+.kg-progress-fill--ok {
+  background: var(--kg-color-risk-l1);
+}
+
+.kg-progress-fill--warning {
+  background: var(--kg-color-risk-l2);
+}
+
+.kg-progress-fill--critical {
+  background: var(--kg-color-risk-l4);
+}
+
+/* Glow ring (used by Dashboard health gauge) */
+.kg-glow-ring {
+  filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.25));
+}
+
+/* Pulse border for risk emphasis */
+.kg-pulse-l4 {
+  animation: kg-pulseDanger 2s ease-in-out infinite;
+}
+
+/* Data flash — brief highlight on data change */
+.kg-data-flash {
+  animation: kg-dataFlash 0.8s ease-out;
+}
+
+/* ============================================================================
+ * Reduced motion — gate any non-essential animation.
+ * ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+ * Light theme (G1) - green-tinted bg + blue primary.
+ * Activated by <html data-theme="light">, set by useTheme composable.
+ * All values override :root defaults. Element Plus --el-* vars inherit
+ * automatically via the :root --el-* -> --kg-* mapping above.
+ * ========================================================================== */
+
+:root[data-theme="light"] {
+  /* Surface */
+  --kg-color-bg: #f0fdf4;
+  --kg-color-surface: #ffffff;
+  --kg-color-surface-soft: #f7fef9;
+  --kg-color-surface-mute: #ecfdf5;
+  --kg-color-surface-code: #f7fef9;
+
+  /* Border */
+  --kg-color-border: rgba(21, 128, 61, 0.18);
+  --kg-color-border-strong: rgba(21, 128, 61, 0.32);
+  --kg-color-border-mute: rgba(21, 128, 61, 0.10);
+
+  /* Text */
+  --kg-color-text-primary: #14532d;
+  --kg-color-text-secondary: #166534;
+  --kg-color-text-mute: #4d7c5b;
+  --kg-color-text-placeholder: #6b7280;
+  --kg-color-text-inverse: #ffffff;
+  --kg-color-text-on-risk: #ffffff;
+
+  /* Brand / Primary (deepened for AA on light bg) */
+  --kg-color-primary: #2563eb;
+  --kg-color-primary-hover: #1d4ed8;
+  --kg-color-primary-soft: rgba(37, 99, 235, 0.12);
+  --kg-color-primary-strong: #1e40af;
+
+  /* Accent (decorative glow: cyan -> green) */
+  --kg-color-accent: #15803d;
+  --kg-color-accent-hover: #166534;
+  --kg-color-accent-soft: rgba(21, 128, 61, 0.10);
+  --kg-color-accent-glow: 0 0 16px rgba(21, 128, 61, 0.10);
+
+  /* Risk spectrum (all deepened to pass WCAG AA on #f0fdf4) */
+  --kg-color-risk-l0: #0369a1;
+  --kg-color-risk-l0-soft: rgba(3, 105, 161, 0.12);
+  --kg-color-risk-l1: #15803d;
+  --kg-color-risk-l1-soft: rgba(21, 128, 61, 0.12);
+  --kg-color-risk-l2: #b45309;
+  --kg-color-risk-l2-soft: rgba(180, 83, 9, 0.12);
+  --kg-color-risk-l3: #c2410c;
+  --kg-color-risk-l3-soft: rgba(194, 65, 12, 0.14);
+  --kg-color-risk-l4: #b91c1c;
+  --kg-color-risk-l4-soft: rgba(185, 28, 28, 0.14);
+  --kg-color-risk-inject: #7e22ce;
+  --kg-color-risk-inject-soft: rgba(126, 34, 206, 0.14);
+
+  /* State */
+  --kg-color-success: #15803d;
+  --kg-color-success-soft: rgba(21, 128, 61, 0.12);
+  --kg-color-warning: #b45309;
+  --kg-color-warning-soft: rgba(180, 83, 9, 0.12);
+  --kg-color-danger: #b91c1c;
+  --kg-color-danger-soft: rgba(185, 28, 28, 0.12);
+  --kg-color-info: #0369a1;
+  --kg-color-info-soft: rgba(3, 105, 161, 0.12);
+
+  /* Glow (muted) */
+  --kg-glow-primary: 0 0 16px rgba(37, 99, 235, 0.10);
+  --kg-glow-accent: 0 0 16px rgba(21, 128, 61, 0.08);
+  --kg-glow-danger: 0 0 16px rgba(185, 28, 28, 0.10);
+  --kg-glow-warning: 0 0 16px rgba(180, 83, 9, 0.08);
+
+  /* Glass (white-frosted, no backdrop-filter needed in light) */
+  --kg-glass-bg: rgba(255, 255, 255, 0.85);
+  --kg-glass-border: rgba(255, 255, 255, 0.6);
+  --kg-glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+
+  /* Scan line (cyan in dark, green in light) */
+  --kg-scan-line: rgba(21, 128, 61, 0.20);
+
+  /* Shadow (light) */
+  --kg-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --kg-shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --kg-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }

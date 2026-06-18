@@ -31,6 +31,10 @@ import { computed, onMounted, ref } from 'vue';
 import { getDashboardOverview } from '@/api/dashboard';
 import { ApiError } from '@/api/client';
 import StatusMetricCard, { type StatusMetricStatus } from '@/components/StatusMetricCard/index.vue';
+import AppSectionHeader from '@/components/common/AppSectionHeader.vue';
+import AppLoadingState from '@/components/common/AppLoadingState.vue';
+import AppErrorState from '@/components/common/AppErrorState.vue';
+import AppStateBanner from '@/components/common/AppStateBanner.vue';
 import type { DashboardMetric, DashboardOverview } from '@/types/dashboard';
 
 // ---------------------------------------------------------------------------
@@ -93,6 +97,30 @@ const scoreText = computed<string>(() => {
   return String(s);
 });
 
+const scoreAsNumber = computed<number | null>(() => {
+  const s = overview.value?.score;
+  if (s === null || s === undefined) return null;
+  return s;
+});
+
+const healthLabel = computed<string>(() => {
+  const s = overview.value?.score;
+  const d = overview.value?.degraded;
+  if (s === null || s === undefined) return '—';
+  if (s >= 85 && !d) return 'Healthy';
+  if (s >= 60) return 'Warning';
+  return 'Critical';
+});
+
+const healthToneColor = computed<string>(() => {
+  switch (healthLabel.value) {
+    case 'Healthy': return 'var(--kg-color-success)';
+    case 'Warning': return 'var(--kg-color-warning)';
+    case 'Critical': return 'var(--kg-color-danger)';
+    default: return 'var(--kg-color-text-mute)';
+  }
+});
+
 const scoreTone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
   const s = overview.value?.score;
   if (s === null || s === undefined) return 'info';
@@ -130,6 +158,35 @@ const degradedVisible = computed<boolean>(
 );
 
 const refreshButtonText = computed<string>(() => (inFlight.value ? '采集中…' : '刷新'));
+
+// ---------------------------------------------------------------------------
+// SVG gauge calculations
+// ---------------------------------------------------------------------------
+
+const GAUGE_CIRCUMFERENCE = 314.16; // 2 * π * 50
+
+const gaugeOffset = computed(() => {
+  if (scoreAsNumber.value === null) return GAUGE_CIRCUMFERENCE;
+  return GAUGE_CIRCUMFERENCE - (scoreAsNumber.value / 100) * GAUGE_CIRCUMFERENCE;
+});
+
+const gaugeColor = computed(() => {
+  switch (scoreTone.value) {
+    case 'success': return 'var(--kg-color-success)';
+    case 'warning': return 'var(--kg-color-warning)';
+    case 'danger': return 'var(--kg-color-danger)';
+    default: return 'var(--kg-color-text-mute)';
+  }
+});
+
+const gaugeLabel = computed(() => {
+  switch (scoreTone.value) {
+    case 'success': return '良好';
+    case 'warning': return '注意';
+    case 'danger': return '异常';
+    default: return '数据不可用';
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Per-metric display — title, unit, value, threshold hint, tone.
@@ -398,64 +455,113 @@ const metricViews = computed<MetricView[]>(() => {
   const list = overview.value?.metrics ?? [];
   return list.map(buildMetricView);
 });
+
+/** Returns a staggered animation class for the grid index. */
+const staggerClass = (index: number): string => {
+  const i = Math.min(index + 1, 10);
+  return `kg-stagger-${i}`;
+};
 </script>
 
 <template>
-  <div class="dashboard-page" data-testid="dashboard-page">
-    <header class="dashboard-header">
-      <div>
-        <h2 class="dashboard-title">系统总览</h2>
-        <p class="dashboard-subtitle">
-          基于只读 OpsTool 实时采集，任意单条工具失败不影响整体刷新
-        </p>
-      </div>
-      <el-button
-        type="primary"
-        :loading="inFlight"
-        :disabled="inFlight"
-        class="dashboard-refresh-button"
-        data-testid="dashboard-refresh-button"
-        @click="onRefreshClick"
-      >
-        {{ refreshButtonText }}
-      </el-button>
-    </header>
+  <div class="dashboard-page kg-page-enter" data-testid="dashboard-page">
+    <AppSectionHeader
+      level="page"
+      title="系统总览"
+      subtitle="基于只读 OpsTool 实时采集，任意单条工具失败不影响整体刷新"
+    >
+      <template #actions>
+        <el-button
+          type="primary"
+          :loading="inFlight"
+          :disabled="inFlight"
+          class="dashboard-refresh-button"
+          data-testid="dashboard-refresh-button"
+          @click="onRefreshClick"
+        >
+          {{ refreshButtonText }}
+        </el-button>
+      </template>
+    </AppSectionHeader>
 
-    <p
+    <div
       v-if="!hasLoaded && !initialError"
-      class="dashboard-loading"
       data-testid="dashboard-loading"
     >
-      正在采集系统概览…
-    </p>
+      <AppLoadingState
+        title="正在采集系统概览…"
+        description="并行调用 10 个只读工具，单条失败不影响整体"
+      />
+    </div>
 
-    <el-alert
+    <div
       v-if="initialError"
-      class="dashboard-error"
-      type="error"
-      :closable="false"
-      show-icon
       data-testid="dashboard-initial-error"
-      :title="`概览加载失败：${initialError}`"
-    />
+    >
+      <AppErrorState
+        variant="transient"
+        :title="`概览加载失败：${initialError}`"
+        description="请检查后端服务状态后点击刷新重试。"
+      >
+        <template #action>
+          <el-button
+            size="small"
+            type="primary"
+            :disabled="inFlight"
+            @click="onRefreshClick"
+          >
+            立即重试
+          </el-button>
+        </template>
+      </AppErrorState>
+    </div>
 
-    <el-alert
+    <div
       v-if="staleError"
-      class="dashboard-stale-banner"
-      type="warning"
-      :closable="false"
-      show-icon
       data-testid="dashboard-stale-banner"
-      :title="`刷新失败：${staleError}。当前展示的是上一次成功采集的数据。`"
-    />
+    >
+      <AppStateBanner
+        tone="warning"
+        :title="`刷新失败：${staleError}`"
+        description="当前展示的是上一次成功采集的数据。"
+      />
+    </div>
 
     <template v-if="overview">
+      <!-- Hero area -->
+      <section class="kg-hero-area kg-scan-overlay" data-testid="dashboard-hero">
+        <div class="kg-hero-text">
+          <p class="kg-hero-title">麒麟安全智能运维态势台</p>
+          <p class="kg-hero-subtitle">实时汇聚系统健康、风险拦截、工具调用与审计追踪，帮助运维人员快速定位异常并安全处置。</p>
+        </div>
+        <div class="kg-hero-statuses">
+          <div class="kg-hero-status-item">
+            <span class="kg-hero-status-label">当前状态</span>
+            <span
+              class="kg-hero-status-value"
+              :style="{ color: healthToneColor }"
+              data-testid="dashboard-hero-status"
+            >{{ healthLabel }}</span>
+          </div>
+          <div class="kg-hero-status-item">
+            <span class="kg-hero-status-label">今日风险事件</span>
+            <span class="kg-hero-status-value" data-testid="dashboard-hero-risk-events">待接入</span>
+          </div>
+          <div class="kg-hero-status-item">
+            <span class="kg-hero-status-label">最近审计 ID</span>
+            <span class="kg-hero-status-value" data-testid="dashboard-hero-audit-id">{{ auditIdText }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary cards -->
       <section
         class="dashboard-summary"
         data-testid="dashboard-summary"
       >
+        <!-- Health score card with SVG gauge -->
         <el-card
-          class="dashboard-summary-card"
+          class="dashboard-summary-card health-score-card"
           shadow="never"
           data-testid="dashboard-score-card"
         >
@@ -467,21 +573,49 @@ const metricViews = computed<MetricView[]>(() => {
                 size="small"
                 data-testid="dashboard-score-tone"
               >
-                {{
-                  scoreTone === 'success'
-                    ? '良好'
-                    : scoreTone === 'warning'
-                      ? '注意'
-                      : scoreTone === 'danger'
-                        ? '异常'
-                        : '数据不可用'
-                }}
+                {{ gaugeLabel }}
               </el-tag>
             </div>
           </template>
-          <div class="summary-score-row">
-            <span class="summary-score-number">{{ scoreText }}</span>
-            <span class="summary-score-unit">/ 100</span>
+          <div class="summary-score-gauge">
+            <svg
+              viewBox="0 0 120 120"
+              class="health-svg-gauge"
+              :class="{ 'kg-glow-ring': scoreAsNumber !== null }"
+            >
+              <!-- Background ring -->
+              <circle
+                cx="60" cy="60" r="50"
+                fill="none"
+                stroke="var(--kg-color-surface-mute)"
+                stroke-width="6"
+              />
+              <!-- Foreground ring -->
+              <circle
+                cx="60" cy="60" r="50"
+                fill="none"
+                :stroke="gaugeColor"
+                stroke-width="6"
+                stroke-linecap="round"
+                :stroke-dasharray="GAUGE_CIRCUMFERENCE"
+                :stroke-dashoffset="gaugeOffset"
+                transform="rotate(-90, 60, 60)"
+                class="health-gauge-fill"
+              />
+              <!-- Center text -->
+              <text
+                x="60" y="52"
+                text-anchor="middle"
+                class="health-gauge-value"
+                fill="var(--kg-color-text-primary)"
+              >{{ scoreText }}</text>
+              <text
+                x="60" y="72"
+                text-anchor="middle"
+                class="health-gauge-label"
+                fill="var(--kg-color-text-mute)"
+              >/ 100</text>
+            </svg>
           </div>
           <p class="summary-help">得分仅基于成功指标计算</p>
         </el-card>
@@ -520,6 +654,16 @@ const metricViews = computed<MetricView[]>(() => {
               ({{ coveragePercent }}%)
             </span>
           </div>
+          <div
+            v-if="coveragePercent !== null"
+            class="summary-coverage-bar"
+          >
+            <div
+              class="summary-coverage-fill"
+              :style="{ width: `${coveragePercent}%` }"
+              :class="coveragePercent >= 80 ? 'coverage-ok' : coveragePercent >= 50 ? 'coverage-warn' : 'coverage-danger'"
+            />
+          </div>
           <p class="summary-help">
             成功 {{ overview.successfulMetricCount }} / 共
             {{ overview.totalMetricCount }} 项
@@ -552,21 +696,22 @@ const metricViews = computed<MetricView[]>(() => {
         </el-card>
       </section>
 
+      <!-- Metric grid -->
       <section
         class="dashboard-metrics"
         data-testid="dashboard-metrics"
       >
-        <header class="section-header">
-          <h3 class="section-title">核心指标</h3>
-          <p class="section-subtitle">
-            每张卡片对应一次只读工具调用，失败项独立显示数据不可用
-          </p>
-        </header>
+        <AppSectionHeader
+          level="section"
+          title="核心指标"
+          subtitle="每张卡片对应一次只读工具调用，失败项独立显示数据不可用"
+        />
         <div class="dashboard-metrics-grid">
           <div
-            v-for="view in metricViews"
+            v-for="(view, index) in metricViews"
             :key="view.key"
             class="dashboard-metric-cell"
+            :class="staggerClass(index)"
             :data-testid="`dashboard-metric-cell-${view.toolName}`"
           >
             <StatusMetricCard
@@ -594,50 +739,16 @@ const metricViews = computed<MetricView[]>(() => {
 .dashboard-page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--kg-space-4);
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
 }
 
-.dashboard-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.dashboard-title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2d3d;
-}
-
-.dashboard-subtitle {
-  margin: 0.25rem 0 0 0;
-  font-size: 0.8rem;
-  color: #909399;
-}
-
-.dashboard-loading {
-  margin: 0.5rem 0;
-  padding: 1.25rem;
-  text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
-}
-
-.dashboard-error,
-.dashboard-stale-banner {
-  margin: 0.5rem 0;
-}
-
 .dashboard-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
+  gap: var(--kg-space-3);
 }
 
 .dashboard-summary-card {
@@ -648,93 +759,131 @@ const metricViews = computed<MetricView[]>(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--kg-space-2);
 }
 
 .summary-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .summary-audit-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.75rem;
-  color: #909399;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
   word-break: break-all;
 }
 
+/* Health score gauge */
+.summary-score-gauge {
+  display: flex;
+  justify-content: center;
+  padding: var(--kg-space-2) 0;
+}
+
+.health-svg-gauge {
+  width: 120px;
+  height: 120px;
+}
+
+.health-gauge-fill {
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.health-gauge-value {
+  font-family: var(--kg-font-mono);
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.health-gauge-label {
+  font-family: var(--kg-font-mono);
+  font-size: 12px;
+}
+
+/* Coverage card */
 .summary-score-row {
   display: flex;
   align-items: baseline;
-  gap: 0.25rem;
+  gap: var(--kg-space-1);
 }
 
 .summary-score-number {
-  font-size: 1.75rem;
+  font-size: var(--kg-text-2xl);
   font-weight: 600;
-  color: #1f2d3d;
-  line-height: 1.2;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
+  font-family: var(--kg-font-mono);
 }
 
 .summary-score-unit {
-  font-size: 0.85rem;
-  color: #909399;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+}
+
+.summary-coverage-bar {
+  margin-top: var(--kg-space-3);
+  width: 100%;
+  height: 4px;
+  background: var(--kg-color-surface-mute);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.summary-coverage-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--kg-transition-base);
+}
+
+.coverage-ok {
+  background: var(--kg-color-risk-l1);
+}
+
+.coverage-warn {
+  background: var(--kg-color-risk-l2);
+}
+
+.coverage-danger {
+  background: var(--kg-color-risk-l4);
 }
 
 .summary-collected {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.95rem;
-  color: #1f2d3d;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-md);
+  color: var(--kg-color-text-primary);
   word-break: break-all;
 }
 
 .summary-help {
-  margin: 0.5rem 0 0 0;
-  font-size: 0.75rem;
-  color: #909399;
+  margin: var(--kg-space-2) 0 0 0;
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
 }
 
+/* Metric grid */
 .dashboard-metrics {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-
-.section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1f2d3d;
-}
-
-.section-subtitle {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #909399;
+  gap: var(--kg-space-3);
 }
 
 .dashboard-metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
+  gap: var(--kg-space-3);
 }
 
 .dashboard-metric-cell {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--kg-space-1);
 }
 
 .dashboard-metric-reason {
   margin: 0;
-  padding: 0 0.25rem;
-  font-size: 0.75rem;
-  color: #909399;
+  padding: 0 var(--kg-space-1);
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
 }
 </style>

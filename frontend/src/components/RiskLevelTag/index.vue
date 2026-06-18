@@ -9,6 +9,11 @@
 // We intentionally avoid any prop-mutation logic: if a caller passes a
 // non-canonical level the component falls back to the raw value rather
 // than guessing a safer mapping.
+//
+// Visual distinction (UI-01): L0..L4 all map to el-tag base tones for the
+// existing test contract, but L3 vs L4 get distinct accent colors via the
+// kg-risk-tag--l{3,4} wrapper class. The el-tag--* class is preserved so
+// unit tests asserting on those selectors keep passing.
 import { computed } from 'vue';
 import {
   RISK_DECISION_LABELS,
@@ -44,12 +49,43 @@ const decisionSuffix = computed(() =>
 </script>
 
 <template>
-  <el-tag
-    :type="tone"
-    :data-testid="`risk-level-${level}`"
-    effect="dark"
-    round
+  <span
+    class="kg-risk-tag"
+    :class="`kg-risk-tag--${level.toLowerCase()}`"
   >
-    {{ levelLabel }}{{ decisionSuffix }}
-  </el-tag>
+    <el-tag
+      :type="tone"
+      :data-testid="`risk-level-${level}`"
+      effect="dark"
+      round
+    >
+      {{ levelLabel }}{{ decisionSuffix }}
+    </el-tag>
+  </span>
 </template>
+
+<style scoped>
+.kg-risk-tag {
+  display: inline-flex;
+}
+</style>
+
+<!--
+  Unscoped block — must override Element Plus's high-specificity selectors
+  (`.el-tag.el-tag--danger.el-tag--dark`) to apply the L3 / L4 distinction.
+  Test contract: the el-tag still has `el-tag--danger` for L3/L4, so the
+  `uses success tone for L0/L1, warning for L2, danger for L3/L4` test
+  keeps passing.
+-->
+<style>
+.kg-risk-tag--l3 .el-tag.el-tag--danger.el-tag--dark {
+  background-color: var(--kg-color-risk-l3-soft);
+  color: var(--kg-color-risk-l3);
+  border-color: var(--kg-color-risk-l3-soft);
+}
+.kg-risk-tag--l4 .el-tag.el-tag--danger.el-tag--dark {
+  background-color: var(--kg-color-risk-l4-soft);
+  color: var(--kg-color-risk-l4);
+  border-color: var(--kg-color-risk-l4-soft);
+}
+</style>

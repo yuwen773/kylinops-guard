@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Admin login page.
+ * Admin login page — Command Center edition.
  *
  * UX rules locked by P2-T5:
  *   - Username + password fields, single "登录" button. No "记住我", no
@@ -45,9 +45,6 @@ async function handleSubmit(): Promise<void> {
   if (isSubmitting.value) return;
   errorMessage.value = '';
 
-  // Manually validate via the element-plus form ref. We do not gate on
-  // the validation promise resolving — required fields are also enforced
-  // by the input bindings.
   if (formRef.value) {
     const valid = await formRef.value.validate().catch(() => false);
     if (!valid) return;
@@ -64,13 +61,10 @@ async function handleSubmit(): Promise<void> {
   };
   try {
     await loginApi(payload);
-    // Drop password from reactive state ASAP.
     form.password = '';
     await router.replace('/');
   } catch (err) {
     if (err instanceof ApiError) {
-      // 401 → generic. 423 / 429 → use backend's message because the
-      // operator must learn that the account is locked or rate-limited.
       if (err.httpStatus === 401 || err.code === 401) {
         errorMessage.value = '用户名或密码错误';
       } else if (err.httpStatus === 423 || err.code === 423) {
@@ -83,7 +77,6 @@ async function handleSubmit(): Promise<void> {
     } else {
       errorMessage.value = '登录失败，请稍后再试';
     }
-    // Always wipe password on failure too.
     form.password = '';
   } finally {
     isSubmitting.value = false;
@@ -92,64 +85,86 @@ async function handleSubmit(): Promise<void> {
 </script>
 
 <template>
-  <div class="login-page">
-    <el-card class="login-card" shadow="always" data-testid="login-card">
-      <header class="login-title">
-        <h1>麒麟安全智能运维 Agent</h1>
-        <p class="login-subtitle">管理员登录</p>
-      </header>
+  <div class="login-page kg-bg-grid">
+    <!-- Ambient glow orbs -->
+    <div class="login-ambient login-ambient--1" aria-hidden="true" />
+    <div class="login-ambient login-ambient--2" aria-hidden="true" />
 
-      <el-alert
-        v-if="errorMessage"
-        :title="errorMessage"
-        type="error"
-        :closable="false"
-        show-icon
-        class="login-error"
-        data-testid="login-error"
-      />
+    <div class="login-container">
+      <!-- Brand header -->
+      <div class="login-brand">
+        <span class="login-brand-mark">KG</span>
+        <div class="login-brand-text">
+          <span class="login-brand-title">麒麟安全智能运维 Agent</span>
+          <span class="login-brand-sub">KylinOps Guard</span>
+        </div>
+      </div>
 
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-position="top"
-        @submit.prevent="handleSubmit"
-      >
-        <el-form-item label="用户名" prop="username">
-          <el-input
-            v-model="form.username"
-            placeholder="请输入用户名"
-            autocomplete="username"
-            data-testid="login-username"
-          />
-        </el-form-item>
+      <el-card class="login-card kg-glass" shadow="never" data-testid="login-card">
+        <header class="login-title">
+          <h1>安全准入</h1>
+          <p class="login-subtitle">管理员身份验证</p>
+        </header>
 
-        <el-form-item label="密码" prop="password">
-          <el-input
-            v-model="form.password"
-            type="password"
-            placeholder="请输入密码"
-            autocomplete="current-password"
-            show-password
-            data-testid="login-password"
-            @keyup.enter="handleSubmit"
-          />
-        </el-form-item>
+        <el-alert
+          v-if="errorMessage"
+          :title="errorMessage"
+          type="error"
+          :closable="false"
+          show-icon
+          class="login-error"
+          data-testid="login-error"
+        />
 
-        <el-form-item>
-          <el-button
-            type="primary"
-            class="login-submit"
-            :loading="isSubmitting"
-            data-testid="login-submit"
-            @click="handleSubmit"
-          >
-            登录
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        <el-form
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          label-position="top"
+          @submit.prevent="handleSubmit"
+        >
+          <el-form-item label="用户名" prop="username">
+            <el-input
+              v-model="form.username"
+              placeholder="请输入用户名"
+              autocomplete="username"
+              data-testid="login-username"
+            />
+          </el-form-item>
+
+          <el-form-item label="密码" prop="password">
+            <el-input
+              v-model="form.password"
+              type="password"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+              show-password
+              data-testid="login-password"
+              @keyup.enter="handleSubmit"
+            />
+          </el-form-item>
+
+          <el-form-item>
+            <el-button
+              type="primary"
+              class="login-submit"
+              :loading="isSubmitting"
+              data-testid="login-submit"
+              @click="handleSubmit"
+            >
+              登录
+            </el-button>
+          </el-form-item>
+        </el-form>
+
+        <!-- Security footer -->
+        <div class="login-footer">
+          <span class="login-footer-line" />
+          <span class="login-footer-text">安全运维 · 审计留痕 · 风险阻断</span>
+          <span class="login-footer-line" />
+        </div>
+      </el-card>
+    </div>
   </div>
 </template>
 
@@ -159,37 +174,180 @@ async function handleSubmit(): Promise<void> {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1f2d3d 0%, #2d4263 100%);
+  background-color: var(--kg-color-bg);
+  position: relative;
+  overflow: hidden;
 }
 
+/* Ambient glow orbs */
+.login-ambient {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+.login-ambient--1 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.2), transparent);
+  top: -100px;
+  right: -100px;
+  animation: kg-pulseGlow 6s ease-in-out infinite;
+}
+
+.login-ambient--2 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.15), transparent);
+  bottom: -80px;
+  left: -80px;
+  animation: kg-pulseGlow 8s ease-in-out infinite reverse;
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--kg-space-6);
+  z-index: 1;
+}
+
+/* Brand header */
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-3);
+}
+
+.login-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--kg-radius-md);
+  background: linear-gradient(135deg, var(--kg-color-primary), var(--kg-color-accent));
+  color: white;
+  font-family: var(--kg-font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 24px rgba(59, 130, 246, 0.25);
+}
+
+.login-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.login-brand-title {
+  font-size: var(--kg-text-xl);
+  font-weight: 700;
+  color: var(--kg-color-text-primary);
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+.login-brand-sub {
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+  font-family: var(--kg-font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* Login card */
 .login-card {
-  width: 360px;
-  padding: 0.5rem 0.25rem;
+  width: 380px;
+  padding: var(--kg-space-2);
 }
 
 .login-title {
   text-align: center;
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--kg-space-5);
 }
 
 .login-title h1 {
-  font-size: 1.1rem;
+  font-size: var(--kg-text-lg);
   margin: 0;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
+  font-weight: 600;
 }
 
 .login-subtitle {
-  margin-top: 0.25rem;
+  margin-top: var(--kg-space-1);
   margin-bottom: 0;
-  color: #6c7a89;
-  font-size: 0.85rem;
+  color: var(--kg-color-text-mute);
+  font-size: var(--kg-text-sm);
 }
 
 .login-error {
-  margin-bottom: 1rem;
+  margin-bottom: var(--kg-space-4);
 }
 
 .login-submit {
   width: 100%;
+}
+
+/* Form label color override for dark glass card */
+.login-card :deep(.el-form-item__label) {
+  color: var(--kg-color-text-secondary);
+  font-size: var(--kg-text-sm);
+}
+
+.login-card :deep(.el-input__wrapper) {
+  background: var(--kg-color-surface-mute);
+  border: 1px solid var(--kg-color-border);
+  box-shadow: none;
+}
+
+.login-card :deep(.el-input__wrapper:hover) {
+  border-color: var(--kg-color-border-strong);
+}
+
+.login-card :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--kg-color-primary);
+  box-shadow: 0 0 0 1px var(--kg-color-primary-soft);
+}
+
+:root[data-theme="light"] .login-card :deep(.el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--kg-color-border-strong);
+}
+
+/* Security footer */
+.login-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-2);
+  margin-top: var(--kg-space-4);
+  padding-top: var(--kg-space-3);
+  border-top: 1px solid var(--kg-color-border);
+}
+
+.login-footer-line {
+  flex: 1;
+  height: 1px;
+  background: var(--kg-color-border);
+}
+
+.login-footer-text {
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+  white-space: nowrap;
+  letter-spacing: 0.06em;
+}
+
+/* Light theme: muted orbs (cyan+blue too vivid for light bg) */
+:root[data-theme="light"] .login-ambient--1 {
+  background: radial-gradient(circle, rgba(21, 128, 61, 0.10), transparent);
+  animation-duration: 12s;
+}
+
+:root[data-theme="light"] .login-ambient--2 {
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.08), transparent);
+  animation-duration: 10s;
 }
 </style>

@@ -106,24 +106,24 @@ const formatTime = (ts: string): string => {
 
 <style scoped>
 .audit-timeline {
-  margin-bottom: 1rem;
+  margin-bottom: var(--kg-space-4);
 }
 
 .audit-timeline-empty {
   margin: 0;
-  padding: 0.5rem 0;
-  color: #909399;
+  padding: var(--kg-space-2) 0;
+  color: var(--kg-color-text-mute);
   font-style: italic;
 }
 
 .audit-timeline-stage {
   font-weight: 600;
-  color: #1f2d3d;
-  margin-bottom: 0.25rem;
+  color: var(--kg-color-text-primary);
+  margin-bottom: var(--kg-space-1);
 }
 
 .audit-timeline-summary {
-  color: #303133;
+  color: var(--kg-color-text-secondary);
   word-break: break-all;
 }
 </style>

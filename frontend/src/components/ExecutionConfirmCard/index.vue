@@ -111,48 +111,51 @@ const handleCancel = () => {
 
 <style scoped>
 .execution-confirm-card {
-  border-left: 4px solid #e6a23c;
-  margin-bottom: 0.75rem;
+  border-left: 4px solid var(--kg-color-risk-l2);
+  margin-bottom: var(--kg-space-3);
 }
 
 .execution-confirm-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: var(--kg-space-2);
+  margin-bottom: var(--kg-space-2);
 }
 
 .execution-confirm-title {
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .execution-confirm-summary {
-  margin: 0.25rem 0 0.5rem 0;
-  color: #303133;
+  margin: var(--kg-space-1) 0 var(--kg-space-2) 0;
+  color: var(--kg-color-text-secondary);
+  line-height: var(--kg-line-base);
 }
 
 .execution-confirm-detail {
-  margin: 0.25rem 0 0.75rem 0;
-  padding: 0.5rem 0.75rem;
-  background: #fdf6ec;
-  border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
+  margin: var(--kg-space-1) 0 var(--kg-space-3) 0;
+  padding: var(--kg-space-2) var(--kg-space-3);
+  background: var(--kg-color-warning-soft);
+  border: 1px solid var(--kg-color-warning);
+  border-radius: var(--kg-radius-sm);
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
   white-space: pre-wrap;
   word-break: break-all;
-  color: #b88230;
+  color: var(--kg-color-warning);
+  line-height: var(--kg-line-base);
 }
 
 .execution-confirm-actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  gap: var(--kg-space-2);
+  margin-top: var(--kg-space-2);
 }
 
 .execution-confirm-blocked {
-  margin: 0.5rem 0 0 0;
-  color: #c45656;
+  margin: var(--kg-space-2) 0 0 0;
+  color: var(--kg-color-danger);
   font-weight: 500;
 }
 </style>

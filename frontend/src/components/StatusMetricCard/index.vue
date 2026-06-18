@@ -9,6 +9,9 @@
 //   * value is null/undefined    => show "—" (same as unavailable visually).
 //
 // The component never fabricates a value when the backend omitted one.
+//
+// Enhancement (v2): adds an inline progress bar when the value is numeric
+// between 0-100, giving the metric card a visual dimension.
 import { computed } from 'vue';
 
 export type StatusMetricStatus =
@@ -67,6 +70,27 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
       return 'warning';
   }
 });
+
+/** Whether to show an inline progress bar. True when value is numeric 0-100. */
+const showProgressBar = computed(() => {
+  if (isEmpty.value) return false;
+  const num = Number(props.value);
+  return Number.isFinite(num) && num >= 0 && num <= 100 && props.unit === '%';
+});
+
+const progressValue = computed(() => {
+  if (!showProgressBar.value) return 0;
+  return Number(props.value);
+});
+
+const progressClass = computed(() => {
+  switch (props.status) {
+    case 'critical': return 'kg-progress-fill--critical';
+    case 'warning':
+    case 'degraded': return 'kg-progress-fill--warning';
+    default: return 'kg-progress-fill--ok';
+  }
+});
 </script>
 
 <template>
@@ -93,6 +117,16 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
       <span v-if="!isEmpty && unit" class="status-metric-unit">{{ unit }}</span>
     </div>
     <div
+      v-if="showProgressBar"
+      class="kg-progress-bar status-metric-progress"
+    >
+      <div
+        class="kg-progress-fill"
+        :class="progressClass"
+        :style="{ width: `${progressValue}%` }"
+      />
+    </div>
+    <div
       v-if="threshold"
       class="status-metric-threshold"
     >
@@ -104,43 +138,56 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
 <style scoped>
 .status-metric-card {
   min-width: 180px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow var(--kg-transition-base), transform var(--kg-transition-fast);
+}
+
+.status-metric-card:hover {
+  box-shadow: var(--kg-glow-primary);
+  transform: translateY(-1px);
 }
 
 .status-metric-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: var(--kg-space-2);
+  margin-bottom: var(--kg-space-2);
 }
 
 .status-metric-title {
-  font-size: 0.85rem;
-  color: #606266;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
   font-weight: 500;
 }
 
 .status-metric-value {
   display: flex;
   align-items: baseline;
-  gap: 0.25rem;
+  gap: var(--kg-space-1);
 }
 
 .status-metric-number {
-  font-size: 1.75rem;
+  font-size: var(--kg-text-2xl);
   font-weight: 600;
-  color: #1f2d3d;
-  line-height: 1.2;
+  color: var(--kg-color-text-primary);
+  line-height: var(--kg-line-tight);
+  font-family: var(--kg-font-mono);
 }
 
 .status-metric-unit {
-  font-size: 0.85rem;
-  color: #909399;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+}
+
+.status-metric-progress {
+  margin-top: var(--kg-space-3);
 }
 
 .status-metric-threshold {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: #909399;
+  margin-top: var(--kg-space-1);
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
 }
 </style>

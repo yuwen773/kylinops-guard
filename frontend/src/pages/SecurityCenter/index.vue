@@ -41,6 +41,11 @@ import type {
   SecurityEventView,
   SecurityRuleView,
 } from '@/types/security';
+import AppSectionHeader from '@/components/common/AppSectionHeader.vue';
+import AppLoadingState from '@/components/common/AppLoadingState.vue';
+import AppErrorState from '@/components/common/AppErrorState.vue';
+import AppEmptyState from '@/components/common/AppEmptyState.vue';
+import AppRiskBadge from '@/components/common/AppRiskBadge.vue';
 
 const router = useRouter();
 
@@ -63,8 +68,23 @@ const sortedLevels = computed<RiskLevelView[]>(() => {
   );
 });
 
-const levelDecisionLabel = (decision: RiskDecision | undefined): string =>
-  decision ? `${decision} ${RISK_DECISION_LABELS[decision]}` : '—';
+const DECISION_ACTION_LABEL: Readonly<Record<RiskDecision, string>> = {
+  ALLOW: '允许执行',
+  CONFIRM: '确认后执行',
+  BLOCK: '阻断执行',
+};
+
+const DECISION_SYSTEM_ACTION: Readonly<Record<RiskDecision, string>> = {
+  ALLOW: '直接返回',
+  CONFIRM: '待用户确认',
+  BLOCK: '写入审计日志',
+};
+
+const decisionLabel = (decision: RiskDecision | undefined): string =>
+  decision ? DECISION_ACTION_LABEL[decision] : '—';
+
+const decisionSystemAction = (decision: RiskDecision | undefined): string =>
+  decision ? DECISION_SYSTEM_ACTION[decision] : '—';
 
 const levelChineseLabel = (level: RiskLevel): string =>
   RISK_LEVEL_LABELS[level] ?? level;
@@ -218,30 +238,47 @@ onMounted(async () => {
       class="security-levels-section"
       data-testid="security-levels-section"
     >
-      <header class="section-header">
-        <h2 class="section-title">风险等级目录</h2>
-        <p class="section-subtitle">
-          L0–L4 的等级与默认决策；前端仅展示后端结论，不参与决策
-        </p>
-      </header>
+      <AppSectionHeader
+        level="section"
+        title="风险等级目录"
+        subtitle="L0–L4 的等级与默认决策；前端仅展示后端结论，不参与决策"
+      />
 
-      <p
+      <div class="kg-safety-summary" data-testid="security-summary">
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">风险等级策略</span>
+          <span class="kg-safety-tile__value">{{ sortedLevels.length }} 级</span>
+        </div>
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">阻断事件</span>
+          <span class="kg-safety-tile__value">{{ eventsTotal }}</span>
+        </div>
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">注入检测</span>
+          <span class="kg-safety-tile__value" style="color: var(--kg-color-risk-inject)">独立旁路</span>
+        </div>
+        <div class="kg-safety-tile">
+          <span class="kg-safety-tile__label">可审计追踪</span>
+          <span class="kg-safety-tile__value">{{ totalRuleCount }} 条</span>
+        </div>
+      </div>
+
+      <div
         v-if="levelsLoading"
-        class="section-loading"
         data-testid="security-levels-loading"
       >
-        正在加载风险等级…
-      </p>
+        <AppLoadingState title="正在加载风险等级…" />
+      </div>
 
-      <el-alert
+      <div
         v-else-if="levelsError"
-        class="section-error"
-        type="error"
-        :closable="false"
-        show-icon
         data-testid="security-levels-error"
-        :title="`加载失败：${levelsError}`"
-      />
+      >
+        <AppErrorState
+          variant="transient"
+          :title="`加载失败：${levelsError}`"
+        />
+      </div>
 
       <div
         v-else
@@ -257,17 +294,22 @@ onMounted(async () => {
         >
           <template #header>
             <div class="security-level-card-header">
-              <span
-                class="security-level-code"
-                :class="`security-level-code-${lv.level}`"
-              >{{ lv.level }}</span>
+              <AppRiskBadge
+                :level="lv.level"
+                compact
+                :show-label="false"
+                variant="soft"
+              />
               <span class="security-level-label">
                 {{ levelChineseLabel(lv.level) }}
               </span>
             </div>
           </template>
           <p class="security-level-decision">
-            决策：{{ levelDecisionLabel(lv.decision) }}
+            决策：{{ decisionLabel(lv.decision) }}
+          </p>
+          <p v-if="lv.decision" class="security-level-system-action">
+            系统动作：{{ decisionSystemAction(lv.decision) }}
           </p>
           <p v-if="lv.description" class="security-level-description">
             {{ lv.description }}
@@ -280,6 +322,17 @@ onMounted(async () => {
           </p>
         </el-card>
       </div>
+
+      <div class="kg-inject-card kg-card" data-testid="security-inject-card">
+        <div class="kg-card__header">
+          <p class="kg-card__title">Prompt 注入检测</p>
+        </div>
+        <div class="kg-card__body">
+          <p style="margin: 0; font-size: var(--kg-text-sm); color: var(--kg-color-text-secondary); line-height: var(--kg-line-base);">
+            独立于 L0-L4 矩阵的旁路检测层，对所有用户输入执行语义识别，命中规则后立即升级为 L4 阻断并写入审计日志。
+          </p>
+        </div>
+      </div>
     </section>
 
     <!-- Section B: rules snapshot, grouped by level -->
@@ -287,38 +340,39 @@ onMounted(async () => {
       class="security-rules-section"
       data-testid="security-rules-section"
     >
-      <header class="section-header">
-        <h2 class="section-title">风险规则快照</h2>
-        <p class="section-subtitle">
-          当前加载的规则不可变快照（合计 {{ totalRuleCount }} 条），仅供运维审计与排错查看
-        </p>
-      </header>
-
-      <p
-        v-if="rulesLoading"
-        class="section-loading"
-        data-testid="security-rules-loading"
-      >
-        正在加载规则…
-      </p>
-
-      <el-alert
-        v-else-if="rulesError"
-        class="section-error"
-        type="error"
-        :closable="false"
-        show-icon
-        data-testid="security-rules-error"
-        :title="`加载失败：${rulesError}`"
+      <AppSectionHeader
+        level="section"
+        title="风险规则快照"
+        :subtitle="`当前加载的规则不可变快照（合计 ${totalRuleCount} 条），仅供运维审计与排错查看`"
       />
 
-      <p
+      <div
+        v-if="rulesLoading"
+        data-testid="security-rules-loading"
+      >
+        <AppLoadingState title="正在加载规则…" />
+      </div>
+
+      <div
+        v-else-if="rulesError"
+        data-testid="security-rules-error"
+      >
+        <AppErrorState
+          variant="transient"
+          :title="`加载失败：${rulesError}`"
+        />
+      </div>
+
+      <div
         v-else-if="groupedRules.length === 0"
-        class="section-empty"
         data-testid="security-rules-empty"
       >
-        暂无可用规则
-      </p>
+        <AppEmptyState
+          variant="default"
+          title="暂无可用规则"
+          description="后端尚未注册任何风险规则；新规则会通过 YAML 文件加载。"
+        />
+      </div>
 
       <div
         v-else
@@ -357,7 +411,7 @@ onMounted(async () => {
                   v-if="rule.riskDecision"
                   class="security-rule-decision"
                 >
-                  {{ rule.riskDecision }} {{ levelDecisionLabel(rule.riskDecision) }}
+                  {{ decisionLabel(rule.riskDecision) }}
                 </span>
                 <span
                   v-if="rule.enabled === false"
@@ -401,100 +455,66 @@ onMounted(async () => {
       class="security-events-section"
       data-testid="security-events-section"
     >
-      <header class="section-header">
-        <h2 class="section-title">最近阻断事件</h2>
-        <p class="section-subtitle">
-          按时间倒序展示审计侧已落库的 BLOCK 事件；点击任一行可跳转至审计详情
-        </p>
-      </header>
-
-      <p
-        v-if="eventsLoading"
-        class="section-loading"
-        data-testid="security-events-loading"
-      >
-        正在加载阻断事件…
-      </p>
-
-      <el-alert
-        v-else-if="eventsError"
-        class="section-error"
-        type="error"
-        :closable="false"
-        show-icon
-        data-testid="security-events-error"
-        :title="`加载失败：${eventsError}`"
+      <AppSectionHeader
+        level="section"
+        title="最近阻断事件"
+        subtitle="按时间倒序展示审计侧已落库的 BLOCK 事件；点击任一行可跳转至审计详情"
       />
 
-      <p
+      <div
+        v-if="eventsLoading"
+        data-testid="security-events-loading"
+      >
+        <AppLoadingState title="正在加载阻断事件…" />
+      </div>
+
+      <div
+        v-else-if="eventsError"
+        data-testid="security-events-error"
+      >
+        <AppErrorState
+          variant="transient"
+          :title="`加载失败：${eventsError}`"
+        />
+      </div>
+
+      <div
         v-else-if="eventsEmpty"
-        class="section-empty"
         data-testid="security-events-empty"
       >
-        暂无拦截事件
-      </p>
+        <AppEmptyState
+          variant="no-event"
+          title="暂无拦截事件"
+          description="当前时间段内未发现安全阻断事件。"
+        />
+      </div>
 
       <template v-else>
-        <el-table
-          class="security-events-table"
-          :data="events"
-          :row-style="{ cursor: 'pointer' }"
-          data-testid="security-events-table"
-          @row-click="(row: SecurityEventView) => onEventRowClick(row.auditId)"
-        >
-          <el-table-column label="审计 ID" min-width="200">
-            <template #default="{ row }">
-              <code
-                class="security-event-auditid"
-                :data-testid="`security-event-${row.auditId}`"
-              >{{ row.auditId }}</code>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="风险" width="120">
-            <template #default="{ row }">
-              <span class="security-event-level">
-                {{ row.riskLevel }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="决策" width="100">
-            <template #default="{ row }">
-              <span class="security-event-decision">
-                {{ row.decision }} {{ levelDecisionLabel(row.decision) }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="匹配规则" min-width="200">
-            <template #default="{ row }">
-              <span class="security-event-rules">
-                {{
-                  row.matchedRules && row.matchedRules.length > 0
-                    ? row.matchedRules.join('、')
-                    : '—'
-                }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="阻断原因" min-width="220">
-            <template #default="{ row }">
-              <span class="security-event-reason">
-                {{ row.reason || '—' }}
-              </span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="时间" width="180">
-            <template #default="{ row }">
-              <span class="security-event-time">
-                {{ formatTimestamp(row.createdAt) }}
-              </span>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="kg-event-list" data-testid="security-events-list">
+          <div
+            v-for="ev in events"
+            :key="ev.auditId"
+            class="kg-event-card"
+            :data-testid="`security-event-${ev.auditId}`"
+            @click="onEventRowClick(ev.auditId)"
+          >
+            <div class="kg-event-card__row">
+              <span class="kg-event-card__id">{{ ev.auditId }}</span>
+              <span class="security-event-level">{{ ev.riskLevel }}</span>
+              <span class="security-event-decision">{{ decisionLabel(ev.decision) }}</span>
+              <span class="kg-event-card__meta">{{ formatTimestamp(ev.createdAt) }}</span>
+            </div>
+            <p
+              v-if="ev.matchedRules && ev.matchedRules.length > 0"
+              class="kg-event-card__reason"
+            >
+              命中规则：{{ ev.matchedRules.join('、') }}
+            </p>
+            <p v-if="ev.reason" class="kg-event-card__reason">
+              原因：{{ ev.reason }}
+            </p>
+          </div>
+        </div>
 
         <el-pagination
           v-if="eventsTotal > 0"
@@ -517,51 +537,17 @@ onMounted(async () => {
 .security-page {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--kg-space-6);
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
-}
-
-.section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.75rem;
-}
-
-.section-title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin: 0;
-  color: #1f2d3d;
-}
-
-.section-subtitle {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #909399;
-}
-
-.section-loading,
-.section-empty {
-  margin: 0.5rem 0;
-  padding: 1.25rem;
-  text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
-}
-
-.section-error {
-  margin: 0.5rem 0;
 }
 
 /* L0..L4 catalog */
 .security-levels-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
+  gap: var(--kg-space-3);
 }
 
 .security-level-card {
@@ -570,88 +556,69 @@ onMounted(async () => {
 
 .security-level-card-header {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.security-level-code {
-  font-weight: 700;
-  font-size: 1rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  background: #ecf5ff;
-  color: #409eff;
-}
-
-.security-level-code-L0,
-.security-level-code-L1 {
-  background: #f0f9eb;
-  color: #67c23a;
-}
-
-.security-level-code-L2 {
-  background: #fdf6ec;
-  color: #e6a23c;
-}
-
-.security-level-code-L3,
-.security-level-code-L4 {
-  background: #fef0f0;
-  color: #f56c6c;
+  align-items: center;
+  gap: var(--kg-space-2);
 }
 
 .security-level-label {
   font-weight: 600;
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .security-level-decision {
-  margin: 0.25rem 0;
-  font-size: 0.85rem;
-  color: #606266;
+  margin: var(--kg-space-1) 0;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-secondary);
+}
+
+.security-level-system-action {
+  margin: 0 0 var(--kg-space-1) 0;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
 }
 
 .security-level-description {
-  margin: 0.25rem 0;
-  color: #303133;
-  font-size: 0.9rem;
+  margin: var(--kg-space-1) 0;
+  color: var(--kg-color-text-secondary);
+  font-size: var(--kg-text-md);
+  line-height: var(--kg-line-base);
 }
 
 .security-level-examples {
-  margin: 0.25rem 0 0 0;
-  font-size: 0.8rem;
-  color: #909399;
+  margin: var(--kg-space-1) 0 0 0;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
   word-break: break-word;
 }
 
 /* Rules */
 .security-rule-group {
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--kg-space-3);
 }
 
 .security-rule-group-header {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  align-items: center;
+  gap: var(--kg-space-2);
 }
 
 .security-rule-group-level {
   font-weight: 700;
-  padding: 0.1rem 0.5rem;
-  border-radius: 4px;
-  background: #fef0f0;
-  color: #f56c6c;
-  font-size: 0.95rem;
+  padding: 2px var(--kg-space-2);
+  border-radius: var(--kg-radius-sm);
+  background: var(--kg-color-danger-soft);
+  color: var(--kg-color-danger);
+  font-size: var(--kg-text-md);
 }
 
 .security-rule-group-label {
   font-weight: 600;
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .security-rule-group-count {
-  font-size: 0.8rem;
-  color: #909399;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
 }
 
 .security-rule-list {
@@ -660,82 +627,85 @@ onMounted(async () => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--kg-space-2);
 }
 
 .security-rule-item {
-  padding: 0.5rem 0.75rem;
-  background: #f5f7fa;
-  border-radius: 4px;
-  border-left: 3px solid #409eff;
+  padding: var(--kg-space-2) var(--kg-space-3);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-left: 3px solid var(--kg-color-info);
+  border-radius: var(--kg-radius-sm);
 }
 
 .security-rule-item-disabled {
-  border-left-color: #c0c4cc;
+  border-left-color: var(--kg-color-border-strong);
   opacity: 0.7;
 }
 
 .security-rule-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--kg-space-2);
   flex-wrap: wrap;
 }
 
 .security-rule-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85rem;
-  color: #1f2d3d;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-primary);
 }
 
 .security-rule-decision {
-  font-size: 0.8rem;
-  color: #f56c6c;
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-danger);
   font-weight: 600;
 }
 
 .security-rule-disabled-tag {
-  font-size: 0.7rem;
-  color: #909399;
-  border: 1px solid #dcdfe6;
-  padding: 0.05rem 0.4rem;
-  border-radius: 3px;
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+  border: 1px solid var(--kg-color-border);
+  padding: 1px var(--kg-space-2);
+  border-radius: var(--kg-radius-sm);
 }
 
 .security-rule-description {
-  margin: 0.25rem 0 0 0;
-  color: #303133;
-  font-size: 0.9rem;
+  margin: var(--kg-space-1) 0 0 0;
+  color: var(--kg-color-text-secondary);
+  font-size: var(--kg-text-md);
+  line-height: var(--kg-line-base);
 }
 
 .security-rule-reason,
 .security-rule-suggestion {
-  margin: 0.15rem 0 0 0;
-  color: #606266;
-  font-size: 0.85rem;
+  margin: 2px 0 0 0;
+  color: var(--kg-color-text-secondary);
+  font-size: var(--kg-text-sm);
+  line-height: var(--kg-line-base);
 }
 
 .security-rule-regex {
-  margin: 0.25rem 0 0 0;
+  margin: var(--kg-space-1) 0 0 0;
   display: flex;
-  gap: 0.25rem;
+  gap: var(--kg-space-1);
   align-items: baseline;
   flex-wrap: wrap;
 }
 
 .security-rule-regex-label {
-  color: #909399;
-  font-size: 0.8rem;
+  color: var(--kg-color-text-mute);
+  font-size: var(--kg-text-sm);
 }
 
 .security-rule-regex-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
-  color: #1f2d3d;
-  background: #fff;
-  padding: 0.05rem 0.35rem;
-  border: 1px solid #ebeef5;
-  border-radius: 3px;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-primary);
+  background: var(--kg-color-surface);
+  padding: 1px var(--kg-space-2);
+  border: 1px solid var(--kg-color-border);
+  border-radius: var(--kg-radius-sm);
   word-break: break-all;
 }
 
@@ -745,33 +715,33 @@ onMounted(async () => {
 }
 
 .security-event-auditid {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
-  color: #1f2d3d;
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-primary);
   word-break: break-all;
 }
 
 .security-event-level {
   font-weight: 600;
-  color: #f56c6c;
+  color: var(--kg-color-danger);
 }
 
 .security-event-decision,
 .security-event-rules,
 .security-event-reason {
-  color: #303133;
-  font-size: 0.85rem;
+  color: var(--kg-color-text-secondary);
+  font-size: var(--kg-text-sm);
   word-break: break-word;
 }
 
 .security-event-time {
-  color: #606266;
-  font-size: 0.85rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--kg-color-text-secondary);
+  font-size: var(--kg-text-sm);
+  font-family: var(--kg-font-mono);
 }
 
 .security-events-pagination {
-  margin-top: 0.75rem;
+  margin-top: var(--kg-space-3);
   justify-content: flex-end;
 }
 </style>
