@@ -109,8 +109,8 @@
 
 | 验收项 | 期望 | A. | B. | C. |
 |---|---|---|---|---|
-| 前端单元测试 | 179/179 全绿 | ⏳ | ✅ | ✅ |
-| Playwright E2E mock | 18/18 全绿 | ⏳ | ✅ | ✅ |
+| 前端单元测试 | 190/190 全绿 | ⏳ | ✅ | ✅ |
+| Playwright E2E mock | 19/19 全绿 | ⏳ | ✅ | ✅ |
 | Playwright E2E live | 3/3 全绿 | N/A ❌（LoongArch 无 Chromium） | ✅ | N/A ❌ |
 | 5 个快捷按钮 | 全部触发对应 intent | ⏳ | ✅ | ✅ |
 | L2 确认卡片 | 渲染 + 取消/确认可点击 | ⏳ | ✅ | ✅ |
@@ -287,11 +287,11 @@ done
 
 | # | 项 | 验收命令 / 证据位 | 状态 |
 |---|---|---|---|
-| P0-01 | 后端 `mvn -B clean test` | 495/495 + 1 skipped | ✅ |
+| P0-01 | 后端 `mvn -B clean test` | 643/643 | ✅ |
 | P0-02 | 后端 `mvn -B clean package -DskipTests` | 产物 `target/kylin-ops-guard.jar` | ✅（55MB） |
-| P0-03 | 前端 `npm run test:unit -- --run` | 179/179 | ✅ |
+| P0-03 | 前端 `npm run test:unit -- --run` | 190/190 | ✅ |
 | P0-04 | 前端 `npm run build` | 产物 `frontend/dist/` | ✅ |
-| P0-05 | 前端 `npm run test:e2e` | 18/18 + 3 skipped（mock） | ✅ |
+| P0-05 | 前端 `npm run test:e2e` | 19/19 + 3 skipped（mock） | ✅ |
 | P0-06 | `bash deploy/scripts/check-env.sh` | 通过 + 环境指纹记录 | ✅（Win dev）/ ⏳（LoongArch） |
 | P0-07 | `bash deploy/scripts/acceptance-smoke.sh` | 所有断言通过（详见 §1.2.6） | ✅（Win dev）/ ⏳（LoongArch） |
 | P0-08 | 4 个演示场景全绿 | 详见 §1.2.4 + 见报告 `evidence/<date>/smoke.log` | ✅（Win dev）/ ⏳（LoongArch） |

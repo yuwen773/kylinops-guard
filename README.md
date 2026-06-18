@@ -262,9 +262,9 @@ kylin-ops/
 
 | 套件 | 计数 | 运行命令 |
 |------|------|----------|
-| 后端单元/集成 | **502/502 + 1 skipped** | `cd backend && mvn test` |
-| 前端单元 | **179/179** | `cd frontend && npm run test:unit -- --run` |
-| Playwright E2E (mock) | **18/18** | `cd frontend && npm run test:e2e` |
+| 后端单元/集成 | **643/643** | `cd backend && mvn test` |
+| 前端单元 | **190/190** | `cd frontend && npm run test:unit -- --run` |
+| Playwright E2E (mock) | **19/19** | `cd frontend && npm run test:e2e` |
 | Playwright E2E (live) | **3 skipped** | `E2E_LIVE=true npx playwright test tests/e2e/demo-live.spec.ts` |
 | 验收冒烟 (4 脚本) | **36/36 + 6 N/A** | 见上表 |
 
