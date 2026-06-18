@@ -50,7 +50,7 @@ public class NotificationTriggerEvaluator {
     }
 
     public Optional<Double> extractDiskUsagePercent(List<ToolResult> toolResults) { ... }
-    public Optional<String> extractDiskPath(RootCauseChain rca) { ... }
+    public Optional<String> extractDiskPath(RootCauseChain rca, List<ToolResult> toolResults) { ... }
     public Optional<String> extractServiceName(RootCauseChain rca, List<ToolResult> toolResults) { ... }
 }
 ```
@@ -91,7 +91,7 @@ if (notificationTriggerEvaluator.shouldEmitServiceAbnormal(intent, rootCauseChai
 
 if (notificationTriggerEvaluator.shouldEmitDiskRisk(intent, rootCauseChain, toolResults)) {
     String diskPath = notificationTriggerEvaluator
-            .extractDiskPath(rootCauseChain)
+            .extractDiskPath(rootCauseChain, toolResults)
             .orElse("/"); // 可缺失，缺省用根路径
     Double diskUsage = notificationTriggerEvaluator
             .extractDiskUsagePercent(toolResults)
