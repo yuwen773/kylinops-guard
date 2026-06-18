@@ -30,4 +30,25 @@ public interface NotificationRecordRepository extends JpaRepository<Notification
     Optional<NotificationRecord> findFirstByEventIdAndChannelId(String eventId, String channelId);
 
     List<NotificationRecord> findByAuditIdOrderByCreatedAtDesc(String auditId);
+
+    /**
+     * 按事件类型查最新 20 条记录，按 created_at 倒序。
+     * 用于"测试连接"页与管理端"按事件类型过滤"展示。
+     *
+     * @param eventType 事件类型（必传；TEST 用于测试连接记录，auditId 必然为 NULL）
+     * @return 倒序的最多 20 条记录
+     */
+    List<NotificationRecord> findTop20ByEventTypeOrderByCreatedAtDesc(
+            NotificationEventType eventType);
+
+    /**
+     * 按 (channelId, eventType) 查最新一条记录，按 created_at 倒序。
+     * 用于"管理端测试连接"页 — 同一通道最近一次测试结果。
+     *
+     * @param channelId 通道实例 ID
+     * @param eventType 事件类型
+     * @return 存在则返回对应记录，否则 Optional.empty()
+     */
+    Optional<NotificationRecord> findFirstByChannelIdAndEventTypeOrderByCreatedAtDesc(
+            String channelId, NotificationEventType eventType);
 }

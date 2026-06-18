@@ -22,5 +22,8 @@ public enum NotificationEventType {
     SERVICE_ABNORMAL,
 
     /** 磁盘风险（DISK_DIAGNOSIS + 磁盘 ≥ 85% 或 RCA 置信度 ≥ 0.7） */
-    DISK_RISK
+    DISK_RISK,
+
+    /** 管理端测试连接（无对应审计事件，audit_id 为 NULL） */
+    TEST
 }

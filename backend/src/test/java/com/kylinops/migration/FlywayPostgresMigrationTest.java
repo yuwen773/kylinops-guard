@@ -131,4 +131,45 @@ class FlywayPostgresMigrationTest {
                 .as("PostgreSQL 上 body_markdown 应为 text（与 entity @Lob + columnDefinition=TEXT 一致）")
                 .isIn("text", "character varying"); // PG 对 TEXT 报告 'text'
     }
+
+    @Test
+    @DisplayName("PostgreSQL: V6 通知管理表与列迁移成功（event_type / audit_id 可空 / settings / channels）")
+    void v6NotificationManagementMigrationApplied() {
+        // notification_records.event_type 已添加
+        Long eventTypeColCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = 'notification_records' "
+                        + "  AND column_name = 'event_type'",
+                Long.class);
+        assertThat(eventTypeColCount)
+                .as("V6 应在 notification_records.event_type 上创建列")
+                .isEqualTo(1L);
+
+        // notification_records.audit_id 已允许 NULL（is_nullable = YES）
+        String auditNullable = jdbc.queryForObject(
+                "SELECT is_nullable FROM information_schema.columns "
+                        + "WHERE table_schema = 'public' AND table_name = 'notification_records' "
+                        + "  AND column_name = 'audit_id'",
+                String.class);
+        assertThat(auditNullable)
+                .as("V6 应将 notification_records.audit_id 改为可空（TEST 事件无 audit_id）")
+                .isEqualTo("YES");
+
+        // 新表 notification_settings / notification_channels 已创建
+        assertThat(tableExists("notification_settings"))
+                .as("V6 应创建 notification_settings 表")
+                .isTrue();
+        assertThat(tableExists("notification_channels"))
+                .as("V6 应创建 notification_channels 表")
+                .isTrue();
+    }
+
+    private boolean tableExists(String tableName) {
+        Long count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables "
+                        + "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' "
+                        + "  AND table_name = ?",
+                Long.class, tableName);
+        return count != null && count > 0;
+    }
 }
