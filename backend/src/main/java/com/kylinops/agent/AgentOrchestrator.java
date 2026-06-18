@@ -22,6 +22,7 @@ import com.kylinops.executor.PendingAction;
 import com.kylinops.executor.PendingActionStatus;
 import com.kylinops.notification.NotificationEventFactory;
 import com.kylinops.notification.NotificationService;
+import com.kylinops.notification.NotificationTriggerEvaluator;
 import com.kylinops.rca.RootCauseAnalyzer;
 import com.kylinops.rca.RootCauseChain;
 import com.kylinops.security.PromptInjectionDetector;
@@ -94,11 +95,16 @@ public class AgentOrchestrator {
     // (保留旧测试的 14 参构造器调用兼容),新 16 参构造器委托老构造器后再赋值(Fix-03 模式)。
     private final NotificationService notificationService;
     private final NotificationEventFactory notificationEventFactory;
+    // P1-01 Plan 02: 运维类事件触发判定器 — 自包含提取逻辑,不依赖 extractServiceName(ToolPlan)
+    private final NotificationTriggerEvaluator notificationTriggerEvaluator;
 
     /**
-     * 老构造器(14 参)— 保留向后兼容(测试用),新 2 字段在通知关闭的路径上不调用。
-     * 委托给本构造器的 16 参版本最后会覆盖这 2 个字段;此处设为 null 是为了让 final
+     * 老构造器(14 参)— 保留向后兼容(测试用),新 3 字段在通知关闭的路径上不调用。
+     * 委托给本构造器的 18 参版本最后会覆盖这 3 个字段;此处设为 null 是为了让 final
      * 字段在每个构造器路径上都已被赋值(javac 要求)。
+     *
+     * <p>NotificationTriggerEvaluator 无外部依赖,此处 new 一个默认实例供老测试路径使用
+     * (P1-01 Plan 02 §构造器约定 #6)。</p>
      */
     public AgentOrchestrator(
             PromptInjectionDetector injectionDetector,
@@ -117,15 +123,46 @@ public class AgentOrchestrator {
         this(injectionDetector, intentClassifier, hybridIntentService, toolPlanningService,
                 toolExecutor, riskCheckService, responseBuilder, hybridResponseService,
                 auditLogService, actionConfirmService, sessionRepository, messageRepository,
-                rootCauseAnalyzer, null, null);
+                rootCauseAnalyzer, null, null, new NotificationTriggerEvaluator());
     }
 
     /**
-     * 新构造器(16 参)— Spring DI 优先选这个(参数最多)。委托老构造器初始化 14 老字段,
-     * 再单独赋值 2 个新字段 — 老字段保持 final,新字段也保持 final(Fix-03 模式)。
+     * 中间构造器(16 参)— 保留向后兼容(测试用),新增 evaluator 委托默认实例。
+     * 由 18 参 Spring 主构造器覆盖 evaluator;此处设为 new NotificationTriggerEvaluator()
+     * 是为了让 final 字段在每个构造器路径上都已被赋值(javac 要求),并保证老测试路径走完
+     * emitNotification 时 evaluator 非 null(emitNotification 仍按既有 null 检查保护
+     * notificationService / factory)。
+     */
+    public AgentOrchestrator(
+            PromptInjectionDetector injectionDetector,
+            IntentClassifier intentClassifier,
+            HybridIntentService hybridIntentService,
+            ToolPlanningService toolPlanningService,
+            ToolExecutor toolExecutor,
+            RiskCheckService riskCheckService,
+            AgentResponseBuilder responseBuilder,
+            HybridResponseService hybridResponseService,
+            AuditLogService auditLogService,
+            ActionConfirmService actionConfirmService,
+            SessionRepository sessionRepository,
+            MessageRepository messageRepository,
+            RootCauseAnalyzer rootCauseAnalyzer,
+            NotificationService notificationService,
+            NotificationEventFactory notificationEventFactory) {
+        this(injectionDetector, intentClassifier, hybridIntentService, toolPlanningService,
+                toolExecutor, riskCheckService, responseBuilder, hybridResponseService,
+                auditLogService, actionConfirmService, sessionRepository, messageRepository,
+                rootCauseAnalyzer,
+                notificationService, notificationEventFactory, new NotificationTriggerEvaluator());
+    }
+
+    /**
+     * 新构造器(18 参)— Spring DI 优先选这个(参数最多 + @Autowired)。委托老构造器初始化
+     * 全部 16 老字段(再单独赋值 evaluator)。老字段保持 final,evaluator 也保持 final
+     * (Fix-03 模式的延续 — Plan 01 14→16,Plan 02 16→18)。
      *
-     * <p><b>@Autowired 必加</b>:类中存在两个构造器(14 参 + 16 参),Spring 不会自动选,
-     * 必须显式标记 16 参为主构造器。老构造器仅供直接 new 调用(测试用例)。</p>
+     * <p><b>@Autowired 必加</b>:类中存在三个构造器(14/16/18 参),Spring 不会自动选,
+     * 必须显式标记 18 参为主构造器。14/16 参构造器仅供直接 new 调用(测试用例)。</p>
      */
     @org.springframework.beans.factory.annotation.Autowired
     public AgentOrchestrator(
@@ -143,7 +180,8 @@ public class AgentOrchestrator {
             MessageRepository messageRepository,
             RootCauseAnalyzer rootCauseAnalyzer,
             NotificationService notificationService,
-            NotificationEventFactory notificationEventFactory) {
+            NotificationEventFactory notificationEventFactory,
+            NotificationTriggerEvaluator notificationTriggerEvaluator) {
         this.injectionDetector = injectionDetector;
         this.intentClassifier = intentClassifier;
         this.hybridIntentService = hybridIntentService;
@@ -159,6 +197,7 @@ public class AgentOrchestrator {
         this.rootCauseAnalyzer = rootCauseAnalyzer;
         this.notificationService = notificationService;
         this.notificationEventFactory = notificationEventFactory;
+        this.notificationTriggerEvaluator = notificationTriggerEvaluator;
     }
 
     /**
@@ -339,6 +378,36 @@ public class AgentOrchestrator {
                     log.info("生成根因分析链: symptom={}, confidence={}",
                             rootCauseChain.getSymptom(), rootCauseChain.getConfidence());
                 }
+            }
+
+            // ── Step 7.5+: P1-01 Plan 02 运维类事件触发(SERVICE_ABNORMAL / DISK_RISK) ──
+            // Evaluator 集中判定触发条件;emitNotification 在 notificationService/factory 为 null
+            // 时静默跳过(老 14/16 参测试路径)。两条 emit 完全独立,任一条件命中即触发对应事件。
+            // 注:不在已有 L4 / L2 / Prompt Inject emit 中复用本段,避免影响既有行为。
+            // 捕获到 final 局部 — 后面两个 lambda 要求 effectively final
+            final RootCauseChain rcaForEmit = rootCauseChain;
+            final double rcaConfidence = rcaForEmit != null ? rcaForEmit.getConfidence() : 0.0;
+            final String rcaConclusion = rcaForEmit != null ? rcaForEmit.getConclusion() : null;
+
+            if (notificationTriggerEvaluator.shouldEmitServiceAbnormal(intent, rcaForEmit, toolResults)) {
+                final String serviceName = notificationTriggerEvaluator
+                        .extractServiceName(rcaForEmit, toolResults)
+                        .orElseThrow(); // 已由 shouldEmitServiceAbnormal 保证存在
+                emitNotification(() -> notificationEventFactory.serviceAbnormal(
+                        auditId, session.getSessionId(), serviceName,
+                        rcaConfidence, rcaConclusion));
+            }
+
+            if (notificationTriggerEvaluator.shouldEmitDiskRisk(intent, rcaForEmit, toolResults)) {
+                final String diskPath = notificationTriggerEvaluator
+                        .extractDiskPath(rcaForEmit, toolResults)
+                        .orElse("/"); // 可缺失,缺省根路径
+                final Double diskUsage = notificationTriggerEvaluator
+                        .extractDiskUsagePercent(toolResults)
+                        .orElse(null);
+                emitNotification(() -> notificationEventFactory.diskRisk(
+                        auditId, session.getSessionId(), diskPath, diskUsage,
+                        rcaConfidence, rcaConclusion));
             }
 
             // ── Step 8: 生成回复 ──
