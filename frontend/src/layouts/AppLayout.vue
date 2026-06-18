@@ -43,7 +43,7 @@ const activeIndex = (path: string) => navItems.findIndex((i) => i.path === path)
 // production).
 const username = computed<string>(() => getSession()?.username ?? '');
 
-// Theme toggle — sun icon when dark (action: switch to light)
+// Theme toggle - sun icon when dark (action: switch to light)
 const { theme, toggleTheme } = useTheme();
 const themeIcon = computed(() => (theme.value === 'dark' ? Sunny : Moon));
 const themeAriaLabel = computed(() =>
