@@ -9,6 +9,9 @@
 //   * value is null/undefined    => show "—" (same as unavailable visually).
 //
 // The component never fabricates a value when the backend omitted one.
+//
+// Enhancement (v2): adds an inline progress bar when the value is numeric
+// between 0-100, giving the metric card a visual dimension.
 import { computed } from 'vue';
 
 export type StatusMetricStatus =
@@ -67,6 +70,27 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
       return 'warning';
   }
 });
+
+/** Whether to show an inline progress bar. True when value is numeric 0-100. */
+const showProgressBar = computed(() => {
+  if (isEmpty.value) return false;
+  const num = Number(props.value);
+  return Number.isFinite(num) && num >= 0 && num <= 100 && props.unit === '%';
+});
+
+const progressValue = computed(() => {
+  if (!showProgressBar.value) return 0;
+  return Number(props.value);
+});
+
+const progressClass = computed(() => {
+  switch (props.status) {
+    case 'critical': return 'kg-progress-fill--critical';
+    case 'warning':
+    case 'degraded': return 'kg-progress-fill--warning';
+    default: return 'kg-progress-fill--ok';
+  }
+});
 </script>
 
 <template>
@@ -93,6 +117,16 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
       <span v-if="!isEmpty && unit" class="status-metric-unit">{{ unit }}</span>
     </div>
     <div
+      v-if="showProgressBar"
+      class="kg-progress-bar status-metric-progress"
+    >
+      <div
+        class="kg-progress-fill"
+        :class="progressClass"
+        :style="{ width: `${progressValue}%` }"
+      />
+    </div>
+    <div
       v-if="threshold"
       class="status-metric-threshold"
     >
@@ -104,6 +138,14 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
 <style scoped>
 .status-metric-card {
   min-width: 180px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow var(--kg-transition-base), transform var(--kg-transition-fast);
+}
+
+.status-metric-card:hover {
+  box-shadow: var(--kg-glow-primary);
+  transform: translateY(-1px);
 }
 
 .status-metric-header {
@@ -131,11 +173,16 @@ const tone = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
   font-weight: 600;
   color: var(--kg-color-text-primary);
   line-height: var(--kg-line-tight);
+  font-family: var(--kg-font-mono);
 }
 
 .status-metric-unit {
   font-size: var(--kg-text-sm);
   color: var(--kg-color-text-mute);
+}
+
+.status-metric-progress {
+  margin-top: var(--kg-space-3);
 }
 
 .status-metric-threshold {
