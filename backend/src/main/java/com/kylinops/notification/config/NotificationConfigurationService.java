@@ -209,6 +209,17 @@ public class NotificationConfigurationService {
     }
 
     /**
+     * 查询全部未删除通道的模型列表（管理 API 使用）。
+     */
+    @Transactional(readOnly = true)
+    public List<NotificationChannelModel> listChannels() {
+        return channelRepository.findAllByDeletedAtIsNullOrderByChannelIdAsc()
+                .stream()
+                .map(this::toModel)
+                .toList();
+    }
+
+    /**
      * 更新全局设置。{@code command.version()} 必须与当前实体一致,否则抛冲突异常。
      */
     @Transactional

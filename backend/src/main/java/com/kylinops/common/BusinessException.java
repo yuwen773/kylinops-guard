@@ -44,4 +44,11 @@ public class BusinessException extends RuntimeException {
     public static BusinessException notFound(String message) {
         return new BusinessException(404, message);
     }
+
+    /**
+     * 快速创建 409 冲突
+     */
+    public static BusinessException conflict(String message) {
+        return new BusinessException(409, message);
+    }
 }
