@@ -8,7 +8,11 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --port 5173 --strictPort",
     "test:unit": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "screenshot:ui01": "node tests/e2e/screenshot-ui-01.mjs",
+    "screenshot:ui01:dark": "node tests/e2e/screenshot-ui-01.mjs --theme=dark",
+    "screenshot:ui01:light": "node tests/e2e/screenshot-ui-01.mjs --theme=light",
+    "screenshot:ui01:all": "node tests/e2e/screenshot-ui-01.mjs --theme=all"
   },
   "dependencies": {
     "axios": "^1.7.7",
