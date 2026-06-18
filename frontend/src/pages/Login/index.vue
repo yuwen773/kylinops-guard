@@ -339,4 +339,15 @@ async function handleSubmit(): Promise<void> {
   white-space: nowrap;
   letter-spacing: 0.06em;
 }
+
+/* Light theme: muted orbs (cyan+blue too vivid for light bg) */
+:root[data-theme="light"] .login-ambient--1 {
+  background: radial-gradient(circle, rgba(21, 128, 61, 0.10), transparent);
+  animation-duration: 12s;
+}
+
+:root[data-theme="light"] .login-ambient--2 {
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.08), transparent);
+  animation-duration: 10s;
+}
 </style>
