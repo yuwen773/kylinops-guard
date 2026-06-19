@@ -214,7 +214,8 @@ public class NotificationConfigurationService {
 
     private void ensureCipherConfigured() {
         if (!cipher.isConfigured()) {
-            throw new IllegalStateException("通知密文已存在但 cipher 未配置");
+            throw new IllegalStateException(
+                    "通知密钥加密未配置，请通过环境变量 KYLINOPS_NOTIFICATION_MASTER_KEY 设置 32 字节 Base64 主密钥");
         }
     }
 

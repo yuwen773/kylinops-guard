@@ -134,6 +134,27 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(ex.getCode(), ex.getMessage());
     }
 
+
+    /**
+     * 参数非法 — IllegalArgumentException 映射为 400 Bad Request。
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleIllegalArgumentException(IllegalArgumentException ex) {
+        log.warn("参数非法: {}", ex.getMessage());
+        return ApiResponse.error(400, ex.getMessage());
+    }
+
+    /**
+     * 非法状态 — IllegalStateException 映射为 500,附带明确消息。
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ApiResponse<Void> handleIllegalStateException(IllegalStateException ex) {
+        log.error("系统状态异常: ", ex);
+        return ApiResponse.<Void>error(500, ex.getMessage());
+    }
+
     /**
      * 通知配置乐观锁冲突 / 通道不存在 — 映射为 HTTP 409 或 404<br>
      * 注意:本方法使用 {@link ResponseEntity} 动态决定状态码,不能使用
