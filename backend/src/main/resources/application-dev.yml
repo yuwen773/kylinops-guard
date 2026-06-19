@@ -41,3 +41,13 @@ kylinops:
     absolute-timeout: 8h
     max-failures: 5
     lock-duration: 15m
+  # ============================================================
+  # P1-01 Notification Center — dev 默认 master key
+  # ============================================================
+  # dev 占位主密钥(32 字节 Base64),允许零配置启动即可保存带 secret 的通道。
+  # 仅用于本地开发与 demo,**禁止用于任何生产/预生产环境**。
+  # 生产部署必须显式注入 KYLINOPS_NOTIFICATION_MASTER_KEY(见 application-prod.yml)。
+  # 占位密钥 Base64 解码后 32 字节,对应明文 "kylinops-dev-master-key-32-byts!"。
+  notification:
+    management:
+      master-key: ${KYLINOPS_NOTIFICATION_MASTER_KEY:a3lsaW5vcHMtZGV2LW1hc3Rlci1rZXktMzItYnl0cyE=}
