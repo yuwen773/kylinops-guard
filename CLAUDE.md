@@ -2,9 +2,9 @@
 
 Project guidance for Claude Code (claude.ai/code) on this repo.
 
-## Repository Status (snapshot 2026-06-17)
+## Repository Status (snapshot 2026-06-19)
 
-**Phase 1–4 + 生产加固（Production Hardening）全部完成，P1-UX 前端体验升级（Light Theme G1 明亮主题）已合入** — 后端 643/643 （含 P1-01 Notification Center）+ 1 skipped + 前端单元 263/263 + Playwright E2E 24/24 + 3 skipped 全绿。
+**Phase 1–4 + 生产加固 + P1-01 Notification Center (管理平面 + 连接测试 + 飞书卡片优化) + Light Theme G1 全部合入** — 后端 735/735 + 2 skipped + 前端 285/285 + Playwright E2E 33/33 + 3 skipped 全绿。
 
 ## Source-of-Truth Specs (v0.1, all Chinese, at repo root)
 
@@ -52,6 +52,7 @@ Not a chatbot. Not a shell executor. **Safety guardrail is the differentiation, 
 | LLM | OpenAI-Compatible only (DeepSeek/Qwen); env `LLM_BASE_URL`/`API_KEY`/`MODEL` |
 | OS sensing | Whitelisted Linux cmd wrappers (Java `ProcessBuilder` fixed templates); OSHI optional |
 | Deploy | Spring Boot fat JAR + Vite dist + shell scripts. Docker optional, not the only path |
+| Notification | AES-256-GCM 信封加密存储通道 secret；master key 由 `KYLINOPS_NOTIFICATION_MASTER_KEY` 注入；dev profile 自带占位 key，prod 必须显式覆盖 |
 
 **LLM optional** — API down → fallback rules/templates. Safety logic never depends on LLM.
 
@@ -59,15 +60,15 @@ Not a chatbot. Not a shell executor. **Safety guardrail is the differentiation, 
 
 `common` (enums RiskLevel/Decision/PermissionType/AuditStatus/...) · `config` (LLM/security, ProductionConfigValidator, RuntimeProperties, SecurityConfig) · `chat` (Chat/Health/Readiness) · `agent` (+ `intelligence/` Hybrid*Service, LlmIntentParser, LlmToolContextPolicy*, LlmContextSanitizer, ResponseFactValidator) · `tool` (OpsTool/Registry/Executor) · `os` (SystemInfo/Cpu/Memory/Disk/LargeFile/Process/NetworkPort/Service/Journal) · `security` (RiskCheck/RuleEngine/PromptInjection) · `executor` (SafeExecutor/PendingAction/ActionConfirm) · `auth` · `llm` (OpenAiCompatibleLlmClient/AuditingLlmClient) · `audit` · `migration` · `report` · `dashboard`
 
-Frontend: `ChatConsole`, `Dashboard`, `ToolCenter`, `SecurityCenter`, `AuditLog`, `ReportCenter`.
+Frontend: `ChatConsole`, `Dashboard`, `ToolCenter`, `SecurityCenter`, `AuditLog`, `ReportCenter`, **`NotificationSettings`** (P1-01 管理平面).
 
 ## P0 Tools (≥8 L0 read-only, must all register)
 
 `system_info_tool`, `cpu_status_tool`, `memory_status_tool`, `disk_usage_tool`, `large_file_scan_tool`, `process_list_tool`, `process_detail_tool`, `network_port_tool`, `service_status_tool`, `journal_log_tool`. Each: param whitelist, path normalization, output truncation, per-call timeout — even L0. No command-execution `OpsTool` — cmd requests go straight to `RiskRuleEngine`.
 
-## API Surface (P0 + Hardening)
+## API Surface (P0 + Hardening + Notification Management)
 
-Health: `GET /api/health{,/live,/ready}` · Chat: `POST /api/chat/send` → `{sessionId, answer, intentType, toolCalls, riskLevel, decision, needConfirmation, auditId}` · Auth: `/api/auth/{login,logout,me}` · Tools: `/api/tools{,/{name}}` · Security: `POST /api/security/risk-check`, `GET /api/security/{rules,events}` · Actions (L2): `POST /api/actions/confirm` · Audit: `GET /api/audit/logs{,/{id}}` · Reports: `POST /api/reports/generate`, `GET /api/reports{,/{id}}` · Dashboard: `GET /api/dashboard/overview`.
+Health: `GET /api/health{,/live,/ready}` · Chat: `POST /api/chat/send` → `{sessionId, answer, intentType, toolCalls, riskLevel, decision, needConfirmation, auditId}` · Auth: `/api/auth/{login,logout,me}` · Tools: `/api/tools{,/{name}}` · Security: `POST /api/security/risk-check`, `GET /api/security/{rules,events}` · Actions (L2): `POST /api/actions/confirm` · Audit: `GET /api/audit/logs{,/{id}}` · Reports: `POST /api/reports/generate`, `GET /api/reports{,/{id}}` · Dashboard: `GET /api/dashboard/overview` · **Notification Management** (P1-01): `GET/PUT /api/notification/settings`, `POST/PUT/DELETE /api/notification/channels[/{id}]`, `POST /api/notification/channels/test`, `GET /api/notification/test-records?limit=N`.
 
 ## Four Demo Scenarios (6:30 video, 演示视频脚本 — must all pass)
 
@@ -87,21 +88,22 @@ Must-pass cases: `rm -rf /` / `chmod -R 777 /` / `rm -rf /etc` / `删除 /etc/pa
 
 ```bash
 # Backend
-cd backend && mvn test                            # 643/643 + 1 skipped
+cd backend && mvn test                            # 735/735 + 2 skipped
 mvn -B clean package -DskipTests                  # → target/kylin-ops-guard.jar
-java -jar backend/target/kylin-ops-guard.jar
+java -jar backend/target/kylin-ops-guard.jar     # dev profile 自带 master key 占位,直接可用
 
 # Frontend
 cd frontend && npm install
 npm run dev                                        # 127.0.0.1:5173, proxy /api → :8080
-npm run test:unit -- --run                         # 263/263 (含 useTheme 8 个新用例)
+npm run test:unit -- --run                         # 285/285
 npm run build                                      # → dist/
-npm run test:e2e                                   # 24/24 + 3 skipped (含 theme-toggle 5 个新用例)
+npm run test:e2e                                   # 33/33 + 3 skipped
 
 # Standalone single-JAR (LoongArch 低配 VM 推荐)
 bash deploy/scripts/build-standalone.sh
 bash deploy/scripts/start-standalone.sh                              # dev,standalone (H2)
-SPRING_PROFILES_ACTIVE=prod,standalone bash deploy/scripts/start-standalone.sh  # prod
+SPRING_PROFILES_ACTIVE=prod,standalone KYLINOPS_NOTIFICATION_MASTER_KEY="$(openssl rand -base64 32)" \
+  bash deploy/scripts/start-standalone.sh                              # prod — master key 必填,base64(32 字节)
 
 # Kylin/LoongArch (Task 20)
 bash deploy/scripts/check-env.sh && bash deploy/scripts/start-backend.sh
@@ -117,6 +119,8 @@ Perf budgets (PRD §12.3): single tool ≤3s, risk check ≤1s, full health ≤3
 - **JDK 严格区分 (DEFER-003)**: LoongArch = **JDK 17**; x86-dev = JDK 23 OK; CI = Temurin 17. Windows `PATH` 里 `C:\Program Files\Common Files\Oracle\Java\javapath\java` 是 Oracle JRE stub (静默失败) — 用 `D:/Program Files/Java/jdk-23/bin/java.exe` 或设 `JAVA_HOME`.
 - **Git Bash curl 中文编码**: temp file 传 JSON (`printf '%s' "${data}" > /tmp/body.json && curl --data @/tmp/body.json`). `deploy/scripts/` 下的 `http_post()` 已统一。
 - Specs/demo 是中文 — UI/审计/报告中文；code identifiers/comments English.
+- **Notification master key**：`KYLINOPS_NOTIFICATION_MASTER_KEY` 必须是 32 字节的 Base64 字符串（`openssl rand -base64 32`）。**dev profile 自带占位可直接启动**；prod / standalone 必须显式注入，否则启动期 schema 回填 + 通道创建会失败。换 key → 旧密文作废（H2 文件不可跨 key 复用）。
+- **Notification publicBaseUrl**：`KYLINOPS_PUBLIC_BASE_URL`（绑定 `kylinops.notification.management.public-base-url`）是飞书卡片"查看审计详情"按钮的链接基址。**缺省为空 → 按钮静默丢弃**，启动期日志 warn 一次（`publicBaseUrl is not configured or invalid; audit links will be omitted from notification cards`）。dev 不配默认（手机端点 `localhost` 必败）；prod / standalone **必须**配为飞书用户能访问到的公网 https URL，校验规则：`http(s)://host...`，不允许 `userinfo`。详见 `docs/deploy/install-and-deploy-guide.md` §2.3。
 - Never claim LoongArch verified unless actually run there.
 
 ## When Modifying Specs

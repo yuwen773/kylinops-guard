@@ -74,6 +74,38 @@ logging.file.path: ./logs
 环境变量（可选）：
 - `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` —— 启用 LLM 时配置
 - `SPRING_PROFILES_ACTIVE` —— dev / prod 切换
+- `KYLINOPS_NOTIFICATION_MASTER_KEY` —— 通知通道密钥的 AES-256-GCM 主密钥（详见 §2.4）
+- `KYLINOPS_PUBLIC_BASE_URL` —— 飞书卡片"查看审计详情"按钮的链接基址（详见 §2.4）
+
+### 2.4 通知中心环境变量
+
+| 变量 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `KYLINOPS_NOTIFICATION_MASTER_KEY` | 生产必填，dev 可选 | dev profile 自带占位 | 通知通道 secret 在 DB 中以 AES-256-GCM 信封加密存储；此变量为主密钥的 **Base64 编码 32 字节**。换 key → H2 文件里的旧密文全部作废。生成：`openssl rand -base64 32` |
+| `KYLINOPS_PUBLIC_BASE_URL` | 生产必填，dev 可选 | 空字符串 | 飞书卡片「查看审计详情」按钮的链接基址。**缺省为空 → 按钮静默丢弃**（启动期日志 warn 一次）。校验规则：必须是 `http://` 或 `https://` 开头、必须含 host、**禁止** `userinfo`（如 `user:pwd@host`）。dev 不配默认（手机端点 `localhost` 必败）；prod / standalone 必须配为飞书用户能访问到的公网 https URL |
+
+#### 2.4.1 Standalone 生产模式示例
+
+```bash
+SPRING_PROFILES_ACTIVE=prod,standalone \
+KYLINOPS_NOTIFICATION_MASTER_KEY="$(openssl rand -base64 32)" \
+KYLINOPS_PUBLIC_BASE_URL="https://kylin-ops.example.com" \
+  bash deploy/scripts/start-standalone.sh
+```
+
+#### 2.4.2 dev / demo 模式
+
+- `KYLINOPS_NOTIFICATION_MASTER_KEY`：dev profile 自带占位，**无需设置即可启动**；如需从 `application-demo.yml` 加载种子通道则须显式注入有效 key。
+- `KYLINOPS_PUBLIC_BASE_URL`：dev 不配默认（按钮不出现在卡片里）。若本地用 ngrok / frp 暴露后端做演示，可临时配为公网隧道地址（如 `https://xxx.ngrok.app`），按钮即可正常渲染并跳转。
+
+#### 2.4.3 故障排查
+
+| 现象 | 原因 | 处置 |
+| --- | --- | --- |
+| 飞书卡片无「查看审计详情」按钮 | `KYLINOPS_PUBLIC_BASE_URL` 未配或非法 | 检查启动日志 `publicBaseUrl is not configured or invalid`，按校验规则修正 |
+| 启动期 `IllegalStateException: notification master key is not valid Base64` | `KYLINOPS_NOTIFICATION_MASTER_KEY` 不是合法 Base64 或长度 ≠ 32 字节 | 用 `openssl rand -base64 32` 重新生成 |
+| 启动期 `notification secret cipher is not configured` | prod/standalone 未注入 master key | 显式设置 `KYLINOPS_NOTIFICATION_MASTER_KEY` |
+| 飞书用户点击按钮 404 / 打不开 | `KYLINOPS_PUBLIC_BASE_URL` 配的是内网地址 | 改为飞书用户能访问的公网 URL（https 推荐） |
 
 ## 3. 启动步骤
 
