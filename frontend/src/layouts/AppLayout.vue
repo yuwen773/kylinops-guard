@@ -22,6 +22,7 @@ const navItems = [
   { path: '/security', label: '安全中心' },
   { path: '/audit', label: '审计日志' },
   { path: '/reports', label: '报告中心' },
+  { path: '/notification-settings', label: '通知配置' },
 ] as const;
 
 const activeIndex = (path: string) => navItems.findIndex((i) => i.path === path);
