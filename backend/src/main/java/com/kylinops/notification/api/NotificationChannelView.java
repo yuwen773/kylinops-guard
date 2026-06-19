@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
  * 用 {@code secretConfigured} 替代实际 secret 值，
  * 避免明文泄到前端。
  * </p>
+ *
+ * <p>{@code lastTestResult} 字段是 P1-01 Plan 01 Task 7 新增 —
+ * 同一通道最近一次连接测试结果（可能为 null，表示尚无测试记录）。</p>
  */
 @Builder
 public record NotificationChannelView(
@@ -22,5 +25,6 @@ public record NotificationChannelView(
         int timeoutMs,
         long version,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt) {
+        LocalDateTime updatedAt,
+        NotificationTestRecordSummary lastTestResult) {
 }

@@ -1,5 +1,6 @@
 // Notification management API — thin wrappers over the runtime-config
-// CRUD endpoints exposed by Task 5 of P1-01.
+// CRUD endpoints exposed by Task 5 of P1-01, plus the connection-test
+// endpoints added in Task 7.
 //
 //   com.kylinops.notification.api.NotificationManagementController
 //
@@ -9,6 +10,8 @@
 //   * POST   /api/notification/channels               → NotificationChannel
 //   * PUT    /api/notification/channels/{channelId}   → NotificationChannel
 //   * DELETE /api/notification/channels/{channelId}?version=N → void
+//   * POST   /api/notification/channels/test          → NotificationTestResult
+//   * GET    /api/notification/test-records?limit=N   → NotificationTestRecordSummary[]
 //
 // SECRET SAFETY — see types/notification.ts:
 //   * The server never returns a stored secret; the response carries only
@@ -26,7 +29,25 @@ import type {
   NotificationChannelUpdatePayload,
   NotificationSettings,
   NotificationSettingsUpdatePayload,
+  NotificationTestRecordSummary,
+  TestChannelRequest,
 } from '@/types/notification';
+
+/**
+ * Mirrors com.kylinops.notification.NotificationTestResult.
+ * External HTTP failures are reported as `status: 'FAILED'` with
+ * HTTP 200 envelope; the call only rejects for transport or business errors.
+ */
+export interface NotificationTestResult {
+  recordId: string;
+  channelId: string;
+  eventType: 'TEST';
+  status: 'SENT' | 'FAILED';
+  responseCode?: number;
+  errorMessage?: string | null;
+  sentAt: string;
+  durationMs: number;
+}
 
 /**
  * GET /api/notification/settings — returns current settings + the full
@@ -91,5 +112,48 @@ export function updateChannel(
 export function deleteChannel(channelId: string, version: number): Promise<void> {
   return del<void>(`/api/notification/channels/${channelId}`, {
     params: { version },
+  });
+}
+
+// ============================================================
+// 连接测试 (P1-01 Plan 01 Task 7)
+// ============================================================
+
+/**
+ * POST /api/notification/channels/test — trigger a single test send.
+ *
+ * Two modes (server decides by `channelId` presence):
+ *   * saved:  { channelId, message? } — backend resolves the stored
+ *             channel and uses its persisted secret/url.
+ *   * draft:  { type, enabled, url, secret?, clearSecret?, timeoutMs, message? }
+ *             — the form is sent verbatim, no DB persistence.
+ *
+ * HTTP 200 always means the request was processed; external 4xx/5xx
+ * surfaces as `status: 'FAILED'` with `errorMessage`. The promise only
+ * rejects on transport failure or a backend business error (e.g. unknown
+ * channelId → 400).
+ */
+export function testChannel(
+  payload: TestChannelRequest,
+): Promise<NotificationTestResult> {
+  return post<NotificationTestResult>('/api/notification/channels/test', payload);
+}
+
+/**
+ * GET /api/notification/test-records?limit=N — most recent N TEST records
+ * across all channels, ordered newest-first.
+ *
+ * `limit` is clamped server-side to [1, 20]; `undefined` (or omitted)
+ * leaves the server default (20) in effect.
+ */
+export function getRecentTestRecords(
+  limit?: number,
+): Promise<NotificationTestRecordSummary[]> {
+  const params: Record<string, number> = {};
+  if (limit !== undefined) {
+    params.limit = limit;
+  }
+  return get<NotificationTestRecordSummary[]>('/api/notification/test-records', {
+    params,
   });
 }

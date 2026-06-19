@@ -3,7 +3,9 @@ import { apiClient, ApiError } from './client';
 import {
   createChannel,
   deleteChannel,
+  getRecentTestRecords,
   getSettings,
+  testChannel,
   updateChannel,
   updateSettings,
 } from './notification';
@@ -359,5 +361,228 @@ describe('notification API — deleteChannel', () => {
     expect(call.params).toEqual({ version: 3 });
     // No JSON body on DELETE — axios serialises undefined as undefined.
     expect(call.data).toBeUndefined();
+  });
+});
+
+describe('notification API — testChannel (P1-01 Task 7)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('POSTs to /api/notification/channels/test with saved-mode payload (channelId only)', async () => {
+    const spy = vi.spyOn(apiClient, 'request').mockResolvedValueOnce({
+      data: {
+        code: 200,
+        message: 'success',
+        data: {
+          recordId: 'rec-1',
+          channelId: 'feishu-oncall',
+          eventType: 'TEST',
+          status: 'SENT',
+          responseCode: 200,
+          errorMessage: null,
+          sentAt: '2026-06-19T10:00:00',
+          durationMs: 120,
+        },
+        timestamp: 1,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    });
+
+    const result = await testChannel({ channelId: 'feishu-oncall', message: '测试' });
+
+    const call = spy.mock.calls[0]?.[0] as {
+      method?: string;
+      url?: string;
+      data?: Record<string, unknown>;
+    };
+    expect(call.method).toBe('POST');
+    expect(call.url).toBe('/api/notification/channels/test');
+    expect(call.data).toEqual({ channelId: 'feishu-oncall', message: '测试' });
+
+    expect(result.recordId).toBe('rec-1');
+    expect(result.channelId).toBe('feishu-oncall');
+    expect(result.status).toBe('SENT');
+    expect(result.responseCode).toBe(200);
+    expect(result.durationMs).toBe(120);
+  });
+
+  it('POSTs draft payload (no channelId) with all form fields', async () => {
+    const spy = vi.spyOn(apiClient, 'request').mockResolvedValueOnce({
+      data: {
+        code: 200,
+        message: 'success',
+        data: {
+          recordId: 'rec-2',
+          channelId: 'test-draft-12345678',
+          eventType: 'TEST',
+          status: 'SENT',
+          responseCode: 200,
+          sentAt: '2026-06-19T10:00:00',
+          durationMs: 80,
+        },
+        timestamp: 1,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    });
+
+    await testChannel({
+      type: 'WEBHOOK',
+      enabled: true,
+      url: 'https://example.com/hook',
+      secret: 'sec_abc',
+      clearSecret: false,
+      timeoutMs: 3000,
+      message: 'draft test',
+    });
+
+    const call = spy.mock.calls[0]?.[0] as { data?: Record<string, unknown> };
+    expect(call.data).toEqual({
+      type: 'WEBHOOK',
+      enabled: true,
+      url: 'https://example.com/hook',
+      secret: 'sec_abc',
+      clearSecret: false,
+      timeoutMs: 3000,
+      message: 'draft test',
+    });
+  });
+
+  it('returns FAILED result when external HTTP returns 5xx (still HTTP 200 envelope)', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValueOnce({
+      data: {
+        code: 200,
+        message: 'success',
+        data: {
+          recordId: 'rec-3',
+          channelId: 'webhook-default',
+          eventType: 'TEST',
+          status: 'FAILED',
+          responseCode: 500,
+          errorMessage: 'HTTP 500',
+          sentAt: '2026-06-19T10:00:00',
+          durationMs: 220,
+        },
+        timestamp: 1,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    });
+
+    const result = await testChannel({ channelId: 'webhook-default' });
+    expect(result.status).toBe('FAILED');
+    expect(result.responseCode).toBe(500);
+    expect(result.errorMessage).toBe('HTTP 500');
+  });
+
+  it('rejects with ApiError when the server returns 400 (e.g. unknown channelId)', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValueOnce({
+      data: {
+        code: 400,
+        message: 'channel not found: missing',
+        data: null,
+        timestamp: 1,
+      },
+      status: 400,
+      statusText: 'BAD REQUEST',
+      headers: {},
+      config: {} as never,
+    });
+
+    await expect(testChannel({ channelId: 'missing' })).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('notification API — getRecentTestRecords (P1-01 Task 7)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('GETs /api/notification/test-records (default limit=20 omitted from query)', async () => {
+    const spy = vi.spyOn(apiClient, 'request').mockResolvedValueOnce({
+      data: {
+        code: 200,
+        message: 'success',
+        data: [
+          {
+            recordId: 'rec-a',
+            channelId: 'wh-1',
+            eventType: 'TEST',
+            status: 'SENT',
+            responseCode: 200,
+            sentAt: '2026-06-19T10:00:00',
+            durationMs: 120,
+          },
+          {
+            recordId: 'rec-b',
+            channelId: 'feishu-oncall',
+            eventType: 'TEST',
+            status: 'FAILED',
+            responseCode: 500,
+            errorMessage: 'HTTP 500',
+            sentAt: '2026-06-19T09:30:00',
+            durationMs: 220,
+          },
+        ],
+        timestamp: 1,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    });
+
+    const records = await getRecentTestRecords();
+
+    const call = spy.mock.calls[0]?.[0] as {
+      method?: string;
+      url?: string;
+      params?: Record<string, unknown>;
+    };
+    expect(call.method).toBe('GET');
+    expect(call.url).toBe('/api/notification/test-records');
+    expect(call.params ?? {}).toEqual({});
+
+    expect(records).toHaveLength(2);
+    expect(records[0]?.recordId).toBe('rec-a');
+    expect(records[0]?.status).toBe('SENT');
+    expect(records[1]?.recordId).toBe('rec-b');
+    expect(records[1]?.errorMessage).toBe('HTTP 500');
+  });
+
+  it('passes limit as query param when supplied', async () => {
+    const spy = vi.spyOn(apiClient, 'request').mockResolvedValueOnce({
+      data: { code: 200, message: 'success', data: [], timestamp: 1 },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    });
+
+    await getRecentTestRecords(5);
+
+    const call = spy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
+    expect(call.params).toEqual({ limit: 5 });
+  });
+
+  it('returns empty array when there are no test records yet', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValueOnce({
+      data: { code: 200, message: 'success', data: [], timestamp: 1 },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    });
+
+    const records = await getRecentTestRecords();
+    expect(records).toEqual([]);
   });
 });

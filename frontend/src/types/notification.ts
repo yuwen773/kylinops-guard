@@ -3,6 +3,9 @@
 //   com.kylinops.notification.api.NotificationChannelView
 //   com.kylinops.notification.api.NotificationChannelUpsertRequest
 //   com.kylinops.notification.api.NotificationSettingsUpdateRequest
+//   com.kylinops.notification.api.NotificationChannelTestRequest
+//   com.kylinops.notification.api.NotificationTestRecordSummary
+//   com.kylinops.notification.NotificationTestResult
 //
 // SAFETY CONTRACT — secret handling:
 //   * The backend NEVER echoes the stored secret back in any response.
@@ -18,6 +21,37 @@
 
 /** Mirrors com.kylinops.notification.ChannelType. */
 export type ChannelType = 'WEBHOOK' | 'FEISHU';
+
+/** Mirrors com.kylinops.notification.NotificationEventType. */
+export type NotificationEventType =
+  | 'L4_BLOCK'
+  | 'PROMPT_INJECTION_BLOCK'
+  | 'L2_CONFIRM_REQUIRED'
+  | 'SERVICE_ABNORMAL'
+  | 'DISK_RISK'
+  | 'TEST';
+
+/** Mirrors com.kylinops.notification.NotificationStatus. */
+export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED';
+
+/**
+ * Mirrors
+ *   com.kylinops.notification.api.NotificationTestRecordSummary.
+ *
+ * Used for both the per-channel `lastTestResult` field on
+ * {@link NotificationChannel} and the list returned by
+ * {@link getRecentTestRecords}.
+ */
+export interface NotificationTestRecordSummary {
+  recordId: string;
+  channelId: string;
+  eventType: NotificationEventType;
+  status: NotificationStatus;
+  responseCode?: number;
+  errorMessage?: string | null;
+  sentAt: string;
+  durationMs: number;
+}
 
 /** Mirrors com.kylinops.notification.api.NotificationChannelView. */
 export interface NotificationChannel {
@@ -35,6 +69,12 @@ export interface NotificationChannel {
   createdAt: string;
   /** ISO-8601 timestamp. */
   updatedAt: string;
+  /**
+   * Last connection-test result for this channel.
+   * null when the channel has never been tested.
+   * Wire-shape: NotificationTestRecordSummary (P1-01 Task 7).
+   */
+  lastTestResult?: NotificationTestRecordSummary | null;
 }
 
 /** Mirrors com.kylinops.notification.api.NotificationSettingsView. */
@@ -99,4 +139,24 @@ export interface NotificationChannelUpdatePayload {
   clearSecret?: boolean;
   timeoutMs: number;
   version: number;
+}
+
+/**
+ * Body shape for POST /api/notification/channels/test.
+ *
+ * Two modes (decided server-side by `channelId` presence):
+ *   * saved:  { channelId, message? } — the channel is already stored; the
+ *             server uses the persisted secret/url.
+ *   * draft:  { type, enabled, url, secret?, clearSecret?, timeoutMs, message? }
+ *             — the form values are sent verbatim; no DB persistence.
+ */
+export interface TestChannelRequest {
+  channelId?: string;
+  type?: ChannelType;
+  enabled?: boolean;
+  url?: string;
+  secret?: string;
+  clearSecret?: boolean;
+  timeoutMs?: number;
+  message?: string;
 }

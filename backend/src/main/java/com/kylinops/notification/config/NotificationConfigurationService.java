@@ -3,8 +3,13 @@ package com.kylinops.notification.config;
 import com.kylinops.notification.ChannelType;
 import com.kylinops.notification.NotificationConfig;
 import com.kylinops.notification.NotificationConfig.ChannelConfig;
+import com.kylinops.notification.NotificationEventType;
+import com.kylinops.notification.NotificationRecord;
+import com.kylinops.notification.NotificationRecordRepository;
+import com.kylinops.notification.api.NotificationTestRecordSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +20,7 @@ import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -45,6 +51,7 @@ public class NotificationConfigurationService {
     private final NotificationSettingsRepository settingsRepository;
     private final NotificationChannelRepository channelRepository;
     private final NotificationSecretCipher cipher;
+    private final NotificationRecordRepository recordRepository;
 
     /**
      * 运行时快照。{@link AtomicReference} 保证可见性;新值仅在事务 after-commit
@@ -56,21 +63,44 @@ public class NotificationConfigurationService {
     @org.springframework.beans.factory.annotation.Autowired
     public NotificationConfigurationService(NotificationSettingsRepository settingsRepository,
                                              NotificationChannelRepository channelRepository,
-                                             NotificationSecretCipher cipher) {
-        this(settingsRepository, channelRepository, cipher, null);
+                                             NotificationSecretCipher cipher,
+                                             NotificationRecordRepository recordRepository) {
+        this(settingsRepository, channelRepository, cipher, recordRepository, null);
     }
 
     /**
-     * 显式构造器(测试用):允许注入 {@code null} 的 transactionTemplate —
-     * 但调用方仍必须保证事务上下文(由 {@code @Transactional} 提供)。
+     * 兼容旧版测试 — 3 参构造器(无 recordRepository,无 transactionTemplate)。
+     * 仅用于不查询测试记录的老测试,生产路径不调用。
+     */
+    public NotificationConfigurationService(NotificationSettingsRepository settingsRepository,
+                                             NotificationChannelRepository channelRepository,
+                                             NotificationSecretCipher cipher) {
+        this(settingsRepository, channelRepository, cipher, null, null);
+    }
+
+    /**
+     * 旧测试兼容 — 4 参(以 TransactionTemplate 收尾),recordRepository 缺省为 null。
      */
     public NotificationConfigurationService(NotificationSettingsRepository settingsRepository,
                                              NotificationChannelRepository channelRepository,
                                              NotificationSecretCipher cipher,
                                              org.springframework.transaction.support.TransactionTemplate ignored) {
+        this(settingsRepository, channelRepository, cipher, null, ignored);
+    }
+
+    /**
+     * 完整构造器(测试用):允许注入 {@code null} 的 transactionTemplate —
+     * 但调用方仍必须保证事务上下文(由 {@code @Transactional} 提供)。
+     */
+    public NotificationConfigurationService(NotificationSettingsRepository settingsRepository,
+                                             NotificationChannelRepository channelRepository,
+                                             NotificationSecretCipher cipher,
+                                             NotificationRecordRepository recordRepository,
+                                             org.springframework.transaction.support.TransactionTemplate ignored) {
         this.settingsRepository = settingsRepository;
         this.channelRepository = channelRepository;
         this.cipher = cipher;
+        this.recordRepository = recordRepository;
     }
 
     // ============================================================
@@ -210,6 +240,9 @@ public class NotificationConfigurationService {
 
     /**
      * 查询全部未删除通道的模型列表（管理 API 使用）。
+     *
+     * <p>每条记录附带「最近一次连接测试」结果(P1-01 Task 7),
+     * 通过 {@link #findLastTestResult(String)} 查询。</p>
      */
     @Transactional(readOnly = true)
     public List<NotificationChannelModel> listChannels() {
@@ -217,6 +250,32 @@ public class NotificationConfigurationService {
                 .stream()
                 .map(this::toModel)
                 .toList();
+    }
+
+    /**
+     * 查询同一通道最近一次 TEST 类型记录(P1-01 Task 7)。
+     *
+     * @param channelId 通道实例 ID
+     * @return 最近一条 TEST 记录(若存在)
+     */
+    @Transactional(readOnly = true)
+    public Optional<NotificationRecord> findLastTestRecord(String channelId) {
+        if (channelId == null || channelId.isBlank()) {
+            return Optional.empty();
+        }
+        return recordRepository
+                .findFirstByChannelIdAndEventTypeOrderByCreatedAtDesc(channelId, NotificationEventType.TEST);
+    }
+
+    /**
+     * 查询最近 N 条 TEST 记录(管理端「最近测试记录」面板使用)。
+     * 外部负责 clamp limit 到 [1, 20]。
+     */
+    @Transactional(readOnly = true)
+    public List<NotificationRecord> listRecentTestRecords(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        return recordRepository.findByEventTypeOrderByCreatedAtDesc(
+                NotificationEventType.TEST, PageRequest.of(0, safeLimit));
     }
 
     /**
@@ -492,6 +551,9 @@ public class NotificationConfigurationService {
     }
 
     private NotificationChannelModel toModel(NotificationChannelEntity e) {
+        NotificationTestRecordSummary lastTest = findLastTestRecord(e.getChannelId())
+                .map(record -> NotificationTestRecordSummary.from(record, computeDurationMs(record)))
+                .orElse(null);
         return NotificationChannelModel.builder()
                 .id(e.getChannelId())
                 .type(e.getChannelType())
@@ -502,7 +564,20 @@ public class NotificationConfigurationService {
                 .version(e.getVersion())
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
+                .lastTestResult(lastTest)
                 .build();
+    }
+
+    /**
+     * 由 sentAt - createdAt 估算测试发送耗时(ms)。若 sentAt 为空(理论上不应该),
+     * 回退到 0。
+     */
+    private long computeDurationMs(NotificationRecord record) {
+        if (record.getSentAt() == null || record.getCreatedAt() == null) {
+            return 0L;
+        }
+        long ms = java.time.Duration.between(record.getCreatedAt(), record.getSentAt()).toMillis();
+        return Math.max(0L, ms);
     }
 
     // ============================================================

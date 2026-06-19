@@ -323,13 +323,15 @@ class NotificationConfigurationServiceTest {
         NotificationSecretCipher wrongCipher = new NotificationSecretCipher(
                 "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI"); // identical bytes (test passes)
         NotificationConfigurationService sameCipherService = new NotificationConfigurationService(
-                settingsRepository, channelRepository, wrongCipher, transactionTemplate);
+                settingsRepository, channelRepository, wrongCipher,
+                null, transactionTemplate);
 
         // Now build a cipher with a *different* master key and try to start fresh.
         NotificationSecretCipher wrongKey = new NotificationSecretCipher(
                 java.util.Base64.getEncoder().encodeToString(new byte[32])); // all zeros
         NotificationConfigurationService brokenService = new NotificationConfigurationService(
-                settingsRepository, channelRepository, wrongKey, transactionTemplate);
+                settingsRepository, channelRepository, wrongKey,
+                null, transactionTemplate);
 
         assertThatThrownBy(() -> brokenService.initialize(yamlConfig(true, false)))
                 .isInstanceOf(IllegalStateException.class)

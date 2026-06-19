@@ -1,5 +1,6 @@
 package com.kylinops.notification;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -40,6 +41,17 @@ public interface NotificationRecordRepository extends JpaRepository<Notification
      */
     List<NotificationRecord> findTop20ByEventTypeOrderByCreatedAtDesc(
             NotificationEventType eventType);
+
+    /**
+     * 按事件类型查最新 N 条记录，按 created_at 倒序。用于"管理端测试连接"页 —
+     * 可变 limit（接口侧 clamp 到 [1, 20]）。
+     *
+     * @param eventType 事件类型（必传；TEST 用于测试连接记录）
+     * @param pageable  分页参数（仅 size/offset 有意义；按 created_at DESC 排序）
+     * @return 倒序的 N 条记录
+     */
+    List<NotificationRecord> findByEventTypeOrderByCreatedAtDesc(
+            NotificationEventType eventType, Pageable pageable);
 
     /**
      * 按 (channelId, eventType) 查最新一条记录，按 created_at 倒序。

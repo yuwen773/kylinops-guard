@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// NotificationSettings — Phase P1-01 Task 6.
+// NotificationSettings — Phase P1-01 Task 6 + Task 7.
 //
 // Responsibilities:
 //   * Global switches: enabled + dryRun, with optimistic-lock version.
 //   * Channel table: id / type / enabled / url / secretConfigured / timeoutMs
-//     with edit / delete actions.
+//     with edit / delete / test actions + 「上次测试」 badge.
 //   * Channel create/edit dialog (ChannelEditDialog.vue).
+//   * "最近测试记录" panel below the table — most recent 20 TEST records.
 //   * Each write goes through @/api/notification (see types/notification.ts
 //     for the secret contract — never echoed back from the server).
 //   * Independent loading/error state per section; a failure in one does
@@ -27,7 +28,9 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createChannel,
   deleteChannel,
+  getRecentTestRecords,
   getSettings,
+  testChannel,
   updateChannel,
   updateSettings,
 } from '@/api/notification';
@@ -36,6 +39,7 @@ import type {
   ChannelForm,
   NotificationChannel,
   NotificationSettings,
+  NotificationTestRecordSummary,
 } from '@/types/notification';
 import ChannelEditDialog from './ChannelEditDialog.vue';
 
@@ -49,10 +53,16 @@ const loadError = ref<string | null>(null);
 const settingsSaving = ref(false);
 const channelSaving = ref(false);
 const channelDeletingId = ref<string | null>(null);
+const channelTestingId = ref<string | null>(null);
 
 const dialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const dialogChannel = ref<NotificationChannel | null>(null);
+
+// Test records panel state (P1-01 Task 7)
+const testRecords = ref<NotificationTestRecordSummary[]>([]);
+const testRecordsLoading = ref(false);
+const testRecordsError = ref<string | null>(null);
 
 // ── derived ──────────────────────────────────────────────────────────────
 
@@ -83,6 +93,23 @@ async function refresh(): Promise<void> {
     settings.value = null;
   } finally {
     loading.value = false;
+  }
+  // Always refresh the recent-records panel too — it is independent of the
+  // settings/channels list and is cheap (≤ 20 records).
+  await refreshTestRecords();
+}
+
+async function refreshTestRecords(): Promise<void> {
+  testRecordsLoading.value = true;
+  testRecordsError.value = null;
+  try {
+    testRecords.value = await getRecentTestRecords();
+  } catch (err) {
+    const e = err as ApiError;
+    testRecordsError.value = e?.message ?? '最近测试记录加载失败';
+    testRecords.value = [];
+  } finally {
+    testRecordsLoading.value = false;
   }
 }
 
@@ -226,6 +253,29 @@ async function confirmDelete(row: NotificationChannel): Promise<void> {
   }
 }
 
+// ── connection test (P1-01 Task 7) ──────────────────────────────────────
+
+async function testChannelByRow(row: NotificationChannel): Promise<void> {
+  channelTestingId.value = row.id;
+  try {
+    const result = await testChannel({ channelId: row.id });
+    if (result.status === 'SENT') {
+      ElMessage.success(`通道「${row.id}」测试成功（${result.durationMs} ms）`);
+    } else {
+      ElMessage.error(
+        `通道「${row.id}」测试失败：${result.errorMessage ?? `HTTP ${result.responseCode ?? '?'}`}`,
+      );
+    }
+    // SENT/FAILED 都是预期结果,刷新列表与最近测试记录面板
+    await refresh();
+  } catch (err) {
+    const e = err as ApiError;
+    ElMessage.error(e?.message ?? '测试请求失败');
+  } finally {
+    channelTestingId.value = null;
+  }
+}
+
 // ── presentation helpers ────────────────────────────────────────────────
 
 const typeLabel: Record<NotificationChannel['type'], string> = {
@@ -236,6 +286,18 @@ const typeLabel: Record<NotificationChannel['type'], string> = {
 function formatTimestamp(iso: string | undefined): string {
   if (!iso) return '—';
   return iso.replace('T', ' ').slice(0, 19);
+}
+
+function lastTestLabel(row: NotificationChannel): {
+  text: string;
+  type: 'success' | 'danger';
+} | null {
+  const t = row.lastTestResult;
+  if (!t) return null;
+  return {
+    text: t.status === 'SENT' ? '成功' : '失败',
+    type: t.status === 'SENT' ? 'success' : 'danger',
+  };
 }
 </script>
 
@@ -372,8 +434,34 @@ function formatTimestamp(iso: string | undefined): string {
             {{ formatTimestamp(row.updatedAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="上次测试" width="110">
           <template #default="{ row }: { row: NotificationChannel }">
+            <template v-if="lastTestLabel(row)">
+              <span
+                class="notification-settings-last-test"
+                :data-testid="`notification-channel-row-${row.id}-last-test`"
+              >
+                <span class="notification-settings-last-test-prefix">上次测试:</span>
+                <el-tag
+                  :type="lastTestLabel(row)!.type"
+                  size="small"
+                  effect="light"
+                >{{ lastTestLabel(row)!.text }}</el-tag>
+              </span>
+            </template>
+            <span v-else class="notification-settings-last-test-empty">未测试</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="240" fixed="right">
+          <template #default="{ row }: { row: NotificationChannel }">
+            <el-button
+              size="small"
+              :loading="channelTestingId === row.id"
+              :data-testid="`notification-channel-row-${row.id}-test`"
+              @click="testChannelByRow(row)"
+            >
+              测试
+            </el-button>
             <el-button
               size="small"
               :data-testid="`notification-channel-row-${row.id}-edit`"
@@ -391,6 +479,76 @@ function formatTimestamp(iso: string | undefined): string {
             >
               删除
             </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
+
+    <!-- 最近测试记录 (P1-01 Task 7) -->
+    <section
+      class="notification-settings-section"
+      data-testid="notification-test-records-panel"
+    >
+      <div class="notification-settings-section-header">
+        <h2 class="notification-settings-section-title">最近测试记录</h2>
+        <el-button size="small" :loading="testRecordsLoading" @click="refreshTestRecords">
+          刷新
+        </el-button>
+      </div>
+      <div v-if="testRecordsLoading && testRecords.length === 0" class="notification-settings-loading">
+        加载测试记录中…
+      </div>
+      <div
+        v-else-if="testRecordsError"
+        class="notification-settings-error"
+        data-testid="notification-test-records-error"
+      >
+        <span>加载失败：{{ testRecordsError }}</span>
+        <el-button size="small" @click="refreshTestRecords">重试</el-button>
+      </div>
+      <div
+        v-else-if="testRecords.length === 0"
+        class="notification-settings-empty"
+        data-testid="notification-test-records-empty"
+      >
+        暂无测试记录。点击任一通道的「测试」按钮即可发起一次连接测试。
+      </div>
+      <el-table
+        v-else
+        :data="testRecords"
+        row-key="recordId"
+        class="notification-settings-table"
+        data-testid="notification-test-records-table"
+      >
+        <el-table-column prop="sentAt" label="时间" width="170">
+          <template #default="{ row }: { row: NotificationTestRecordSummary }">
+            {{ formatTimestamp(row.sentAt) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="channelId" label="通道" min-width="160">
+          <template #default="{ row }: { row: NotificationTestRecordSummary }">
+            <span :data-testid="`notification-test-record-row-${row.recordId}`">
+              <code class="notification-settings-channel-id">{{ row.channelId }}</code>
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="结果" width="100">
+          <template #default="{ row }: { row: NotificationTestRecordSummary }">
+            <el-tag
+              :type="row.status === 'SENT' ? 'success' : 'danger'"
+              size="small"
+              effect="light"
+            >{{ row.status === 'SENT' ? '成功' : '失败' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="responseCode" label="HTTP" width="80" />
+        <el-table-column prop="durationMs" label="耗时 (ms)" width="110" />
+        <el-table-column prop="errorMessage" label="错误信息" min-width="200">
+          <template #default="{ row }: { row: NotificationTestRecordSummary }">
+            <span v-if="row.errorMessage" class="notification-settings-test-error">
+              {{ row.errorMessage }}
+            </span>
+            <span v-else>—</span>
           </template>
         </el-table-column>
       </el-table>
@@ -542,5 +700,28 @@ function formatTimestamp(iso: string | undefined): string {
 
 .notification-settings-table {
   width: 100%;
+}
+
+.notification-settings-last-test {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notification-settings-last-test-prefix {
+  font-size: 12px;
+  color: #5b6b80;
+}
+
+.notification-settings-last-test-empty {
+  font-size: 12px;
+  color: #c0c4cc;
+}
+
+.notification-settings-test-error {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  color: #c45656;
+  word-break: break-all;
 }
 </style>

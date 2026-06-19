@@ -42,6 +42,7 @@ import { ApiError } from '@/api/client';
 import type {
   NotificationChannel,
   NotificationSettings,
+  NotificationTestRecordSummary,
 } from '@/types/notification';
 
 enableAutoUnmount(afterEach);
@@ -96,6 +97,8 @@ interface MountOptions {
   createReject?: boolean;
   updateChannelReject?: boolean;
   deleteChannelReject?: boolean;
+  testChannel?: 'success' | 'failed' | 'reject';
+  testRecords?: NotificationTestRecordSummary[];
 }
 
 async function mountPage(options: MountOptions = {}) {
@@ -179,6 +182,59 @@ async function mountPage(options: MountOptions = {}) {
     vi.spyOn(notificationApi, 'deleteChannel').mockResolvedValue();
   }
 
+  // testChannel / getRecentTestRecords (P1-01 Task 7)
+  if (options.testChannel === 'success') {
+    vi.spyOn(notificationApi, 'testChannel').mockResolvedValue({
+      recordId: 'rec-ok',
+      channelId: 'wh-1',
+      eventType: 'TEST',
+      status: 'SENT',
+      responseCode: 200,
+      errorMessage: null,
+      sentAt: '2026-06-19T10:00:00',
+      durationMs: 120,
+    });
+  } else if (options.testChannel === 'failed') {
+    vi.spyOn(notificationApi, 'testChannel').mockResolvedValue({
+      recordId: 'rec-fail',
+      channelId: 'wh-1',
+      eventType: 'TEST',
+      status: 'FAILED',
+      responseCode: 500,
+      errorMessage: 'HTTP 500',
+      sentAt: '2026-06-19T10:00:00',
+      durationMs: 220,
+    });
+  } else if (options.testChannel === 'reject') {
+    vi.spyOn(notificationApi, 'testChannel').mockRejectedValue(
+      new ApiError({ code: 400, message: 'channel not found', data: null, httpStatus: 400 }),
+    );
+  } else {
+    vi.spyOn(notificationApi, 'testChannel').mockResolvedValue({
+      recordId: 'rec-ok',
+      channelId: 'wh-1',
+      eventType: 'TEST',
+      status: 'SENT',
+      responseCode: 200,
+      errorMessage: null,
+      sentAt: '2026-06-19T10:00:00',
+      durationMs: 120,
+    });
+  }
+  vi.spyOn(notificationApi, 'getRecentTestRecords').mockResolvedValue(
+    options.testRecords ?? [
+      {
+        recordId: 'rec-1',
+        channelId: 'wh-1',
+        eventType: 'TEST',
+        status: 'SENT',
+        responseCode: 200,
+        sentAt: '2026-06-19T10:00:00',
+        durationMs: 120,
+      },
+    ],
+  );
+
   const wrapper = mount(NotificationSettingsPage, {
     global: {
       plugins: [router, ElementPlus],
@@ -223,7 +279,7 @@ describe('NotificationSettings page — initial load', () => {
   it('renders both channel rows with id, type, url and a 「未配置」 tag for secretConfigured=false', async () => {
     const { wrapper } = await mountPage();
     const rows = wrapper.findAll(
-      '[data-testid^="notification-channel-row-"]:not([data-testid$="-edit"]):not([data-testid$="-delete"])',
+      '[data-testid^="notification-channel-row-"]:not([data-testid$="-edit"]):not([data-testid$="-delete"]):not([data-testid$="-test"]):not([data-testid$="-last-test"])',
     );
     expect(rows.length).toBe(2);
 
@@ -486,5 +542,146 @@ describe('NotificationSettings page — channel delete', () => {
 
     expect(elementPlusMocks.elMessageErrorMock).toHaveBeenCalled();
     expect(getSpy).toHaveBeenCalled();
+  });
+});
+
+// =====================================================================
+// P1-01 Task 7 — 连接测试
+// =====================================================================
+
+describe('NotificationSettings page — channel test button', () => {
+  it('renders a 测试 button for every channel row', async () => {
+    const { wrapper } = await mountPage();
+    const wh1TestBtn = wrapper.find(
+      '[data-testid="notification-channel-row-wh-1-test"]',
+    );
+    const feishuTestBtn = wrapper.find(
+      '[data-testid="notification-channel-row-feishu-oncall-test"]',
+    );
+    expect(wh1TestBtn.exists()).toBe(true);
+    expect(feishuTestBtn.exists()).toBe(true);
+    expect(wh1TestBtn.text()).toContain('测试');
+  });
+
+  it('clicking 测试 calls testChannel with the row channelId and refreshes records on success', async () => {
+    const { wrapper } = await mountPage({ testChannel: 'success' });
+    const testSpy = vi.mocked(notificationApi.testChannel);
+    testSpy.mockClear();
+    const recordsSpy = vi.mocked(notificationApi.getRecentTestRecords);
+    recordsSpy.mockClear();
+
+    await wrapper
+      .find('[data-testid="notification-channel-row-wh-1-test"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(testSpy).toHaveBeenCalledTimes(1);
+    const arg = testSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(arg.channelId).toBe('wh-1');
+
+    // Success → ElMessage.success was called + recent-records refresh fired
+    expect(elementPlusMocks.elMessageSuccessMock).toHaveBeenCalled();
+    expect(recordsSpy).toHaveBeenCalled();
+  });
+
+  it('external 5xx surfaces as 失败 toast and refreshes the records panel', async () => {
+    const { wrapper } = await mountPage({ testChannel: 'failed' });
+
+    await wrapper
+      .find('[data-testid="notification-channel-row-wh-1-test"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(elementPlusMocks.elMessageErrorMock).toHaveBeenCalled();
+    // Records panel still refreshes even on FAILED — users want the latest history.
+    expect(notificationApi.getRecentTestRecords).toHaveBeenCalled();
+  });
+
+  it('rejects with toast and no records refresh on transport/business error', async () => {
+    const { wrapper } = await mountPage({ testChannel: 'reject' });
+    const recordsSpy = vi.mocked(notificationApi.getRecentTestRecords);
+    recordsSpy.mockClear();
+
+    await wrapper
+      .find('[data-testid="notification-channel-row-wh-1-test"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(elementPlusMocks.elMessageErrorMock).toHaveBeenCalled();
+    // transport/business error → we do NOT refresh records (would only show old data)
+    expect(recordsSpy).not.toHaveBeenCalled();
+  });
+
+  it('row shows 「上次测试: 成功 / 失败」 badge when lastTestResult is present', async () => {
+    const lastTest = {
+      recordId: 'rec-1',
+      channelId: 'wh-1',
+      eventType: 'TEST' as const,
+      status: 'SENT' as const,
+      responseCode: 200,
+      sentAt: '2026-06-19T10:00:00',
+      durationMs: 120,
+    };
+    const settings = buildSettings({
+      channels: [
+        buildChannel({ id: 'wh-1', type: 'WEBHOOK', lastTestResult: lastTest }),
+        buildChannel({ id: 'feishu-oncall', type: 'FEISHU' }),
+      ],
+    });
+    const { wrapper } = await mountPage({ initial: settings });
+
+    const wh1Span = wrapper.find('[data-testid="notification-channel-row-wh-1"]');
+    const wh1Row = wh1Span.element.closest('tr');
+    expect(wh1Row?.textContent ?? '').toContain('上次测试');
+    expect(wh1Row?.textContent ?? '').toContain('成功');
+
+    const feishuSpan = wrapper.find(
+      '[data-testid="notification-channel-row-feishu-oncall"]',
+    );
+    const feishuRow = feishuSpan.element.closest('tr');
+    expect(feishuRow?.textContent ?? '').not.toContain('上次测试');
+  });
+});
+
+describe('NotificationSettings page — recent test records panel', () => {
+  it('renders the panel section with at least one record row', async () => {
+    const { wrapper } = await mountPage({
+      testRecords: [
+        {
+          recordId: 'rec-1',
+          channelId: 'wh-1',
+          eventType: 'TEST',
+          status: 'SENT',
+          responseCode: 200,
+          sentAt: '2026-06-19T10:00:00',
+          durationMs: 120,
+        },
+        {
+          recordId: 'rec-2',
+          channelId: 'feishu-oncall',
+          eventType: 'TEST',
+          status: 'FAILED',
+          responseCode: 500,
+          errorMessage: 'HTTP 500',
+          sentAt: '2026-06-19T09:00:00',
+          durationMs: 220,
+        },
+      ],
+    });
+
+    const panel = wrapper.find('[data-testid="notification-test-records-panel"]');
+    expect(panel.exists()).toBe(true);
+
+    const rows = wrapper.findAll('[data-testid^="notification-test-record-row-"]');
+    expect(rows.length).toBe(2);
+    expect(panel.text()).toContain('成功');
+    expect(panel.text()).toContain('失败');
+  });
+
+  it('renders an empty hint when there are no test records', async () => {
+    const { wrapper } = await mountPage({ testRecords: [] });
+    const panel = wrapper.find('[data-testid="notification-test-records-panel"]');
+    expect(panel.exists()).toBe(true);
+    expect(panel.text()).toContain('暂无');
   });
 });
