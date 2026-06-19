@@ -311,6 +311,21 @@ function lastTestLabel(row: NotificationChannel): {
       </p>
     </header>
 
+    <!--
+      飞书卡片「查看审计详情」按钮依赖部署侧 KYLINOPS_PUBLIC_BASE_URL。
+      该变量当前无前端查询 API，因此固定展示一条 info 提示；
+      部署侧已正确配置时按钮仍正常渲染，本提示不会误导行为。
+    -->
+    <el-alert
+      class="notification-settings-public-link-hint"
+      type="info"
+      :closable="false"
+      show-icon
+      data-testid="notification-settings-public-link-hint"
+      title="飞书卡片「查看审计详情」按钮依赖部署侧公网 URL"
+      description="后端环境变量 KYLINOPS_PUBLIC_BASE_URL 未配置时按钮将不出现在飞书卡片中（启动期日志 warn 一次）。生产部署请设置为飞书用户能访问的公网 https 地址；dev / 演示可不配。详见 docs/deploy/install-and-deploy-guide.md §2.4。"
+    />
+
     <!-- Global toggles -->
     <section class="notification-settings-section" data-testid="notification-settings-global">
       <h2 class="notification-settings-section-title">全局设置</h2>

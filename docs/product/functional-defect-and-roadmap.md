@@ -71,18 +71,21 @@
 
 - **缺陷描述**：L4 阻断事件、安全注入事件只能被动看 `SecurityCenter`，无主动推送。
 - **客户痛点**：真实 SOC 要求 7×24 告警推送（钉钉/企微/飞书/邮件/Webhook）。当前响应延迟从"秒级"变成"早会才发现"。
-- **修复内容（P1-01 B-lite，2026-06-18 合入 master）**：
+- **修复内容（P1-01 B-lite，2026-06-18 合入 master；2026-06-19 管理平面补合）**：
   - ✅ Webhook 通道（通用 POST JSON，HMAC-SHA256 签名）
-  - ✅ 飞书机器人通道（timestamp+sign 签名，卡片消息）
+  - ✅ 飞书机器人通道（timestamp+sign 签名，interactive 卡片）
   - ✅ 5 类事件触发：L4_BLOCK / PROMPT_INJECTION_BLOCK / L2_CONFIRM_REQUIRED / SERVICE_ABNORMAL / DISK_RISK
   - ✅ `NotificationRecord` 持久化 + `AuditLogDetail.notificationRecords` API 返回
+  - ✅ 前端配置页面 `NotificationSettings`（通道 CRUD + 连接测试 + 测试记录回查；密钥不回显，AES-256-GCM 信封加密存储）
   - ❌ 钉钉通道（P1-02 规划）
   - ❌ 企业微信通道（P1-02 规划）
   - ❌ 邮件通道（P1-02 规划）
-  - ❌ 前端配置页面（当前只支持 YAML 配置）
-- **配置方式**：`application.yml` / `application-demo.yml` + 环境变量（`KYLINOPS_DEMO_FEISHU_URL` / `KYLINOPS_DEMO_FEISHU_SECRET`）
-- **验证方式**：`demo` profile 启动 → 触发 L4/Prompt Inject 事件 → 查 `AuditLogDetail.notificationRecords` 状态。
-- **修复成本**：约 1~2 周（后端骨架 + 2 通道）。
+- **配置方式**（双通道，按场景选一）：
+  - **管理平面 API（推荐）**：前端 `/notification-settings` 页面 → 新建/编辑通道，密钥加密入库。环境变量仅需 `KYLINOPS_NOTIFICATION_MASTER_KEY`（dev 自带占位可零配置启动）。
+  - **YAML 种子**：`application-demo.yml` 仍保留 `KYLINOPS_DEMO_FEISHU_URL` / `KYLINOPS_DEMO_FEISHU_SECRET` 两个旧环境变量作为 demo 启动期种子通道（启动时自动导入管理表）；除 demo 演示外，新部署请走 API。
+  - **公网 URL 配置**：飞书卡片「查看审计详情」按钮依赖 `KYLINOPS_PUBLIC_BASE_URL`（默认空 → 按钮不出现在卡片里）。详见 `docs/deploy/install-and-deploy-guide.md` §2.4。
+- **验证方式**：`demo` profile 启动 → 触发 L4/Prompt Inject 事件 → 查 `AuditLogDetail.notificationRecords` 状态；或前端「通知配置」页 → 「测试」按钮发送 `TEST` 事件。
+- **修复成本**：约 2~3 周（后端骨架 + 2 通道 + 管理平面 + 前端配置页）。
 
 #### D-07 变更无回滚
 
