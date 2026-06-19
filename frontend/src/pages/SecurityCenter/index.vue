@@ -68,6 +68,12 @@ const sortedLevels = computed<RiskLevelView[]>(() => {
   );
 });
 
+const levelCardClass = (lv: RiskLevel): string =>
+  `security-level-card security-level-card--${lv.toLowerCase()}`;
+
+const eventCardClass = (ev: { riskLevel?: string }): string =>
+  `kg-event-card kg-event-card--${(ev.riskLevel ?? 'l4').toLowerCase()}`;
+
 const DECISION_ACTION_LABEL: Readonly<Record<RiskDecision, string>> = {
   ALLOW: '允许执行',
   CONFIRM: '确认后执行',
@@ -244,22 +250,33 @@ onMounted(async () => {
         subtitle="L0–L4 的等级与默认决策；前端仅展示后端结论，不参与决策"
       />
 
-      <div class="kg-safety-summary" data-testid="security-summary">
-        <div class="kg-safety-tile">
+      <div class="kg-safety-summary animate-in animate-delay-1" data-testid="security-summary">
+        <div class="kg-safety-tile kg-safety-tile--levels">
           <span class="kg-safety-tile__label">风险等级策略</span>
           <span class="kg-safety-tile__value">{{ sortedLevels.length }} 级</span>
+          <span class="kg-safety-tile__sub">
+            <span class="kg-safety-tile__dot" style="background:var(--kg-color-risk-l0)"></span>
+            <span class="kg-safety-tile__dot" style="background:var(--kg-color-risk-l1)"></span>
+            <span class="kg-safety-tile__dot" style="background:var(--kg-color-risk-l2)"></span>
+            <span class="kg-safety-tile__dot" style="background:var(--kg-color-risk-l3)"></span>
+            <span class="kg-safety-tile__dot" style="background:var(--kg-color-risk-l4)"></span>
+            L0–L4
+          </span>
         </div>
-        <div class="kg-safety-tile">
+        <div class="kg-safety-tile kg-safety-tile--events">
           <span class="kg-safety-tile__label">阻断事件</span>
           <span class="kg-safety-tile__value">{{ eventsTotal }}</span>
+          <span class="kg-safety-tile__sub">历史拦截记录</span>
         </div>
-        <div class="kg-safety-tile">
+        <div class="kg-safety-tile kg-safety-tile--inject">
           <span class="kg-safety-tile__label">注入检测</span>
-          <span class="kg-safety-tile__value" style="color: var(--kg-color-risk-inject)">独立旁路</span>
+          <span class="kg-safety-tile__value">独立旁路</span>
+          <span class="kg-safety-tile__sub">语义识别 · L4 阻断</span>
         </div>
-        <div class="kg-safety-tile">
+        <div class="kg-safety-tile kg-safety-tile--audit">
           <span class="kg-safety-tile__label">可审计追踪</span>
           <span class="kg-safety-tile__value">{{ totalRuleCount }} 条</span>
+          <span class="kg-safety-tile__sub">已加载规则</span>
         </div>
       </div>
 
@@ -282,13 +299,13 @@ onMounted(async () => {
 
       <div
         v-else
-        class="security-levels-grid"
+        class="security-levels-grid animate-in animate-delay-2"
         data-testid="security-levels-grid"
       >
         <el-card
           v-for="lv in sortedLevels"
           :key="lv.level"
-          class="security-level-card"
+          :class="levelCardClass(lv.level)"
           shadow="never"
           :data-testid="`security-level-${lv.level}`"
         >
@@ -323,13 +340,16 @@ onMounted(async () => {
         </el-card>
       </div>
 
-      <div class="kg-inject-card kg-card" data-testid="security-inject-card">
+      <div class="kg-inject-card kg-card animate-in animate-delay-2" data-testid="security-inject-card">
         <div class="kg-card__header">
+          <span class="kg-inject-icon">🛡</span>
           <p class="kg-card__title">Prompt 注入检测</p>
         </div>
         <div class="kg-card__body">
           <p style="margin: 0; font-size: var(--kg-text-sm); color: var(--kg-color-text-secondary); line-height: var(--kg-line-base);">
-            独立于 L0-L4 矩阵的旁路检测层，对所有用户输入执行语义识别，命中规则后立即升级为 L4 阻断并写入审计日志。
+            独立于 L0–L4 矩阵的旁路检测层，对所有用户输入执行语义识别，命中规则后立即升级为
+            <strong style="color: var(--kg-color-risk-inject);">L4 阻断</strong>
+            并写入审计日志。
           </p>
         </div>
       </div>
@@ -337,7 +357,7 @@ onMounted(async () => {
 
     <!-- Section B: rules snapshot, grouped by level -->
     <section
-      class="security-rules-section"
+      class="security-rules-section animate-in animate-delay-3"
       data-testid="security-rules-section"
     >
       <AppSectionHeader
@@ -452,7 +472,7 @@ onMounted(async () => {
 
     <!-- Section C: recent BLOCK events -->
     <section
-      class="security-events-section"
+      class="security-events-section animate-in animate-delay-3"
       data-testid="security-events-section"
     >
       <AppSectionHeader
@@ -494,7 +514,7 @@ onMounted(async () => {
           <div
             v-for="ev in events"
             :key="ev.auditId"
-            class="kg-event-card"
+            :class="eventCardClass(ev)"
             :data-testid="`security-event-${ev.auditId}`"
             @click="onEventRowClick(ev.auditId)"
           >
@@ -534,25 +554,94 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* ==========================================================================
+ * SecurityCenter — SOC Dashboard visual design
+ *
+ * Design intent: authoritative, polished, with risk-level colors as strong
+ * visual anchors. The G1 green-tinted light theme provides the base; this
+ * page adds a "security operations center" feel through risk-colored accent
+ * bars, timeline-like event cards, and refined typographic hierarchy.
+ * ========================================================================== */
+
+/* --------------------------------------------------------------------------
+ * Page layout
+ * -------------------------------------------------------------------------- */
+
 .security-page {
   display: flex;
   flex-direction: column;
-  gap: var(--kg-space-6);
+  gap: var(--kg-space-7);
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
+  animation: security-fadeIn 400ms ease-out;
 }
 
-/* L0..L4 catalog */
+/* --------------------------------------------------------------------------
+ * Entrance animations — staggered section reveals
+ * -------------------------------------------------------------------------- */
+
+.animate-in {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: security-slideUp 450ms cubic-bezier(0.21, 0.9, 0.35, 1) forwards;
+}
+
+.animate-delay-1 { animation-delay: 60ms; }
+.animate-delay-2 { animation-delay: 140ms; }
+.animate-delay-3 { animation-delay: 240ms; }
+
+@keyframes security-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes security-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Section A — L0..L4 risk level catalog
+ * -------------------------------------------------------------------------- */
+
+.security-levels-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-4);
+}
+
 .security-levels-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: var(--kg-space-3);
 }
 
+/* Level cards — each card gets a risk-colored top accent bar */
 .security-level-card {
   height: 100%;
+  border-top: 3px solid var(--kg-color-border-mute) !important;
+  border-radius: var(--kg-radius-md) !important;
+  transition: transform var(--kg-transition-base),
+    box-shadow var(--kg-transition-base);
 }
+
+.security-level-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--kg-shadow-card);
+}
+
+.security-level-card--l0 { border-top-color: var(--kg-color-risk-l0) !important; }
+.security-level-card--l1 { border-top-color: var(--kg-color-risk-l1) !important; }
+.security-level-card--l2 { border-top-color: var(--kg-color-risk-l2) !important; }
+.security-level-card--l3 { border-top-color: var(--kg-color-risk-l3) !important; }
+.security-level-card--l4 { border-top-color: var(--kg-color-risk-l4) !important; }
 
 .security-level-card-header {
   display: flex;
@@ -563,37 +652,50 @@ onMounted(async () => {
 .security-level-label {
   font-weight: 600;
   color: var(--kg-color-text-primary);
+  font-size: var(--kg-text-md);
 }
 
 .security-level-decision {
-  margin: var(--kg-space-1) 0;
+  margin: 0 0 var(--kg-space-1) 0;
   font-size: var(--kg-text-sm);
   color: var(--kg-color-text-secondary);
 }
 
 .security-level-system-action {
-  margin: 0 0 var(--kg-space-1) 0;
-  font-size: var(--kg-text-sm);
+  margin: 0 0 var(--kg-space-2) 0;
+  font-size: var(--kg-text-xs);
   color: var(--kg-color-text-mute);
+  font-family: var(--kg-font-mono);
 }
 
 .security-level-description {
-  margin: var(--kg-space-1) 0;
-  color: var(--kg-color-text-secondary);
+  margin: 0 0 var(--kg-space-1) 0;
+  color: var(--kg-color-text-primary);
   font-size: var(--kg-text-md);
   line-height: var(--kg-line-base);
 }
 
 .security-level-examples {
-  margin: var(--kg-space-1) 0 0 0;
+  margin: 0;
   font-size: var(--kg-text-sm);
   color: var(--kg-color-text-mute);
   word-break: break-word;
 }
 
-/* Rules */
+/* --------------------------------------------------------------------------
+ * Section B — Rules snapshot (grouped, read-only, code-like display)
+ * -------------------------------------------------------------------------- */
+
+.security-rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-2);
+}
+
 .security-rule-group {
-  margin-bottom: var(--kg-space-3);
+  margin-bottom: 0;
+  border-radius: var(--kg-radius-md);
+  overflow: hidden;
 }
 
 .security-rule-group-header {
@@ -606,9 +708,30 @@ onMounted(async () => {
   font-weight: 700;
   padding: 2px var(--kg-space-2);
   border-radius: var(--kg-radius-sm);
-  background: var(--kg-color-danger-soft);
-  color: var(--kg-color-danger);
-  font-size: var(--kg-text-md);
+  font-size: var(--kg-text-sm);
+  letter-spacing: 0.04em;
+  font-family: var(--kg-font-mono);
+}
+
+.security-rule-group[data-testid*="L4"] .security-rule-group-level {
+  background: var(--kg-color-risk-l4-soft);
+  color: var(--kg-color-risk-l4);
+}
+.security-rule-group[data-testid*="L3"] .security-rule-group-level {
+  background: var(--kg-color-risk-l3-soft);
+  color: var(--kg-color-risk-l3);
+}
+.security-rule-group[data-testid*="L2"] .security-rule-group-level {
+  background: var(--kg-color-risk-l2-soft);
+  color: var(--kg-color-risk-l2);
+}
+.security-rule-group[data-testid*="L1"] .security-rule-group-level {
+  background: var(--kg-color-risk-l1-soft);
+  color: var(--kg-color-risk-l1);
+}
+.security-rule-group[data-testid*="L0"] .security-rule-group-level {
+  background: var(--kg-color-risk-l0-soft);
+  color: var(--kg-color-risk-l0);
 }
 
 .security-rule-group-label {
@@ -617,8 +740,10 @@ onMounted(async () => {
 }
 
 .security-rule-group-count {
-  font-size: var(--kg-text-sm);
+  font-size: var(--kg-text-xs);
   color: var(--kg-color-text-mute);
+  margin-left: auto;
+  font-family: var(--kg-font-mono);
 }
 
 .security-rule-list {
@@ -634,13 +759,18 @@ onMounted(async () => {
   padding: var(--kg-space-2) var(--kg-space-3);
   background: var(--kg-color-surface-soft);
   border: 1px solid var(--kg-color-border-mute);
-  border-left: 3px solid var(--kg-color-info);
   border-radius: var(--kg-radius-sm);
+  transition: border-color var(--kg-transition-fast),
+    background var(--kg-transition-fast);
+}
+
+.security-rule-item:hover {
+  border-color: var(--kg-color-border);
+  background: var(--kg-color-surface);
 }
 
 .security-rule-item-disabled {
-  border-left-color: var(--kg-color-border-strong);
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .security-rule-row {
@@ -654,12 +784,26 @@ onMounted(async () => {
   font-family: var(--kg-font-mono);
   font-size: var(--kg-text-sm);
   color: var(--kg-color-text-primary);
+  font-weight: 600;
 }
 
 .security-rule-decision {
   font-size: var(--kg-text-sm);
-  color: var(--kg-color-danger);
   font-weight: 600;
+}
+
+.security-rule-group[data-testid*="L4"] .security-rule-decision,
+.security-rule-group[data-testid*="L3"] .security-rule-decision {
+  color: var(--kg-color-danger);
+}
+.security-rule-group[data-testid*="L2"] .security-rule-decision {
+  color: var(--kg-color-warning);
+}
+.security-rule-group[data-testid*="L1"] .security-rule-decision {
+  color: var(--kg-color-success);
+}
+.security-rule-group[data-testid*="L0"] .security-rule-decision {
+  color: var(--kg-color-risk-l0);
 }
 
 .security-rule-disabled-tag {
@@ -668,11 +812,12 @@ onMounted(async () => {
   border: 1px solid var(--kg-color-border);
   padding: 1px var(--kg-space-2);
   border-radius: var(--kg-radius-sm);
+  background: var(--kg-color-surface-code);
 }
 
 .security-rule-description {
   margin: var(--kg-space-1) 0 0 0;
-  color: var(--kg-color-text-secondary);
+  color: var(--kg-color-text-primary);
   font-size: var(--kg-text-md);
   line-height: var(--kg-line-base);
 }
@@ -700,44 +845,41 @@ onMounted(async () => {
 
 .security-rule-regex-value {
   font-family: var(--kg-font-mono);
-  font-size: var(--kg-text-sm);
+  font-size: var(--kg-text-xs);
   color: var(--kg-color-text-primary);
-  background: var(--kg-color-surface);
-  padding: 1px var(--kg-space-2);
-  border: 1px solid var(--kg-color-border);
+  background: var(--kg-color-surface-code);
+  padding: 2px var(--kg-space-2);
+  border: 1px solid var(--kg-color-border-mute);
   border-radius: var(--kg-radius-sm);
   word-break: break-all;
+  line-height: 1.6;
 }
 
-/* Events */
-.security-events-table {
-  cursor: pointer;
-}
+/* --------------------------------------------------------------------------
+ * Section C — BLOCK events timeline
+ * -------------------------------------------------------------------------- */
 
-.security-event-auditid {
-  font-family: var(--kg-font-mono);
-  font-size: var(--kg-text-sm);
-  color: var(--kg-color-text-primary);
-  word-break: break-all;
+.security-events-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-2);
 }
 
 .security-event-level {
-  font-weight: 600;
-  color: var(--kg-color-danger);
-}
-
-.security-event-decision,
-.security-event-rules,
-.security-event-reason {
-  color: var(--kg-color-text-secondary);
-  font-size: var(--kg-text-sm);
-  word-break: break-word;
-}
-
-.security-event-time {
-  color: var(--kg-color-text-secondary);
-  font-size: var(--kg-text-sm);
+  font-weight: 700;
   font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  padding: 1px 6px;
+  border-radius: var(--kg-radius-sm);
+  background: var(--kg-color-danger-soft);
+  color: var(--kg-color-danger);
+  letter-spacing: 0.04em;
+}
+
+.security-event-decision {
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-danger);
+  font-weight: 600;
 }
 
 .security-events-pagination {

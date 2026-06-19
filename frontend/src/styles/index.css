@@ -555,64 +555,72 @@ pre {
  * UI-01.1 additions — hero, scenario cards, matrix L4 emphasis, chip filter.
  * ========================================================================== */
 
-/* Dashboard hero */
+/* Dashboard hero — compact pill layout */
 .kg-hero-area {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--kg-space-6);
-  padding: var(--kg-space-6) var(--kg-space-6);
+  gap: var(--kg-space-4);
+  padding: var(--kg-space-3) var(--kg-space-5);
   background: linear-gradient(135deg, var(--kg-color-surface), var(--kg-color-surface-soft));
   border: 1px solid var(--kg-color-border);
   border-radius: var(--kg-radius-md);
-  margin-bottom: var(--kg-space-4);
 }
 
-.kg-hero-text {
+.kg-hero-brand {
   display: flex;
   flex-direction: column;
-  gap: var(--kg-space-2);
-  max-width: 560px;
+  gap: 2px;
 }
 
-.kg-hero-title {
+.kg-hero-brand-name {
   margin: 0;
-  font-size: var(--kg-text-xl);
+  font-size: var(--kg-text-md);
   font-weight: 700;
   color: var(--kg-color-text-primary);
   line-height: var(--kg-line-tight);
   letter-spacing: 0.02em;
 }
 
-.kg-hero-subtitle {
+.kg-hero-brand-subtitle {
   margin: 0;
-  font-size: var(--kg-text-sm);
+  font-size: var(--kg-text-xs);
   color: var(--kg-color-text-mute);
   line-height: var(--kg-line-base);
 }
 
-.kg-hero-statuses {
+.kg-hero-pills {
   display: flex;
-  gap: var(--kg-space-4);
+  gap: var(--kg-space-2);
   flex-shrink: 0;
 }
 
-.kg-hero-status-item {
+.kg-hero-pill {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
+  gap: var(--kg-space-2);
+  padding: 4px var(--kg-space-3);
+  border-radius: var(--kg-radius-pill);
+  background: var(--kg-color-surface);
+  border: 1px solid var(--kg-color-border-mute);
+  font-size: var(--kg-text-sm);
+  transition: border-color var(--kg-transition-fast);
 }
 
-.kg-hero-status-label {
+.kg-hero-pill--success { border-color: var(--kg-color-success-soft); }
+.kg-hero-pill--warning { border-color: var(--kg-color-warning-soft); }
+.kg-hero-pill--danger { border-color: var(--kg-color-danger-soft); }
+.kg-hero-pill--info { border-color: var(--kg-color-info-soft); }
+.kg-hero-pill--ok { border-color: var(--kg-color-risk-l1-soft); }
+.kg-hero-pill--degraded { border-color: var(--kg-color-risk-l2-soft); }
+
+.kg-hero-pill-label {
   font-size: var(--kg-text-xs);
   color: var(--kg-color-text-mute);
   white-space: nowrap;
 }
 
-.kg-hero-status-value {
-  font-family: var(--kg-font-mono);
-  font-size: var(--kg-text-md);
+.kg-hero-pill-value {
   font-weight: 600;
   color: var(--kg-color-text-primary);
   white-space: nowrap;
@@ -621,51 +629,64 @@ pre {
 /* Scenario cards (ChatConsole) */
 .kg-scenario-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--kg-space-3);
-  margin-top: var(--kg-space-4);
-}
-
-.kg-scenario-grid .kg-scenario-card:nth-child(5) {
-  grid-column: 1 / -1;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--kg-space-2);
+  margin-top: var(--kg-space-3);
 }
 
 .kg-scenario-card {
   display: flex;
   align-items: center;
-  gap: var(--kg-space-3);
-  padding: var(--kg-space-4) var(--kg-space-4);
-  background: var(--kg-color-surface-soft);
-  border: 1px solid var(--kg-color-border-mute);
+  gap: var(--kg-space-2);
+  padding: var(--kg-space-2) var(--kg-space-3);
   border-radius: var(--kg-radius-md);
   cursor: pointer;
-  transition: background var(--kg-transition-fast), border-color var(--kg-transition-fast);
+  transition: all var(--kg-transition-fast);
+  border: 1px solid transparent;
+  background: var(--kg-color-surface-soft);
 }
 
 .kg-scenario-card:hover {
-  background: var(--kg-color-surface-mute);
   border-color: var(--kg-color-border);
+  background: var(--kg-color-surface-mute);
 }
 
 .kg-scenario-card:active {
   transform: translateY(1px);
 }
 
+/* Per-card accent colors */
+.kg-scenario-card--health {
+  --kg-card-accent: var(--kg-color-success, #22c55e);
+}
+.kg-scenario-card--disk {
+  --kg-card-accent: var(--kg-color-warning, #f59e0b);
+}
+.kg-scenario-card--service {
+  --kg-card-accent: var(--kg-color-primary, #3b82f6);
+}
+.kg-scenario-card--danger {
+  --kg-card-accent: var(--kg-color-danger, #ef4444);
+}
+.kg-scenario-card--inject {
+  --kg-card-accent: #a855f7;
+}
+
 .kg-scenario-card__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   border-radius: var(--kg-radius-sm);
-  background: var(--kg-color-primary-soft);
-  color: var(--kg-color-primary-hover);
-  font-size: 18px;
+  color: var(--kg-card-accent);
+  background: color-mix(in srgb, var(--kg-card-accent) 16%, transparent);
+  font-size: 15px;
 }
 
 .kg-scenario-card__label {
-  font-size: var(--kg-text-md);
+  font-size: var(--kg-text-sm);
   font-weight: 600;
   color: var(--kg-color-text-primary);
 }
@@ -674,6 +695,12 @@ pre {
   font-size: var(--kg-text-xs);
   color: var(--kg-color-text-mute);
   margin-top: 1px;
+}
+
+.kg-scenario-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Strategy matrix L4 emphasis */
@@ -686,40 +713,112 @@ pre {
   color: var(--kg-color-danger) !important;
 }
 
-/* Inject independent card */
+/* Inject independent card — shield-like security notice */
 .kg-inject-card {
   border-color: var(--kg-color-risk-inject) !important;
   background: var(--kg-color-risk-inject-soft) !important;
+  position: relative;
+  overflow: hidden;
 }
 
-/* Safety summary tiles (SecurityCenter) */
+.kg-inject-card::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 120px;
+  height: 200%;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(168, 85, 247, 0.04) 50%,
+    transparent 100%
+  );
+  transform: rotate(15deg);
+  pointer-events: none;
+}
+
+.kg-inject-icon {
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.3));
+}
+
+/* Safety summary tiles (SecurityCenter) — SOC dashboard metrics */
 .kg-safety-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--kg-space-3);
-  margin-bottom: var(--kg-space-4);
+  margin-bottom: var(--kg-space-5);
 }
 
 .kg-safety-tile {
   display: flex;
   flex-direction: column;
-  gap: var(--kg-space-1);
-  padding: var(--kg-space-4) var(--kg-space-4);
-  background: var(--kg-color-surface-soft);
+  gap: var(--kg-space-2);
+  padding: var(--kg-space-4) var(--kg-space-5);
+  background: var(--kg-color-surface);
   border: 1px solid var(--kg-color-border-mute);
   border-radius: var(--kg-radius-md);
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--kg-transition-base),
+    box-shadow var(--kg-transition-base);
 }
+
+.kg-safety-tile::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+}
+
+.kg-safety-tile:hover {
+  border-color: var(--kg-color-border);
+  box-shadow: var(--kg-shadow-card);
+}
+
+.kg-safety-tile--levels::before { background: linear-gradient(90deg, var(--kg-color-risk-l0), var(--kg-color-risk-l1), var(--kg-color-risk-l2), var(--kg-color-risk-l3), var(--kg-color-risk-l4)); }
+.kg-safety-tile--events::before { background: var(--kg-color-danger); }
+.kg-safety-tile--inject::before { background: var(--kg-color-risk-inject); }
+.kg-safety-tile--audit::before { background: var(--kg-color-info); }
 
 .kg-safety-tile__label {
   font-size: var(--kg-text-xs);
   color: var(--kg-color-text-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
 }
 
 .kg-safety-tile__value {
-  font-size: var(--kg-text-md);
+  font-size: var(--kg-text-xl);
   font-weight: 700;
   color: var(--kg-color-text-primary);
   font-family: var(--kg-font-mono);
+  line-height: 1.2;
+}
+
+.kg-safety-tile__sub {
+  font-size: var(--kg-text-xs);
+  color: var(--kg-color-text-mute);
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-1);
+}
+
+.kg-safety-tile__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.kg-safety-tile--inject .kg-safety-tile__value {
+  color: var(--kg-color-risk-inject);
 }
 
 /* Tool center — category filter chips */
@@ -788,19 +887,43 @@ pre {
   font-family: var(--kg-font-mono);
 }
 
-/* Event card (SecurityCenter) */
+/* Event card (SecurityCenter) — timeline feed style */
+.kg-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-2);
+}
+
 .kg-event-card {
+  position: relative;
   padding: var(--kg-space-3) var(--kg-space-4);
-  background: var(--kg-color-surface-soft);
+  padding-left: calc(var(--kg-space-4) + 4px);
+  background: var(--kg-color-surface);
   border: 1px solid var(--kg-color-border-mute);
+  border-left: 3px solid var(--kg-color-border-strong);
   border-radius: var(--kg-radius-sm);
   cursor: pointer;
-  transition: background var(--kg-transition-fast);
+  transition: all var(--kg-transition-base);
 }
 
 .kg-event-card:hover {
-  background: var(--kg-color-surface-mute);
+  background: var(--kg-color-surface-soft);
+  border-color: var(--kg-color-border);
+  border-left-width: 3px;
+  box-shadow: var(--kg-shadow-card);
+  transform: translateX(2px);
 }
+
+.kg-event-card:active {
+  transform: translateX(0);
+}
+
+/* Event card risk-level color accents */
+.kg-event-card--l0 { border-left-color: var(--kg-color-risk-l0); }
+.kg-event-card--l1 { border-left-color: var(--kg-color-risk-l1); }
+.kg-event-card--l2 { border-left-color: var(--kg-color-risk-l2); }
+.kg-event-card--l3 { border-left-color: var(--kg-color-risk-l3); }
+.kg-event-card--l4 { border-left-color: var(--kg-color-risk-l4); }
 
 .kg-event-card__row {
   display: flex;
@@ -839,7 +962,7 @@ pre {
 }
 
 @keyframes kg-slideUp {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -885,16 +1008,16 @@ pre {
 }
 
 /* Staggered reveal (used in Dashboard metric grid) */
-.kg-stagger-1 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.03s; }
-.kg-stagger-2 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.06s; }
-.kg-stagger-3 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.09s; }
-.kg-stagger-4 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.12s; }
-.kg-stagger-5 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.15s; }
-.kg-stagger-6 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.18s; }
-.kg-stagger-7 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.21s; }
-.kg-stagger-8 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.24s; }
-.kg-stagger-9 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.27s; }
-.kg-stagger-10 { animation: kg-fadeIn 0.3s ease-out both, kg-slideUp 0.35s ease-out both; animation-delay: 0.30s; }
+.kg-stagger-1 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.02s; }
+.kg-stagger-2 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.04s; }
+.kg-stagger-3 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.06s; }
+.kg-stagger-4 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.08s; }
+.kg-stagger-5 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.10s; }
+.kg-stagger-6 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.12s; }
+.kg-stagger-7 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.14s; }
+.kg-stagger-8 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.16s; }
+.kg-stagger-9 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.18s; }
+.kg-stagger-10 { animation: kg-fadeIn 0.25s ease-out both, kg-slideUp 0.28s ease-out both; animation-delay: 0.20s; }
 
 /* ============================================================================
  * Background patterns — Command Center grid / atmosphere.
@@ -949,9 +1072,9 @@ pre {
 /* Progress bar (inline, used in StatusMetricCard) */
 .kg-progress-bar {
   width: 100%;
-  height: 3px;
+  height: 6px;
   background: var(--kg-color-surface-mute);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
@@ -963,14 +1086,17 @@ pre {
 
 .kg-progress-fill--ok {
   background: var(--kg-color-risk-l1);
+  box-shadow: 0 0 6px var(--kg-color-risk-l1-soft);
 }
 
 .kg-progress-fill--warning {
   background: var(--kg-color-risk-l2);
+  box-shadow: 0 0 6px var(--kg-color-risk-l2-soft);
 }
 
 .kg-progress-fill--critical {
   background: var(--kg-color-risk-l4);
+  box-shadow: 0 0 6px var(--kg-color-risk-l4-soft);
 }
 
 /* Glow ring (used by Dashboard health gauge) */

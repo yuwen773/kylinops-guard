@@ -36,6 +36,11 @@ import type { ToolDefinition } from '../../src/types/tool';
 import type { ReportDetail, ReportSummary, ReportPage } from '../../src/types/report';
 import type { RiskDecision, RiskLevel } from '../../src/types/safety';
 import type { AuthSession } from '../../src/types/auth';
+import type {
+  NotificationChannel,
+  NotificationSettings,
+  NotificationTestRecordSummary,
+} from '../../src/types/notification';
 
 // ---------------------------------------------------------------------------
 // ApiResponse envelope — mirrors com.kylinops.common.ApiResponse.
@@ -721,5 +726,77 @@ export function mockReportDetail(
     bodyMarkdown:
       '# 系统健康报告\n\n- 健康分：86\n- 主要风险：无\n\n> 数据来源：AuditLogDetail 链路回放',
     createdAt: '2026-06-12T10:00:00',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Notification fixtures — P1-01 Notification Center.
+// ---------------------------------------------------------------------------
+
+export interface NotificationSettingsOptions {
+  enabled?: boolean;
+  dryRun?: boolean;
+  version?: number;
+  channels?: NotificationChannel[];
+}
+
+export function mockNotificationChannel(
+  id: string,
+  overrides?: Partial<NotificationChannel>,
+): NotificationChannel {
+  const channel: NotificationChannel = {
+    id,
+    type: 'FEISHU',
+    enabled: true,
+    url: `https://open.feishu.cn/open-apis/bot/v2/hook/${id}`,
+    secretConfigured: false,
+    timeoutMs: 5000,
+    version: 1,
+    createdAt: '2026-06-12T10:00:00',
+    updatedAt: '2026-06-12T10:00:00',
+    ...overrides,
+  };
+  return channel;
+}
+
+export function mockNotificationSettings(
+  opts: NotificationSettingsOptions = {},
+): NotificationSettings {
+  const channels =
+    opts.channels ??
+    [
+      mockNotificationChannel('ch-feishu-1', {
+        type: 'FEISHU',
+        url: 'https://open.feishu.cn/open-apis/bot/v2/hook/abc123',
+        secretConfigured: true,
+      }),
+      mockNotificationChannel('ch-webhook-1', {
+        type: 'WEBHOOK',
+        url: 'https://hooks.example.com/alert',
+        secretConfigured: false,
+      }),
+    ];
+  return {
+    enabled: opts.enabled ?? true,
+    dryRun: opts.dryRun ?? false,
+    version: opts.version ?? 1,
+    channels,
+  };
+}
+
+export function mockNotificationTestRecordSummary(
+  channelId: string,
+  overrides?: Partial<NotificationTestRecordSummary>,
+): NotificationTestRecordSummary {
+  return {
+    recordId: `nr-${channelId}-001`,
+    channelId,
+    eventType: 'TEST',
+    status: 'SENT',
+    responseCode: 200,
+    errorMessage: null,
+    sentAt: '2026-06-15T10:30:00',
+    durationMs: 150,
+    ...overrides,
   };
 }

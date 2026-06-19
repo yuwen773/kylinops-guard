@@ -59,6 +59,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/ReportCenter/index.vue'),
     meta: { title: '报告中心' },
   },
+  {
+    path: '/notification-settings',
+    name: 'notification-settings',
+    component: () => import('@/pages/NotificationSettings/index.vue'),
+    meta: { title: '通知配置' },
+  },
   // Fallback: unknown path lands on ChatConsole. Safety policy stays
   // unchanged — we do NOT redirect to a shell or 404 page that could
   // mislead the demo.

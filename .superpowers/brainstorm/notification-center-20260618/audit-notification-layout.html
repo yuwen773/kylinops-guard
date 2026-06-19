@@ -1,0 +1,64 @@
+<h2>审计详情中的通知记录放在哪里？</h2>
+<p class="subtitle">三种方案展示相同字段：通道、状态、响应码、发送时间、失败原因。请选择最符合日常排障路径的一种。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px">
+      <div style="font-weight:700;margin-bottom:12px">审计详情</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <span style="padding:5px 10px;border-radius:7px;background:#dff7e8;color:#17643a">基本信息</span>
+        <span style="padding:5px 10px;border-radius:7px;background:#eef1f4">风险校验</span>
+        <span style="padding:5px 10px;border-radius:7px;background:#eef1f4">工具调用</span>
+        <span style="padding:5px 10px;border-radius:7px;background:#eef1f4">通知记录 2</span>
+      </div>
+      <div style="border:1px solid #d8dee5;border-radius:8px;padding:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:13px">
+          <b>飞书 · feishu-prod</b><span style="color:#16834b">发送成功</span><span>10:42:18</span>
+          <b>Webhook · soc</b><span style="color:#b42318">发送失败</span><span>HTTP 500</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 独立标签页（推荐）</h3>
+      <p>详情抽屉保持紧凑；需要排障时进入通知记录标签，适合记录可能多于一条的情况。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px">
+      <div style="font-weight:700;margin-bottom:12px">审计详情</div>
+      <div style="height:42px;background:#eef1f4;border-radius:8px;margin-bottom:10px;padding:10px">基本信息 / 风险判定</div>
+      <div style="height:42px;background:#eef1f4;border-radius:8px;margin-bottom:10px;padding:10px">工具调用 / 执行结果</div>
+      <div style="border:1px solid #d8dee5;border-radius:8px;padding:12px">
+        <b>通知记录</b>
+        <div style="margin-top:10px;font-size:13px">飞书 · SENT · 10:42:18</div>
+        <div style="margin-top:7px;font-size:13px">Webhook · FAILED · HTTP 500</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 详情底部区块</h3>
+      <p>无需切换即可看到，但会继续拉长已有详情抽屉，通知较多时浏览成本明显上升。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px">
+      <div style="font-weight:700;margin-bottom:12px">审计详情</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div style="height:52px;background:#eef1f4;border-radius:8px;margin-bottom:9px;padding:10px">事件与风险</div>
+          <div style="height:52px;background:#eef1f4;border-radius:8px;padding:10px">执行结果</div>
+        </div>
+        <div style="border:1px solid #d8dee5;border-radius:8px;padding:12px">
+          <b>通知记录</b>
+          <div style="margin-top:10px;font-size:13px">飞书<br><span style="color:#16834b">发送成功</span></div>
+          <div style="margin-top:9px;font-size:13px">Webhook<br><span style="color:#b42318">发送失败</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 右侧并列面板</h3>
+      <p>通知状态最醒目，但压缩主内容宽度，小屏适配和现有抽屉改造成本最高。</p>
+    </div>
+  </div>
+</div>

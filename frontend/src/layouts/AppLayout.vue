@@ -227,7 +227,7 @@ async function handleLogout(): Promise<void> {
 }
 
 .app-body {
-  min-height: calc(100vh - 56px);
+  height: calc(100vh - 56px);
 }
 
 .app-aside {

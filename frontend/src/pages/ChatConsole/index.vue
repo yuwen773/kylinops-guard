@@ -392,6 +392,7 @@ const handleGenerateReport = async () => {
       </div>
     </template>
 
+      <div class="chat-body">
       <section
         v-if="turns.length === 0"
         class="chat-welcome"
@@ -408,8 +409,8 @@ const handleGenerateReport = async () => {
           v-for="card in SCENARIO_CARDS"
           :key="card.id"
           class="kg-scenario-card"
+          :class="[`kg-scenario-card--${card.id}`, { 'kg-scenario-card--disabled': inFlight }]"
           :data-testid="`quick-action-${card.id}`"
-          :class="{ 'kg-scenario-card--disabled': inFlight }"
           :aria-disabled="inFlight"
           @click="inFlight ? undefined : onQuickAction(card.content)"
         >
@@ -657,6 +658,7 @@ const handleGenerateReport = async () => {
         生成报告失败：{{ reportError }}
       </p>
     </section>
+    </div><!-- /.chat-body -->
   </el-card>
 </template>
 
@@ -664,6 +666,24 @@ const handleGenerateReport = async () => {
 .page-card {
   max-width: 960px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 56px - 48px - 16px);
+}
+
+.page-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .page-header {
@@ -719,6 +739,9 @@ const handleGenerateReport = async () => {
   gap: var(--kg-space-4);
   margin-bottom: var(--kg-space-4);
   min-height: 200px;
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 .chat-turn {

@@ -39,6 +39,13 @@ const isEmpty = computed(
   () => props.value === null || props.value === undefined || props.value === '',
 );
 
+/** True when the value is a plain number (not a text label). */
+const isNumericValue = computed(() => {
+  if (isEmpty.value) return false;
+  const num = Number(props.value);
+  return Number.isFinite(num);
+});
+
 const displayValue = computed(() => (isEmpty.value ? '—' : String(props.value)));
 
 const statusText = computed<string>(() => {
@@ -113,7 +120,7 @@ const progressClass = computed(() => {
       class="status-metric-value"
       :data-testid="`status-metric-value-${title}`"
     >
-      <span class="status-metric-number">{{ displayValue }}</span>
+      <span class="status-metric-number" :class="{ 'status-metric-number--text': !isNumericValue }">{{ displayValue }}</span>
       <span v-if="!isEmpty && unit" class="status-metric-unit">{{ unit }}</span>
     </div>
     <div
@@ -141,11 +148,16 @@ const progressClass = computed(() => {
   position: relative;
   overflow: hidden;
   transition: box-shadow var(--kg-transition-base), transform var(--kg-transition-fast);
+  cursor: pointer;
 }
 
 .status-metric-card:hover {
   box-shadow: var(--kg-glow-primary);
   transform: translateY(-1px);
+}
+
+.status-metric-card:active {
+  transform: translateY(0);
 }
 
 .status-metric-header {
@@ -174,6 +186,15 @@ const progressClass = computed(() => {
   color: var(--kg-color-text-primary);
   line-height: var(--kg-line-tight);
   font-family: var(--kg-font-mono);
+}
+
+.status-metric-number--text {
+  font-size: var(--kg-text-base);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .status-metric-unit {

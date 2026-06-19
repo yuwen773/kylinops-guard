@@ -28,6 +28,7 @@
 //   * No shell, no command forwarding, no auto-confirm.
 
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { getDashboardOverview } from '@/api/dashboard';
 import { ApiError } from '@/api/client';
 import StatusMetricCard, { type StatusMetricStatus } from '@/components/StatusMetricCard/index.vue';
@@ -461,6 +462,43 @@ const staggerClass = (index: number): string => {
   const i = Math.min(index + 1, 10);
   return `kg-stagger-${i}`;
 };
+
+// ---------------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------------
+
+const router = useRouter();
+
+const goToToolCenter = () => {
+  router.push('/tools');
+};
+
+// ---------------------------------------------------------------------------
+// Metric grouping — organise 10 cards into 3 logical clusters
+// ---------------------------------------------------------------------------
+
+interface MetricGroup {
+  label: string;
+  key: string;
+  items: MetricView[];
+}
+
+const METRIC_GROUPS_CONFIG = [
+  { key: 'system', label: '系统资源', tools: ['cpu_status_tool', 'memory_status_tool', 'disk_usage_tool'] },
+  { key: 'service', label: '服务状态', tools: ['service_status_tool', 'network_port_tool', 'process_list_tool', 'process_detail_tool'] },
+  { key: 'data', label: '数据采集', tools: ['large_file_scan_tool', 'journal_log_tool', 'system_info_tool'] },
+] as const;
+
+const groupedMetrics = computed<MetricGroup[]>(() => {
+  const views = metricViews.value;
+  return METRIC_GROUPS_CONFIG
+    .map((cfg) => ({
+      label: cfg.label,
+      key: cfg.key,
+      items: views.filter((v) => cfg.tools.includes(v.toolName)),
+    }))
+    .filter((g) => g.items.length > 0);
+});
 </script>
 
 <template>
@@ -528,28 +566,27 @@ const staggerClass = (index: number): string => {
     </div>
 
     <template v-if="overview">
-      <!-- Hero area -->
-      <section class="kg-hero-area kg-scan-overlay" data-testid="dashboard-hero">
-        <div class="kg-hero-text">
-          <p class="kg-hero-title">麒麟安全智能运维态势台</p>
-          <p class="kg-hero-subtitle">实时汇聚系统健康、风险拦截、工具调用与审计追踪，帮助运维人员快速定位异常并安全处置。</p>
+      <!-- Compact hero area -->
+      <section class="kg-hero-area" data-testid="dashboard-hero">
+        <div class="kg-hero-brand">
+          <p class="kg-hero-brand-name">麒麟安全智能运维态势台</p>
+          <p class="kg-hero-brand-subtitle">实时汇聚系统健康、风险拦截、工具调用与审计追踪</p>
         </div>
-        <div class="kg-hero-statuses">
-          <div class="kg-hero-status-item">
-            <span class="kg-hero-status-label">当前状态</span>
-            <span
-              class="kg-hero-status-value"
-              :style="{ color: healthToneColor }"
-              data-testid="dashboard-hero-status"
-            >{{ healthLabel }}</span>
+        <div class="kg-hero-pills">
+          <div
+            class="kg-hero-pill"
+            :class="`kg-hero-pill--${scoreTone}`"
+            data-testid="dashboard-hero-status"
+          >
+            <span class="kg-hero-pill-label">当前状态</span>
+            <span class="kg-hero-pill-value" :style="{ color: healthToneColor }">{{ healthLabel }}</span>
           </div>
-          <div class="kg-hero-status-item">
-            <span class="kg-hero-status-label">今日风险事件</span>
-            <span class="kg-hero-status-value" data-testid="dashboard-hero-risk-events">待接入</span>
-          </div>
-          <div class="kg-hero-status-item">
-            <span class="kg-hero-status-label">最近审计 ID</span>
-            <span class="kg-hero-status-value" data-testid="dashboard-hero-audit-id">{{ auditIdText }}</span>
+          <div
+            class="kg-hero-pill"
+            :class="degradedVisible ? 'kg-hero-pill--degraded' : 'kg-hero-pill--ok'"
+          >
+            <span class="kg-hero-pill-label">覆盖率</span>
+            <span class="kg-hero-pill-value">{{ coverageText }}</span>
           </div>
         </div>
       </section>
@@ -559,7 +596,7 @@ const staggerClass = (index: number): string => {
         class="dashboard-summary"
         data-testid="dashboard-summary"
       >
-        <!-- Health score card with SVG gauge -->
+        <!-- Health score card with SVG gauge (spans 2fr on desktop) -->
         <el-card
           class="dashboard-summary-card health-score-card"
           shadow="never"
@@ -604,99 +641,100 @@ const staggerClass = (index: number): string => {
               />
               <!-- Center text -->
               <text
-                x="60" y="52"
+                x="60" y="54"
                 text-anchor="middle"
                 class="health-gauge-value"
                 fill="var(--kg-color-text-primary)"
               >{{ scoreText }}</text>
-              <text
-                x="60" y="72"
-                text-anchor="middle"
-                class="health-gauge-label"
-                fill="var(--kg-color-text-mute)"
-              >/ 100</text>
             </svg>
-          </div>
-          <p class="summary-help">得分仅基于成功指标计算</p>
-        </el-card>
-
-        <el-card
-          class="dashboard-summary-card"
-          shadow="never"
-          data-testid="dashboard-coverage-card"
-        >
-          <template #header>
-            <div class="summary-header">
-              <span class="summary-title">指标覆盖率</span>
-              <el-tag
-                v-if="degradedVisible"
-                type="warning"
-                size="small"
-                data-testid="dashboard-degraded-tag"
-              >
-                部分降级
-              </el-tag>
-              <el-tag
-                v-else
-                type="success"
-                size="small"
-              >
-                全部成功
-              </el-tag>
-            </div>
-          </template>
-          <div class="summary-score-row">
-            <span class="summary-score-number">{{ coverageText }}</span>
-            <span
-              v-if="coveragePercent !== null"
-              class="summary-score-unit"
-            >
-              ({{ coveragePercent }}%)
-            </span>
-          </div>
-          <div
-            v-if="coveragePercent !== null"
-            class="summary-coverage-bar"
-          >
-            <div
-              class="summary-coverage-fill"
-              :style="{ width: `${coveragePercent}%` }"
-              :class="coveragePercent >= 80 ? 'coverage-ok' : coveragePercent >= 50 ? 'coverage-warn' : 'coverage-danger'"
-            />
-          </div>
-          <p class="summary-help">
-            成功 {{ overview.successfulMetricCount }} / 共
-            {{ overview.totalMetricCount }} 项
-          </p>
-        </el-card>
-
-        <el-card
-          class="dashboard-summary-card"
-          shadow="never"
-          data-testid="dashboard-collected-card"
-        >
-          <template #header>
-            <div class="summary-header">
-              <span class="summary-title">采集时间</span>
+            <div class="health-gauge-footer">
+              <span class="health-gauge-outof">/ 100</span>
               <span
-                class="summary-audit-id"
-                data-testid="dashboard-audit-id"
-              >审计 {{ auditIdText }}</span>
+                v-if="scoreAsNumber !== null"
+                class="health-gauge-status"
+                :style="{ color: gaugeColor }"
+              >{{ gaugeLabel }}</span>
             </div>
-          </template>
-          <div
-            class="summary-collected"
-            data-testid="dashboard-collected-at"
-          >
-            {{ collectedAtText }}
           </div>
-          <p class="summary-help">
-            关联审计 ID 可在审计中心按 ID 检索
-          </p>
+          <p v-if="degradedVisible" class="summary-help">得分仅基于成功指标计算</p>
         </el-card>
+
+        <div class="dashboard-summary-sidebar">
+          <el-card
+            class="dashboard-summary-card"
+            shadow="never"
+            data-testid="dashboard-coverage-card"
+          >
+            <template #header>
+              <div class="summary-header">
+                <span class="summary-title">指标覆盖率</span>
+                <el-tag
+                  v-if="degradedVisible"
+                  type="warning"
+                  size="small"
+                  data-testid="dashboard-degraded-tag"
+                >
+                  部分降级
+                </el-tag>
+                <el-tag
+                  v-else
+                  type="success"
+                  size="small"
+                >
+                  全部成功
+                </el-tag>
+              </div>
+            </template>
+            <div class="summary-score-row">
+              <span class="summary-score-number">{{ coverageText }}</span>
+              <span
+                v-if="coveragePercent !== null"
+                class="summary-score-unit"
+              >
+                ({{ coveragePercent }}%)
+              </span>
+            </div>
+            <div
+              v-if="coveragePercent !== null"
+              class="summary-coverage-bar"
+            >
+              <div
+                class="summary-coverage-fill"
+                :style="{ width: `${coveragePercent}%` }"
+                :class="coveragePercent >= 80 ? 'coverage-ok' : coveragePercent >= 50 ? 'coverage-warn' : 'coverage-danger'"
+              />
+            </div>
+            <p class="summary-help">
+              成功 {{ overview.successfulMetricCount }} / 共
+              {{ overview.totalMetricCount }} 项
+            </p>
+          </el-card>
+
+          <el-card
+            class="dashboard-summary-card"
+            shadow="never"
+            data-testid="dashboard-collected-card"
+          >
+            <template #header>
+              <div class="summary-header">
+                <span class="summary-title">采集时间</span>
+                <span
+                  class="summary-audit-id"
+                  data-testid="dashboard-audit-id"
+                >审计 {{ auditIdText }}</span>
+              </div>
+            </template>
+            <div
+              class="summary-collected"
+              data-testid="dashboard-collected-at"
+            >
+              {{ collectedAtText }}
+            </div>
+          </el-card>
+        </div>
       </section>
 
-      <!-- Metric grid -->
+      <!-- Metric grid with logical grouping -->
       <section
         class="dashboard-metrics"
         data-testid="dashboard-metrics"
@@ -706,30 +744,46 @@ const staggerClass = (index: number): string => {
           title="核心指标"
           subtitle="每张卡片对应一次只读工具调用，失败项独立显示数据不可用"
         />
-        <div class="dashboard-metrics-grid">
+        <template
+          v-for="(group, gi) in groupedMetrics"
+          :key="group.key"
+        >
+          <!-- Group divider (skip before first group) -->
           <div
-            v-for="(view, index) in metricViews"
-            :key="view.key"
-            class="dashboard-metric-cell"
-            :class="staggerClass(index)"
-            :data-testid="`dashboard-metric-cell-${view.toolName}`"
+            v-if="gi > 0"
+            class="dashboard-metric-group-divider"
           >
-            <StatusMetricCard
-              :title="view.title"
-              :value="view.value"
-              :unit="view.unit"
-              :threshold="view.threshold"
-              :status="view.status"
-            />
-            <p
-              v-if="view.errorReason"
-              class="dashboard-metric-reason"
-              :data-testid="`dashboard-metric-reason-${view.toolName}`"
-            >
-              {{ view.errorReason }}
-            </p>
+            <span class="dashboard-metric-group-label">{{ group.label }}</span>
           </div>
-        </div>
+          <div
+            class="dashboard-metrics-grid"
+            :data-testid="`dashboard-metrics-${group.key}`"
+          >
+            <div
+              v-for="(view, vi) in group.items"
+              :key="view.key"
+              class="dashboard-metric-cell"
+              :class="staggerClass(vi)"
+              :data-testid="`dashboard-metric-cell-${view.toolName}`"
+              @click="goToToolCenter"
+            >
+              <StatusMetricCard
+                :title="view.title"
+                :value="view.value"
+                :unit="view.unit"
+                :threshold="view.threshold"
+                :status="view.status"
+              />
+              <p
+                v-if="view.errorReason"
+                class="dashboard-metric-reason"
+                :data-testid="`dashboard-metric-reason-${view.toolName}`"
+              >
+                {{ view.errorReason }}
+              </p>
+            </div>
+          </div>
+        </template>
       </section>
     </template>
   </div>
@@ -739,16 +793,35 @@ const staggerClass = (index: number): string => {
 .dashboard-page {
   display: flex;
   flex-direction: column;
-  gap: var(--kg-space-4);
+  gap: var(--kg-space-3);
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
 }
 
+/* ------------------------------------------------------------------ */
+/* Summary: 2fr (gauge) + 1fr (sidebar) on desktop                    */
+/* ------------------------------------------------------------------ */
 .dashboard-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--kg-space-3);
+}
+
+@media (min-width: 900px) {
+  .dashboard-summary {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.dashboard-summary-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kg-space-3);
+}
+
+.dashboard-summary-sidebar .dashboard-summary-card {
+  height: auto;
 }
 
 .dashboard-summary-card {
@@ -774,10 +847,11 @@ const staggerClass = (index: number): string => {
   word-break: break-all;
 }
 
-/* Health score gauge */
+/* ---------- Health score gauge ---------- */
 .summary-score-gauge {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   padding: var(--kg-space-2) 0;
 }
 
@@ -796,12 +870,25 @@ const staggerClass = (index: number): string => {
   font-weight: 700;
 }
 
-.health-gauge-label {
-  font-family: var(--kg-font-mono);
-  font-size: 12px;
+.health-gauge-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-2);
+  margin-top: var(--kg-space-1);
 }
 
-/* Coverage card */
+.health-gauge-outof {
+  font-family: var(--kg-font-mono);
+  font-size: var(--kg-text-sm);
+  color: var(--kg-color-text-mute);
+}
+
+.health-gauge-status {
+  font-size: var(--kg-text-sm);
+  font-weight: 600;
+}
+
+/* ---------- Coverage card ---------- */
 .summary-score-row {
   display: flex;
   align-items: baseline;
@@ -824,15 +911,15 @@ const staggerClass = (index: number): string => {
 .summary-coverage-bar {
   margin-top: var(--kg-space-3);
   width: 100%;
-  height: 4px;
+  height: 8px;
   background: var(--kg-color-surface-mute);
-  border-radius: 2px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .summary-coverage-fill {
   height: 100%;
-  border-radius: 2px;
+  border-radius: 4px;
   transition: width var(--kg-transition-base);
 }
 
@@ -861,11 +948,34 @@ const staggerClass = (index: number): string => {
   color: var(--kg-color-text-mute);
 }
 
-/* Metric grid */
+/* ---------- Metric groups ---------- */
 .dashboard-metrics {
   display: flex;
   flex-direction: column;
   gap: var(--kg-space-3);
+}
+
+.dashboard-metric-group-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--kg-space-3);
+  padding: var(--kg-space-1) 0;
+}
+
+.dashboard-metric-group-divider::before,
+.dashboard-metric-group-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--kg-color-border);
+}
+
+.dashboard-metric-group-label {
+  font-size: var(--kg-text-xs);
+  font-weight: 600;
+  color: var(--kg-color-text-mute);
+  white-space: nowrap;
+  letter-spacing: 0.06em;
 }
 
 .dashboard-metrics-grid {
@@ -878,6 +988,7 @@ const staggerClass = (index: number): string => {
   display: flex;
   flex-direction: column;
   gap: var(--kg-space-1);
+  cursor: pointer;
 }
 
 .dashboard-metric-reason {

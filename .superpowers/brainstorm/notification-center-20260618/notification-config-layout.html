@@ -1,0 +1,71 @@
+<h2>通知配置页采用哪种信息架构？</h2>
+<p class="subtitle">页面包含：全局开关、dry-run、多通道 CRUD、测试连接、最近 20 条测试记录。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <b>通知中心</b><button class="mock-button">新增通道</button>
+      </div>
+      <div style="border:1px solid #d8dee5;border-radius:9px;padding:11px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between"><span>启用通知中心</span><b style="color:#16834b">ON</b></div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px"><span>Dry-run 模式</span><span>OFF</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div style="border:1px solid #d8dee5;border-radius:9px;padding:11px">
+          <b>飞书 · feishu-prod</b><div style="font-size:12px;color:#16834b;margin:6px 0">已启用 · 最近测试成功</div>
+          <div style="display:flex;gap:5px"><button class="mock-button">编辑</button><button class="mock-button">测试</button></div>
+        </div>
+        <div style="border:1px solid #d8dee5;border-radius:9px;padding:11px">
+          <b>Webhook · soc</b><div style="font-size:12px;color:#667085;margin:6px 0">已停用 · 尚未测试</div>
+          <div style="display:flex;gap:5px"><button class="mock-button">编辑</button><button class="mock-button">测试</button></div>
+        </div>
+      </div>
+      <div style="margin-top:11px;border-top:1px solid #d8dee5;padding-top:9px"><b>最近测试记录</b><div style="font-size:12px;margin-top:5px">10:42 飞书 · 成功　　09:15 Webhook · HTTP 500</div></div>
+    </div>
+    <div class="card-body">
+      <h3>A. 总览 + 通道卡片（推荐）</h3>
+      <p>状态一眼可见；新增和编辑使用抽屉，适合当前只有两种通道、数量较少的场景。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:11px"><b>通知中心</b><button class="mock-button">新增</button></div>
+      <div style="display:flex;gap:7px;margin-bottom:10px"><span style="padding:5px 9px;background:#dff7e8;border-radius:7px">通道配置</span><span style="padding:5px 9px;background:#eef1f4;border-radius:7px">全局设置</span><span style="padding:5px 9px;background:#eef1f4;border-radius:7px">测试记录</span></div>
+      <div style="border:1px solid #d8dee5;border-radius:9px;overflow:hidden;font-size:12px">
+        <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr 1.2fr;padding:9px;background:#eef1f4"><b>名称</b><b>类型</b><b>状态</b><b>操作</b></div>
+        <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr 1.2fr;padding:9px"><span>feishu-prod</span><span>飞书</span><span>启用</span><span>编辑 · 测试</span></div>
+        <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr 1.2fr;padding:9px;border-top:1px solid #d8dee5"><span>soc</span><span>Webhook</span><span>停用</span><span>编辑 · 测试</span></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 标签页 + 数据表格</h3>
+      <p>扩展到几十个通道时效率更高，但当前规模下层级偏重，全局状态不够直观。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px">
+      <b>通知中心</b>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:10px;margin-top:11px">
+        <div style="border:1px solid #d8dee5;border-radius:9px;padding:9px;font-size:12px">
+          <div style="background:#dff7e8;padding:6px;border-radius:6px">全局设置</div>
+          <div style="padding:6px">feishu-prod</div>
+          <div style="padding:6px">soc</div>
+          <button class="mock-button" style="margin-top:7px">＋ 通道</button>
+        </div>
+        <div style="border:1px solid #d8dee5;border-radius:9px;padding:10px">
+          <b>feishu-prod</b>
+          <div style="height:25px;background:#eef1f4;border-radius:6px;margin-top:8px;padding:5px;font-size:11px">Webhook URL</div>
+          <div style="height:25px;background:#eef1f4;border-radius:6px;margin-top:7px;padding:5px;font-size:11px">Secret ••••••</div>
+          <button class="mock-button" style="margin-top:8px">保存并测试</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 左侧通道树 + 内联表单</h3>
+      <p>编辑路径最短，但未保存切换、删除和测试状态管理更复杂，也弱化了整体健康状态。</p>
+    </div>
+  </div>
+</div>
