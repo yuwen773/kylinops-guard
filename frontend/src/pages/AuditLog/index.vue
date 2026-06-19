@@ -282,6 +282,39 @@ const toolStatusLabel = (status: string | undefined): string => {
   }
 };
 
+const notificationStatusLabel = (status: string | undefined): string => {
+  if (!status) return '';
+  switch (status) {
+    case 'PENDING':
+      return '待发送';
+    case 'SENT':
+      return '已发送';
+    case 'FAILED':
+      return '发送失败';
+    case 'SKIPPED':
+      return '已跳过';
+    default:
+      return status;
+  }
+};
+
+const channelTypeLabel = (channelType: string | undefined): string => {
+  if (!channelType) return '';
+  switch (channelType) {
+    case 'WEBHOOK':
+      return 'Webhook';
+    case 'FEISHU':
+      return '飞书';
+    default:
+      return channelType;
+  }
+};
+
+const formatTime = (time: string | null | undefined): string => {
+  if (!time) return '';
+  return time.replace('T', ' ').slice(0, 19);
+};
+
 /**
  * Defensive JSON parse. Returns:
  *   - { kind: 'json', value: unknown } if value parses cleanly
@@ -809,6 +842,38 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
           <p v-else>{{ executionResultView.value }}</p>
         </el-card>
 
+        <!-- Notification records -->
+        <el-card
+          v-if="detail.notificationRecords?.length"
+          class="audit-section"
+          shadow="never"
+          data-testid="audit-notification-records"
+        >
+          <template #header>
+            <span>通知发送记录</span>
+          </template>
+          <ul class="audit-notification-list">
+            <li
+              v-for="rec in detail.notificationRecords"
+              :key="rec.recordId"
+              class="audit-notification-item"
+            >
+              <span class="audit-notification-channel">{{ channelTypeLabel(rec.channelType) }}</span>
+              <span class="audit-notification-status">{{ notificationStatusLabel(rec.status) }}</span>
+              <span v-if="rec.responseCode" class="audit-notification-code">HTTP {{ rec.responseCode }}</span>
+              <span v-if="rec.errorMessage" class="audit-notification-error">{{ rec.errorMessage }}</span>
+              <span class="audit-notification-time">{{ formatTime(rec.createdAt) }}</span>
+            </li>
+          </ul>
+        </el-card>
+        <p
+          v-else-if="detail.notificationRecords === null"
+          class="audit-notification-empty"
+          data-testid="audit-notification-empty"
+        >
+          暂无通知发送记录
+        </p>
+
         <!-- Matched rules (JSON) -->
         <el-card
           v-if="matchedRulesView.value"
@@ -1096,6 +1161,61 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 .audit-riskcheck-level {
   font-weight: 600;
   color: #1f2d3d;
+}
+
+.audit-notification-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.audit-notification-item {
+  padding: 0.5rem 0.75rem;
+  background: #f0f9eb;
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.audit-notification-channel {
+  font-weight: 600;
+  color: #1f2d3d;
+}
+
+.audit-notification-status {
+  font-size: 0.85rem;
+  color: #67c23a;
+}
+
+.audit-notification-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  color: #909399;
+}
+
+.audit-notification-error {
+  color: #c45656;
+  font-size: 0.85rem;
+}
+
+.audit-notification-time {
+  font-size: 0.8rem;
+  color: #909399;
+  margin-left: auto;
+}
+
+.audit-notification-empty {
+  margin: 0;
+  padding: 0.75rem;
+  text-align: center;
+  color: #909399;
+  background: #f5f7fa;
+  border-radius: 4px;
 }
 
 .audit-pending-line {

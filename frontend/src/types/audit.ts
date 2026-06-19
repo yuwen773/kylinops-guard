@@ -77,6 +77,21 @@ export interface AuditPendingActionInfo {
   executionResult?: string;
 }
 
+/** Mirrors com.kylinops.notification.NotificationRecordSummary. */
+export interface NotificationRecordSummary {
+  recordId: string;
+  eventId: string;
+  auditId: string;
+  channelId: string;
+  channelType: 'WEBHOOK' | 'FEISHU';
+  status: 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED';
+  responseCode: number | null;
+  errorMessage: string | null;
+  retryCount: number;
+  sentAt: string | null;
+  createdAt: string;
+}
+
 /** Mirrors com.kylinops.audit.AuditLogDetail. */
 export interface AuditLogDetail {
   auditId: string;
@@ -100,4 +115,5 @@ export interface AuditLogDetail {
   toolCalls?: AuditToolCallInfo[];
   riskChecks?: AuditRiskCheckInfo[];
   pendingAction?: AuditPendingActionInfo;
+  notificationRecords?: NotificationRecordSummary[] | null;
 }

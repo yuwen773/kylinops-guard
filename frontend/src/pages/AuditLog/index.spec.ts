@@ -388,6 +388,84 @@ describe('AuditLog page — detail drawer', () => {
     expect(wrapper.text()).toContain('审计日志不存在');
   });
 
+  it('renders notification records card when detail has notificationRecords', async () => {
+    vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue(
+      buildDetail({
+        notificationRecords: [
+          {
+            recordId: 'nr-1',
+            eventId: 'evt-1',
+            auditId: 'audit-1',
+            channelId: 'ch-1',
+            channelType: 'FEISHU',
+            status: 'SENT',
+            responseCode: 200,
+            errorMessage: null,
+            retryCount: 0,
+            sentAt: '2026-06-12T10:00:06',
+            createdAt: '2026-06-12T10:00:03',
+          },
+        ],
+      }),
+    );
+    const { wrapper } = await mountPage({
+      pageData: buildPage({ content: [buildSummary({ auditId: 'a-notif' })] }),
+    });
+    await wrapper.find('[data-testid="audit-row-a-notif"]').trigger('click');
+    await flushPromises();
+
+    const drawer = wrapper.find('[data-testid="audit-detail-drawer"]');
+    expect(drawer.exists()).toBe(true);
+    expect(wrapper.find('[data-testid="audit-notification-records"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('飞书');
+    expect(wrapper.text()).toContain('已发送');
+  });
+
+  it('shows empty state when notificationRecords is null', async () => {
+    vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue(
+      buildDetail({ notificationRecords: null }),
+    );
+    const { wrapper } = await mountPage({
+      pageData: buildPage({ content: [buildSummary({ auditId: 'a-null' })] }),
+    });
+    await wrapper.find('[data-testid="audit-row-a-null"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('暂无通知发送记录');
+  });
+
+  it('renders FAILED notification records with error message', async () => {
+    vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue(
+      buildDetail({
+        notificationRecords: [
+          {
+            recordId: 'nr-fail',
+            eventId: 'evt-fail',
+            auditId: 'audit-1',
+            channelId: 'ch-1',
+            channelType: 'WEBHOOK',
+            status: 'FAILED',
+            responseCode: 500,
+            errorMessage: '连接超时',
+            retryCount: 0,
+            sentAt: null,
+            createdAt: '2026-06-12T10:00:03',
+          },
+        ],
+      }),
+    );
+    const { wrapper } = await mountPage({
+      pageData: buildPage({ content: [buildSummary({ auditId: 'a-fail-nr' })] }),
+    });
+    await wrapper.find('[data-testid="audit-row-a-fail-nr"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Webhook');
+    expect(wrapper.text()).toContain('发送失败');
+    expect(wrapper.text()).toContain('连接超时');
+    expect(wrapper.text()).toContain('500');
+  });
+
   it('renders a tool-failure card when a ToolCallInfo.status indicates failure', async () => {
     vi.spyOn(auditApi, 'getAuditDetail').mockResolvedValue(
       buildDetail({
