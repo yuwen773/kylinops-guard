@@ -5,6 +5,7 @@ import com.kylinops.tool.ToolNotRegisteredException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -167,6 +168,18 @@ public class GlobalExceptionHandler {
         log.warn("通知配置冲突(HTTP {}): {}", status, msg);
         return ResponseEntity.status(status)
                 .body(ApiResponse.error(status, msg));
+    }
+
+    /**
+     * 数据库完整性约束冲突 — 通常由 NOT NULL 缺失/唯一键冲突引起。
+     * 映射为 422 Unprocessable Entity,并附通用消息（不回显底层细节）。
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ApiResponse<Void> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String msg = ex.getMostSpecificCause().getMessage();
+        log.warn("数据库完整性约束冲突: {}", msg);
+        return ApiResponse.error(422, "数据写入违反约束（可能是 schema 不一致）");
     }
 
     /**

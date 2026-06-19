@@ -1,6 +1,7 @@
 package com.kylinops.notification.config;
 
 import com.kylinops.notification.NotificationConfig;
+import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -9,6 +10,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 通知管理平面配套 Bean。
@@ -28,6 +30,34 @@ public class NotificationManagementBeansConfig {
     public NotificationSecretCipher notificationSecretCipher(
             NotificationManagementProperties properties) {
         return new NotificationSecretCipher(properties.masterKey());
+    }
+
+    /**
+     * 启动期 schema 兜底 — 确保 notification_records.audit_id 可空。
+     *
+     * <p>JPA 的 {@code ddl-auto: update} 对现有列的可空性变更不主动 ALTER;V6 Flyway 迁移在
+     * dev profile 下也不会执行。若 audit_id 仍为 NOT NULL,测试记录(TEST 类型,无关联审计)
+     * 写入会触发 23502 完整性约束异常。本方法以原生 SQL 强制 DROP NOT NULL,跨 H2/PostgreSQL
+     * 兼容(SQL:2016 通用语法)。</p>
+     */
+    @Bean
+    @Transactional
+    public ApplicationRunner notificationSchemaBackfill(
+            ObjectProvider<EntityManager> entityManagerProvider) {
+        return (ApplicationArguments args) -> {
+            EntityManager em = entityManagerProvider.getIfAvailable();
+            if (em == null) {
+                log.debug("EntityManager 不可用,跳过 schema 兜底");
+                return;
+            }
+            try {
+                em.createNativeQuery("ALTER TABLE notification_records ALTER COLUMN audit_id DROP NOT NULL")
+                        .executeUpdate();
+                log.info("通知表 schema 兜底完成: notification_records.audit_id 已设为可空");
+            } catch (Exception e) {
+                log.warn("通知表 schema 兜底失败(可忽略,若列已可空): {}", e.getMessage());
+            }
+        };
     }
 
     /**
