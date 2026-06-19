@@ -54,4 +54,24 @@ class FlywayH2MigrationTest {
                 .as("Flyway 历史表必须存在")
                 .isEqualTo(1L);
     }
+
+    @Test
+    void v7InspectionTablesPresent() {
+        SchemaFingerprint.assertInspectionTablesPresent(jdbc);
+    }
+
+    @Test
+    void v7InspectionIndexesPresent() {
+        SchemaFingerprint.assertInspectionIndexesPresent(jdbc);
+    }
+
+    @Test
+    void v7ExecutionPlanIdHasNoForeignKeyToPlan() {
+        SchemaFingerprint.assertExecutionPlanIdHasNoForeignKeyToPlan(jdbc);
+    }
+
+    @Test
+    void v7AuditLogsTriggerColumnsPresent() {
+        SchemaFingerprint.assertAuditLogsTriggerColumnsPresent(jdbc);
+    }
 }
