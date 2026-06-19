@@ -127,4 +127,10 @@ public class AuditLogDetail {
 
     /** 根因分析链（反序列化自 rootCauseChainJson） */
     private RootCauseChain rootCauseChain;
+
+    /** 触发来源（巡检审计填 SCHEDULED/MANUAL，其他审计为 null） */
+    private String triggerType;
+
+    /** 操作主体（巡检审计填 SYSTEM_SCHEDULER/管理员用户名，其他审计为 null） */
+    private String operator;
 }

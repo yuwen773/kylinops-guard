@@ -298,6 +298,49 @@ public class AuditLogService {
     }
 
     /**
+     * 为巡检执行创建专用审计行（P1-02 Task 4）。
+     *
+     * <p>与 {@link #createAuditLog} 不同,本方法:</p>
+     * <ul>
+     *   <li>不创建 chat Session / Message 行 — {@code sessionId} 始终为 {@code null}</li>
+     *   <li>不创建 {@code PendingAction} — {@code confirmationRequired} 始终为 {@code false}</li>
+     *   <li>写入 {@code triggerType}（{@code SCHEDULED}/{@code MANUAL}）与 {@code operator}
+     *       （{@code SYSTEM_SCHEDULER}/管理员用户名）以便审计回放识别巡检来源</li>
+     *   <li>{@code userInput} 不强制写入,改用 {@code summary} 作为消息字段</li>
+     * </ul>
+     *
+     * <p>CLAUDE.md 红线 5:巡检审计路径不许伪造 Session/Message / userInput。
+     * 现有 chat 审计路径仍走 {@link #createAuditLog},本方法不破坏既有契约。</p>
+     *
+     * @param auditId     审计 ID(由调用方生成,贯穿 ToolCall / RiskCheck / 报告)
+     * @param intentType  巡检步骤对应的意图类型(HEALTH→SYSTEM_CHECK, DISK→DISK_DIAGNOSIS, SERVICE→SERVICE_DIAGNOSIS)
+     * @param triggerType 触发来源,SCHEDULED / MANUAL
+     * @param operator    操作主体,SYSTEM_SCHEDULER / 当前管理员用户名
+     * @param summary     巡检摘要(写入 {@code message} 字段,经 {@link AuditSanitizer#truncateInput} 截断)
+     * @return 持久化后的审计行(含 auditId + triggerType + operator)
+     */
+    @Transactional
+    public AuditLog createInspectionAudit(String auditId, IntentType intentType,
+                                          String triggerType, String operator, String summary) {
+        AuditLog logEntry = new AuditLog();
+        logEntry.setAuditId(auditId);
+        logEntry.setSessionId(null);
+        logEntry.setUserInput(null);
+        logEntry.setIntentType(intentType);
+        logEntry.setStatus(AuditStatus.RECEIVED);
+        logEntry.setTriggerType(triggerType);
+        logEntry.setOperator(operator);
+        logEntry.setConfirmationRequired(false);
+        if (summary != null && !summary.isBlank()) {
+            logEntry.setMessage(AuditSanitizer.truncateInput(summary));
+        }
+        AuditLog saved = auditLogRepository.save(logEntry);
+        log.debug("创建巡检审计: auditId={}, triggerType={}, operator={}, intent={}",
+                auditId, triggerType, operator, intentType);
+        return saved;
+    }
+
+    /**
      * 根据 auditId 查询审计日志。
      *
      * @param auditId 审计 ID
@@ -400,6 +443,8 @@ public class AuditLogService {
                 .message(log.getMessage())
                 .toolCallCount(toolCallCount)
                 .createdAt(log.getCreatedAt())
+                .triggerType(log.getTriggerType())
+                .operator(log.getOperator())
                 .build();
     }
 
@@ -473,6 +518,8 @@ public class AuditLogService {
                         .map(NotificationRecordSummary::from)
                         .toList())
                 .rootCauseChain(deserializeRca(log.getRootCauseChainJson()))
+                .triggerType(log.getTriggerType())
+                .operator(log.getOperator())
                 .build();
     }
 }

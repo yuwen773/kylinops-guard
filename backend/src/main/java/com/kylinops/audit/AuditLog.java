@@ -96,6 +96,24 @@ public class AuditLog extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String rootCauseChainJson;
 
+    /**
+     * 触发来源标识（仅巡检路径写入）。
+     * <p>普通 chat 审计该字段为 {@code null}；巡检审计写入 {@code SCHEDULED}
+     * （定时调度）或 {@code MANUAL}（管理员手动触发）。</p>
+     * <p>数据库列由 V7 migration 添加（{@code kylin_audit_log.trigger_type VARCHAR(32)}）。</p>
+     */
+    @Column(length = 32)
+    private String triggerType;
+
+    /**
+     * 操作主体（仅巡检路径写入）。
+     * <p>普通 chat 审计该字段为 {@code null}；巡检审计写入 {@code SYSTEM_SCHEDULER}
+     * （定时调度）或当前管理员用户名（手动触发）。</p>
+     * <p>数据库列由 V7 migration 添加（{@code kylin_audit_log.operator VARCHAR(128)}）。</p>
+     */
+    @Column(length = 128)
+    private String operator;
+
     @PrePersist
     @Override
     protected void onCreate() {

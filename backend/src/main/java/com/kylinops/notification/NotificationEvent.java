@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * 通知事件 — Notification Center 的核心 DTO。
@@ -83,4 +84,13 @@ public class NotificationEvent {
 
     /** 发生时间（Clock 注入） */
     private LocalDateTime occurredAt;
+
+    /**
+     * 结构化 detail 映射（仅 {@code INSPECTION_*} 事件填充,其余事件为 null）。
+     * <p>键集合固定:{@code planName}, {@code templateType}, {@code status},
+     * {@code summary}, {@code auditId}, {@code reportId},
+     * {@code abnormal} (boolean, 仅 ABNORMAL/FAILED 时设置)。</p>
+     * <p>与现有 {@link #detail}（人类可读字符串）并存,以保持向后兼容。</p>
+     */
+    private Map<String, Object> detailMap;
 }

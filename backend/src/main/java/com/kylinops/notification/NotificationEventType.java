@@ -25,5 +25,16 @@ public enum NotificationEventType {
     DISK_RISK,
 
     /** 管理端测试连接（无对应审计事件，audit_id 为 NULL） */
-    TEST
+    TEST,
+
+    // ───── 巡检事件（P1-02 Task 4） ─────
+
+    /** 巡检执行完成（SUCCESS / PARTIAL_SUCCESS） */
+    INSPECTION_COMPLETED,
+
+    /** 巡检发现异常（abnormal=true，触发 ON_ABNORMAL 通知策略） */
+    INSPECTION_ABNORMAL,
+
+    /** 巡检执行失败（FAILED） */
+    INSPECTION_FAILED
 }

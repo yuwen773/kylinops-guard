@@ -5,6 +5,9 @@ import com.kylinops.common.enums.RiskDecision;
 import com.kylinops.common.enums.RiskLevel;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * 通知事件工厂 — 统一构造 {@link NotificationEvent}。
  *
@@ -122,6 +125,75 @@ public class NotificationEventFactory {
                 .build();
     }
 
+    /**
+     * 巡检事件工厂（P1-02 Task 4）。
+     *
+     * <p>统一产出 {@code INSPECTION_COMPLETED}/{@code INSPECTION_ABNORMAL}/{@code INSPECTION_FAILED}
+     * 三类巡检事件,与现有 Channel 实现完全解耦（不修改任何 Channel 的 if/else）。
+     * Channel 仅根据 {@link NotificationEventType} 投递。</p>
+     *
+     * <p>{@link NotificationEvent#getDetailMap()} 必须包含固定 6 键（{@code planName},
+     * {@code templateType}, {@code status}, {@code summary}, {@code auditId}, {@code reportId}）
+     * + ABNORMAL/FAILED 时附加 {@code abnormal} 布尔键。{@code summary} 字段值按现有
+     * 通知契约截断至 500 字符（与 {@code NotificationEvent.detail} 语义一致）。</p>
+     *
+     * @param eventType    {@link NotificationEventType#INSPECTION_COMPLETED} 等
+     * @param auditId      巡检审计 ID
+     * @param planName     巡检计划名称
+     * @param templateType 模板类型字符串（{@code HEALTH}/{@code DISK}/{@code SERVICE}）
+     * @param status       巡检执行状态字符串（{@code SUCCESS}/{@code PARTIAL_SUCCESS}/{@code FAILED}）
+     * @param summary      巡检摘要（可空）
+     * @param reportId     关联报告 ID（可空）
+     * @return 巡检事件
+     */
+    public NotificationEvent createInspectionEvent(NotificationEventType eventType,
+                                                   String auditId,
+                                                   String planName,
+                                                   String templateType,
+                                                   String status,
+                                                   String summary,
+                                                   String reportId) {
+        if (eventType != NotificationEventType.INSPECTION_COMPLETED
+                && eventType != NotificationEventType.INSPECTION_ABNORMAL
+                && eventType != NotificationEventType.INSPECTION_FAILED) {
+            throw new IllegalArgumentException(
+                    "createInspectionEvent 仅支持 INSPECTION_* 事件类型,收到: " + eventType);
+        }
+
+        Map<String, Object> detailMap = new LinkedHashMap<>();
+        detailMap.put("planName", planName);
+        detailMap.put("templateType", templateType);
+        detailMap.put("status", status);
+        detailMap.put("summary", truncateSummary(summary));
+        detailMap.put("auditId", auditId);
+        detailMap.put("reportId", reportId);
+        // abnormal 字段语义:仅 INSPECTION_ABNORMAL 时为 true。
+// INSPECTION_FAILED 是执行层错误(工具/网络/权限),不等于"系统异常"。
+// 两者正交:FAILED + abnormal=true 才会触发 ON_ABNORMAL 策略升级通知,见 InspectionNotificationPolicy。
+boolean abnormal = eventType == NotificationEventType.INSPECTION_ABNORMAL;
+        detailMap.put("abnormal", abnormal);
+
+        NotificationSeverity severity = switch (eventType) {
+            case INSPECTION_COMPLETED -> NotificationSeverity.INFO;
+            case INSPECTION_ABNORMAL -> NotificationSeverity.WARNING;
+            case INSPECTION_FAILED -> NotificationSeverity.CRITICAL;
+            default -> NotificationSeverity.INFO;
+        };
+
+        return NotificationEvent.builder()
+                .eventType(eventType)
+                .severity(severity)
+                .title(buildInspectionTitle(eventType, planName, templateType))
+                .summary(buildInspectionSummary(eventType, planName, status))
+                .detail(buildInspectionDetail(status, summary))
+                .auditId(auditId)
+                .riskLevel(RiskLevel.L0)
+                .riskDecision(RiskDecision.ALLOW)
+                .intentType(IntentType.SYSTEM_CHECK)
+                .detailMap(detailMap)
+                .build();
+    }
+
     // ───── 文本模板(集中管理,后续调整只改这里) ─────
 
     private String buildL4Summary(String matchedRuleId, String riskReason) {
@@ -164,5 +236,47 @@ public class NotificationEventFactory {
         }
         return "磁盘 " + (diskPath != null ? diskPath : "/") + " 使用率 "
                 + String.format("%.1f%%", percent);
+    }
+
+    /** 巡检事件 title 模板（按 eventType 区分）。 */
+    private String buildInspectionTitle(NotificationEventType eventType,
+                                        String planName, String templateType) {
+        String name = planName != null ? planName : "未命名计划";
+        String tpl = templateType != null ? templateType : "INSPECTION";
+        return switch (eventType) {
+            case INSPECTION_COMPLETED -> "巡检完成: " + name + " (" + tpl + ")";
+            case INSPECTION_ABNORMAL -> "巡检异常: " + name + " (" + tpl + ")";
+            case INSPECTION_FAILED -> "巡检失败: " + name + " (" + tpl + ")";
+            default -> "巡检事件: " + name;
+        };
+    }
+
+    /** 巡检事件 summary 模板。 */
+    private String buildInspectionSummary(NotificationEventType eventType,
+                                          String planName, String status) {
+        String name = planName != null ? planName : "未命名计划";
+        String st = status != null ? status : "UNKNOWN";
+        return switch (eventType) {
+            case INSPECTION_COMPLETED -> "巡检计划 " + name + " 已完成,状态: " + st;
+            case INSPECTION_ABNORMAL -> "巡检计划 " + name + " 发现异常,状态: " + st;
+            case INSPECTION_FAILED -> "巡检计划 " + name + " 执行失败,状态: " + st;
+            default -> "巡检计划 " + name;
+        };
+    }
+
+    /** 巡检事件 detail 模板。 */
+    private String buildInspectionDetail(String status, String summary) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("执行状态: ").append(status != null ? status : "UNKNOWN");
+        if (summary != null && !summary.isBlank()) {
+            sb.append("。摘要: ").append(truncateSummary(summary));
+        }
+        return sb.toString();
+    }
+
+    /** summary 字段按现有通知契约截断至 500 字符。 */
+    private String truncateSummary(String s) {
+        if (s == null) return null;
+        return s.length() <= 500 ? s : s.substring(0, 500) + "...";
     }
 }
