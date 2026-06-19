@@ -58,7 +58,8 @@ class NotificationTestServiceTest {
         WebhookChannel webhookChannel =
                 new WebhookChannel(new com.fasterxml.jackson.databind.ObjectMapper());
         FeishuChannel feishuChannel =
-                new FeishuChannel(new com.fasterxml.jackson.databind.ObjectMapper());
+                new FeishuChannel(new com.fasterxml.jackson.databind.ObjectMapper(),
+                        new com.kylinops.notification.NotificationPublicLinkProperties(""));
 
         registry = new NotificationChannelRegistry(List.of(webhookChannel, feishuChannel));
         ReflectionTestUtils.invokeMethod(registry, "init");
