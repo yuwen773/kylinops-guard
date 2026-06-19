@@ -30,6 +30,7 @@ public class NotificationRecordSummary {
     private int retryCount;
     private LocalDateTime sentAt;
     private LocalDateTime createdAt;
+    private NotificationEventType eventType;
 
     /**
      * Entity → Summary 映射。显式列举字段，避免通过反射将敏感字段意外暴露。
@@ -47,6 +48,7 @@ public class NotificationRecordSummary {
                 .retryCount(entity.getRetryCount())
                 .sentAt(entity.getSentAt())
                 .createdAt(entity.getCreatedAt())
+                .eventType(entity.getEventType())
                 .build();
     }
 }

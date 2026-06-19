@@ -1,5 +1,6 @@
 package com.kylinops.common;
 
+import com.kylinops.notification.config.NotificationConfigurationConflictException;
 import com.kylinops.tool.ToolNotRegisteredException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -111,5 +112,33 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getCode()).isEqualTo(429);
         assertThat(response.getMessage()).contains("请求过于频繁");
+    }
+
+    @Test
+    @DisplayName("NotificationConfigurationConflictException 409 冲突")
+    void notificationConflictReturns409() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        ApiResponse<Void> response = handler.handleNotificationConflict(
+                new NotificationConfigurationConflictException("channel version mismatch: expected=7 actual=10"))
+                .getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isEqualTo(409);
+        assertThat(response.getMessage()).contains("version mismatch");
+    }
+
+    @Test
+    @DisplayName("NotificationConfigurationConflictException channel not found → 404")
+    void notificationNotFoundReturns404() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        ApiResponse<Void> response = handler.handleNotificationConflict(
+                new NotificationConfigurationConflictException("channel not found: nonexistent"))
+                .getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isEqualTo(404);
+        assertThat(response.getMessage()).contains("channel not found");
     }
 }

@@ -13,6 +13,7 @@ import {
   WarningFilled,
   Document,
   DataAnalysis,
+  Setting,
   Sunny,
   Moon,
 } from '@element-plus/icons-vue';
@@ -33,6 +34,7 @@ const navItems = [
   { path: '/security', label: '安全中心', icon: WarningFilled },
   { path: '/audit', label: '审计日志', icon: Document },
   { path: '/reports', label: '报告中心', icon: DataAnalysis },
+  { path: '/notification-settings', label: '通知配置', icon: Setting },
 ] as const;
 
 const activeIndex = (path: string) => navItems.findIndex((i) => i.path === path);

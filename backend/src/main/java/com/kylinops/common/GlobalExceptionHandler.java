@@ -1,10 +1,12 @@
 package com.kylinops.common;
 
+import com.kylinops.notification.config.NotificationConfigurationConflictException;
 import com.kylinops.tool.ToolNotRegisteredException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -130,6 +132,20 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleBusinessException(BusinessException ex) {
         log.warn("业务异常: code={}, message={}", ex.getCode(), ex.getMessage());
         return ApiResponse.error(ex.getCode(), ex.getMessage());
+    }
+
+    /**
+     * 通知配置乐观锁冲突 / 通道不存在 — 映射为 HTTP 409 或 404<br>
+     * 注意:本方法使用 {@link ResponseEntity} 动态决定状态码,不能使用
+     * {@code @ResponseStatus} 固定标注。
+     */
+    @ExceptionHandler(NotificationConfigurationConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotificationConflict(NotificationConfigurationConflictException ex) {
+        String msg = ex.getMessage();
+        int status = (msg != null && msg.startsWith("channel not found")) ? 404 : 409;
+        log.warn("通知配置冲突(HTTP {}): {}", status, msg);
+        return ResponseEntity.status(status)
+                .body(ApiResponse.error(status, msg));
     }
 
     /**

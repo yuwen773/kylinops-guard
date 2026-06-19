@@ -10,6 +10,7 @@ import { clearSession, setSession } from '@/auth/session';
 const PRODUCT_NAME = '麒麟安全智能运维 Agent';
 
 // Mandated sidebar order. Locked by the Phase 2 task card and the demo video script.
+// P1-01 Task 6 added the 通知配置 entry.
 const NAV_ITEMS: ReadonlyArray<{ path: string; label: string }> = [
   { path: '/chat', label: '对话控制台' },
   { path: '/dashboard', label: '系统总览' },
@@ -17,6 +18,7 @@ const NAV_ITEMS: ReadonlyArray<{ path: string; label: string }> = [
   { path: '/security', label: '安全中心' },
   { path: '/audit', label: '审计日志' },
   { path: '/reports', label: '报告中心' },
+  { path: '/notification-settings', label: '通知配置' },
 ];
 
 function buildRouter(): Router {

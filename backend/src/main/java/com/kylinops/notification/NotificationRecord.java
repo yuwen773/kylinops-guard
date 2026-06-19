@@ -59,8 +59,8 @@ public class NotificationRecord {
     @Column(nullable = false, length = 36)
     private String eventId;
 
-    /** 审计 ID（与 AuditLog.auditId 关联，索引） */
-    @Column(nullable = false)
+    /** 审计 ID（与 AuditLog.auditId 关联，索引）；TEST 类型记录允许为 NULL */
+    @Column(nullable = true)
     private String auditId;
 
     /** 通道实例 ID（如 "webhook-prod"），联合唯一 */
@@ -104,4 +104,11 @@ public class NotificationRecord {
     /** 记录创建时间（Clock 注入） */
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    /** 事件类型判别（L4_BLOCK / PROMPT_INJECTION_BLOCK / L2_CONFIRM_REQUIRED /
+     *  SERVICE_ABNORMAL / DISK_RISK / TEST）。
+     *  用于"按事件类型筛选最新 N 条"以及管理端"测试连接"记录识别。 */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private NotificationEventType eventType;
 }

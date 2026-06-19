@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -195,5 +196,58 @@ class NotificationRecordRepositoryTest {
         Optional<NotificationRecord> found =
                 repository.findFirstByEventIdAndChannelId("missing-event", "missing-channel");
         assertThat(found).isEmpty();
+    }
+
+    @Test
+    @DisplayName("TEST record allows null auditId and is queryable newest-first")
+    void testRecordAllowsNullAuditIdAndQueriesNewestFirst() {
+        NotificationRecord older = testRecord("test-a", "feishu-prod",
+                NotificationEventType.TEST, LocalDateTime.of(2026, 6, 18, 10, 0));
+        NotificationRecord newer = testRecord("test-b", "feishu-prod",
+                NotificationEventType.TEST, LocalDateTime.of(2026, 6, 18, 11, 0));
+        repository.saveAllAndFlush(List.of(older, newer));
+
+        List<NotificationRecord> records =
+                repository.findTop20ByEventTypeOrderByCreatedAtDesc(NotificationEventType.TEST);
+
+        assertThat(records).extracting(NotificationRecord::getEventId)
+                .containsExactly("test-b", "test-a");
+        assertThat(records).allMatch(record -> record.getAuditId() == null);
+    }
+
+    @Test
+    @DisplayName("findFirstByChannelIdAndEventType returns the most recent matching record")
+    void findFirstByChannelIdAndEventTypeOrderByCreatedAtDesc() {
+        NotificationRecord older = testRecord("test-c", "feishu-prod",
+                NotificationEventType.TEST, LocalDateTime.of(2026, 6, 18, 9, 0));
+        NotificationRecord newer = testRecord("test-d", "feishu-prod",
+                NotificationEventType.TEST, LocalDateTime.of(2026, 6, 18, 10, 30));
+        repository.saveAllAndFlush(List.of(older, newer));
+        em.clear();
+
+        Optional<NotificationRecord> found = repository
+                .findFirstByChannelIdAndEventTypeOrderByCreatedAtDesc(
+                        "feishu-prod", NotificationEventType.TEST);
+
+        assertThat(found).isPresent();
+        assertThat(found.get().getEventId()).isEqualTo("test-d");
+    }
+
+    private NotificationRecord testRecord(String eventId, String channelId,
+                                          NotificationEventType eventType,
+                                          LocalDateTime createdAt) {
+        return NotificationRecord.builder()
+                .recordId(UUID.randomUUID().toString())
+                .eventId(eventId)
+                .auditId(null)
+                .channelId(channelId)
+                .channelType(ChannelType.FEISHU)
+                .status(NotificationStatus.SENT)
+                .eventType(eventType)
+                .requestPayload("{\"eventType\":\"" + eventType.name() + "\"}")
+                .retryCount(0)
+                .createdAt(createdAt)
+                .sentAt(createdAt)
+                .build();
     }
 }

@@ -97,3 +97,7 @@ kylinops:
     enabled: false
     dry-run: false
     channels: []
+    # 管理平面(P1-01 Task 2+) — 与发送平面解耦;master-key 缺省视为未配置
+    management:
+      master-key: ${KYLINOPS_NOTIFICATION_MASTER_KEY:}
+      public-base-url: ${KYLINOPS_PUBLIC_BASE_URL:}
