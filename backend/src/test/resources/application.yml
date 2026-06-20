@@ -23,3 +23,14 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+# 巡检测试配置 — 允许 nginx 服务名出现在模板参数中
+kylinops:
+  inspection:
+    allowed-services:
+      - nginx
+    scheduler:
+      poll-interval: 2s
+      # 测试关闭 auto-start,避免 ApplicationReadyEvent 启动的周期 poll 与测试断言冲突
+      auto-start: false
+    recovery:
+      abandoned-threshold: 1h
