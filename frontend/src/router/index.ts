@@ -12,6 +12,14 @@ import { getSession } from '@/auth/session';
  *     non-public route and bounces to `/login` on 401. The in-memory
  *     session is treated as cached: once populated, the guard does not
  *     re-fetch within the same SPA mount.
+ *
+ * P1-03 additions:
+ *   - `/landing` is a public marketing route. It renders outside the
+ *     `AppLayout` chrome so unauthenticated visitors see a clean,
+ *     branded introduction without the admin nav. The `'/'` redirect
+ *     also points here so first-time visitors land on the marketing
+ *     page instead of being bounced to `/login` (which is a hostile
+ *     first impression).
  */
 const PUBLIC_ROUTES = new Set(['/login']);
 
@@ -22,7 +30,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/Login/index.vue'),
     meta: { title: '管理员登录', public: true },
   },
-  { path: '/', redirect: '/chat' },
+  {
+    path: '/landing',
+    name: 'landing',
+    component: () => import('@/pages/Landing/index.vue'),
+    meta: { title: '麒麟安全智能运维 Agent', public: true },
+  },
+  { path: '/', redirect: '/landing' },
   {
     path: '/chat',
     name: 'chat',

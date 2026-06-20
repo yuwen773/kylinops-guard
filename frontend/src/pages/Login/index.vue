@@ -62,7 +62,11 @@ async function handleSubmit(): Promise<void> {
   try {
     await loginApi(payload);
     form.password = '';
-    await router.replace('/');
+    // P1-03: navigate to /chat directly after successful login instead of
+    // relying on the `/` redirect, which now points to the public landing
+    // page (`/landing`). Authenticated users should land on the product
+    // surface, not the marketing surface.
+    await router.replace('/chat');
   } catch (err) {
     if (err instanceof ApiError) {
       if (err.httpStatus === 401 || err.code === 401) {

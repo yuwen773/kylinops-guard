@@ -53,7 +53,10 @@ describe('Login page', () => {
     expect(wrapper.text()).not.toContain('忘记密码');
   });
 
-  it('calls auth.login(...) with the entered credentials and navigates to / on success', async () => {
+  it('calls auth.login(...) with the entered credentials and navigates to /chat on success', async () => {
+    // P1-03: successful login now navigates to /chat directly (the product
+    // surface) instead of relying on the `/` redirect, which points to the
+    // public `/landing` marketing page for unauthenticated visitors.
     const router = buildRouter();
     const pushSpy = vi.spyOn(router, 'replace');
     const loginSpy = vi.spyOn(authApi, 'login').mockResolvedValue({
@@ -71,7 +74,7 @@ describe('Login page', () => {
     await flushPromises();
 
     expect(loginSpy).toHaveBeenCalledWith({ username: 'admin', password: 'topsecret' });
-    expect(pushSpy).toHaveBeenCalledWith('/');
+    expect(pushSpy).toHaveBeenCalledWith('/chat');
   });
 
   it('shows a generic error message on 401 and clears the password input', async () => {
