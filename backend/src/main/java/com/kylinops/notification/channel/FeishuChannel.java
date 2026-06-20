@@ -255,6 +255,7 @@ public class FeishuChannel implements NotificationChannel {
             case SERVICE_ABNORMAL -> "服务异常";
             case DISK_RISK -> "磁盘风险";
             case TEST -> "通道连接测试";
+            default -> "巡检事件";
         };
     }
 
@@ -269,6 +270,7 @@ public class FeishuChannel implements NotificationChannel {
             case SERVICE_ABNORMAL -> "服务异常";
             case DISK_RISK -> "磁盘风险";
             case TEST -> "通道测试";
+            default -> "巡检";
         };
     }
 

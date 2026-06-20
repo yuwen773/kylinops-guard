@@ -101,3 +101,14 @@ kylinops:
     management:
       master-key: ${KYLINOPS_NOTIFICATION_MASTER_KEY:}
       public-base-url: ${KYLINOPS_PUBLIC_BASE_URL:}
+  # P1-02 Scheduled Inspection — 独立于 SafeExecutor 白名单的 service allowlist
+  inspection:
+    # 服务名出现在巡检模板参数时,必须在此集合内;空列表 = 拒绝所有 serviceName
+    allowed-services:
+      - nginx
+    # 调度器轮询周期(默认 60s;测试 profile 缩短)
+    scheduler:
+      poll-interval: 60s
+    # 启动期 / 周期恢复:RUNNING 超过该阈值视为 abandoned(默认 1h)
+    recovery:
+      abandoned-threshold: 1h

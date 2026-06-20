@@ -4,6 +4,7 @@ import com.kylinops.audit.AuditLog;
 import com.kylinops.audit.AuditLogDetail;
 import com.kylinops.audit.AuditLogRepository;
 import com.kylinops.audit.AuditLogService;
+import com.kylinops.inspection.model.InspectionTemplateType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -107,6 +108,67 @@ public class ReportService {
         Report entity = reportRepository.findByReportId(reportId)
                 .orElseThrow(() -> new IllegalArgumentException("报告不存在: " + reportId));
         return toDetail(entity);
+    }
+
+    /**
+     * 为巡检审计生成报告（P1-02 Task 4）。
+     *
+     * <p>与 {@link #generate} 的区别:</p>
+     * <ul>
+     *   <li>只接受 {@code auditId}(不查 session),巡检路径不创建 chat Session</li>
+     *   <li>按 {@link InspectionTemplateType} 静态映射到 {@link ReportType}</li>
+     *   <li>审计不存在时按降级规则返回 {@code null} reportId,不抛异常</li>
+     *   <li>不创建 {@code PendingAction},与巡检"只读"红线一致</li>
+     * </ul>
+     *
+     * @param auditId  巡检审计 ID
+     * @param template 巡检模板类型,决定 ReportType
+     * @return 报告 ID(成功);审计缺失或映射失败时返回 {@code null}
+     */
+    @Transactional
+    public String generateFromInspectionAudit(String auditId, InspectionTemplateType template) {
+        if (auditId == null || auditId.isBlank()) {
+            log.warn("generateFromInspectionAudit 收到空 auditId,跳过");
+            return null;
+        }
+        ReportType reportType = mapInspectionTemplateToReportType(template);
+        if (reportType == null) {
+            log.warn("generateFromInspectionAudit 收到不支持的模板: {},跳过", template);
+            return null;
+        }
+
+        try {
+            Optional<AuditLogDetail> detailOpt = auditLogService.getDetail(auditId);
+            if (detailOpt.isEmpty()) {
+                log.warn("generateFromInspectionAudit 审计不存在,降级返回 null: auditId={}", auditId);
+                return null;
+            }
+
+            ReportGenerateRequest req = ReportGenerateRequest.builder()
+                    .auditId(auditId)
+                    .reportType(reportType)
+                    .build();
+            ReportDetail detail = generate(req);
+            return detail != null ? detail.getReportId() : null;
+        } catch (Exception ex) {
+            // 降级:报告生成失败不抛到调用方(execution.status 降级由 Task 5 处理)
+            log.warn("generateFromInspectionAudit 生成失败,降级返回 null: auditId={}, err={}",
+                    auditId, ex.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * InspectionTemplateType → ReportType 静态映射(设计 Task 4 决策 C)。
+     * <p>HEALTH/DISK/SERVICE 三种模板各对应一个固定 ReportType,不允许动态推导。</p>
+     */
+    private ReportType mapInspectionTemplateToReportType(InspectionTemplateType template) {
+        if (template == null) return null;
+        return switch (template) {
+            case HEALTH -> ReportType.HEALTH;
+            case DISK -> ReportType.DISK;
+            case SERVICE -> ReportType.SERVICE;
+        };
     }
 
     // ==================== 来源解析 ====================

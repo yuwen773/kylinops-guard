@@ -172,4 +172,28 @@ class FlywayPostgresMigrationTest {
                 Long.class, tableName);
         return count != null && count > 0;
     }
+
+    @Test
+    @DisplayName("PostgreSQL: V7 巡检表 inspection_plans / inspection_executions 已创建")
+    void v7InspectionTablesPresent() {
+        SchemaFingerprint.assertInspectionTablesPresent(jdbc);
+    }
+
+    @Test
+    @DisplayName("PostgreSQL: V7 巡检 4 个索引全部创建")
+    void v7InspectionIndexesPresent() {
+        SchemaFingerprint.assertInspectionIndexesPresent(jdbc);
+    }
+
+    @Test
+    @DisplayName("PostgreSQL: inspection_executions.plan_id 是普通列(无外键)")
+    void v7ExecutionPlanIdHasNoForeignKeyToPlan() {
+        SchemaFingerprint.assertExecutionPlanIdHasNoForeignKeyToPlan(jdbc);
+    }
+
+    @Test
+    @DisplayName("PostgreSQL: kylin_audit_log.trigger_type / operator nullable 列已加")
+    void v7AuditLogsTriggerColumnsPresent() {
+        SchemaFingerprint.assertAuditLogsTriggerColumnsPresent(jdbc);
+    }
 }
