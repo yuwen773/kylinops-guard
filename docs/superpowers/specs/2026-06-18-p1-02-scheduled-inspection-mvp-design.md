@@ -1,8 +1,47 @@
 # P1-02 定时巡检 MVP 设计
 
 > 日期：2026-06-18
-> 状态：规格审查通过，等待用户确认
+> 状态：✅ **COMPLETED** — 2026-06-20 合入 master (merge commit `2602ac9`)
 > 对应缺陷：D-08 无定时巡检 / 无人值守
+
+## 0. 完成元数据
+
+- **完成时间**：2026-06-20
+- **Merge commit**：`2602ac9`（worktree-p1-02-inspection-mvp → master, --no-ff）
+- **Tag**：`v0.4-inspection-mvp`（annotated）
+- **Worktree 路径**：`D:/Work/code/kylin-ops/.claude/worktrees/p1-02-inspection-mvp`（harness 管理,保留）
+- **验收基线**：
+  - backend `mvn test`：**879 / 879 + 2 skipped**（exit 0,3:07 min）
+  - frontend `vitest --run`：**335 / 335**（exit 0,34.67s,32 files）
+  - Playwright `npx playwright test`：**38 passed + 3 skipped**（exit 0,26.6s）
+  - 合并后 smoke：`mvn test-compile` exit 0 + `vue-tsc --noEmit` exit 0
+- **验收指南**：[docs/test/p1-02-inspection-acceptance-guide.md](../../test/p1-02-inspection-acceptance-guide.md)
+- **实现范围（9 commits）**：
+  1. `442d933` feat(inspection): 添加巡检周期计算（InspectionScheduleCalculator）
+  2. `1fc79e9` feat(inspection): 添加巡检计划持久化（V7 schema + InspectionPlan/Execution 实体）
+  3. `70942f4` feat(inspection): 添加内置巡检模板（HEALTH/DISK/SERVICE + Validator）
+  4. `6b1e8d8` feat(inspection): 打通巡检审计报告通知（AuditLog + Report + Notification 闭环）
+  5. `04df039` feat(inspection): 接入巡检执行闭环（InspectionExecutionService + ResultEvaluator）
+  6. `aae0c52` feat(inspection): 添加巡检调度与恢复（InspectionScheduler + InspectionRecovery）
+  7. `cbae292` feat(inspection): 添加巡检管理接口（InspectionController 11 REST 端点）
+  8. `9c252dd` feat(inspection): 添加巡检管理前端页面（ScheduledInspection 一级页面 + 7 子组件）
+  9. `de6b091` docs(test): 添加 P1-02 定时巡检 MVP 验收指南
+- **核心契约**：
+  - 11 个 REST 端点：`GET /templates` + 6 plans CRUD + 2 executions + `POST /run`
+  - 3 个内置模板：HEALTH（7+1 工具）、DISK（2+1 条件扩展）、SERVICE（2+1 工具）
+  - 5 个执行状态：RUNNING / SUCCESS / PARTIAL_SUCCESS / FAILED / SKIPPED
+  - 3 个通知策略：NEVER / ON_ABNORMAL / ALWAYS
+  - abandoned 启动期恢复：REQUIRES_NEW 独立事务,默认阈值 1h
+- **CLAUDE.md 红线合规**：
+  - 巡检路径无 raw shell（`ProcessBuilder` 零命中）
+  - 巡检路径不调用 LLM
+  - 巡检不创建 `PendingAction`（只读路径）
+  - 模板只引用 L0/L1 + READ 工具（启动期 fail-fast）
+  - 巡检审计 `sessionId=null`,`triggerType` + `operator` 识别来源
+- **已知限制**：
+  - Windows OS 工具大量降级（缺 `df`/`ps`/`ss`/`systemctl`/`journalctl`）,HEALTH/DISK 模板在 Windows 上大概率 FAILED,逻辑闭环仍可演示
+  - Linux/LoongArch 真实目标机完整 4 场景未在本环境验证
+  - 单实例 leader 调度,多实例需外部锁（quartz/shedlock）,P1-02 未做
 
 ## 1. 背景与目标
 
