@@ -16,6 +16,7 @@ import {
   Setting,
   Sunny,
   Moon,
+  AlarmClock,
 } from '@element-plus/icons-vue';
 import { useTheme } from '@/composables/useTheme';
 
@@ -35,6 +36,7 @@ const navItems = [
   { path: '/audit', label: '审计日志', icon: Document },
   { path: '/reports', label: '报告中心', icon: DataAnalysis },
   { path: '/notification-settings', label: '通知配置', icon: Setting },
+  { path: '/inspections', label: '定时巡检', icon: AlarmClock },
 ] as const;
 
 const activeIndex = (path: string) => navItems.findIndex((i) => i.path === path);
