@@ -70,7 +70,15 @@ async function handleLogout(): Promise<void> {
 <template>
   <el-container class="app-shell">
     <el-header class="app-header">
-      <span class="app-brand">
+      <span
+        class="app-brand"
+        role="button"
+        tabindex="0"
+        data-testid="app-brand"
+        :aria-label="`回到 ${PRODUCT_NAME} 首页`"
+        @click="router.push('/landing')"
+        @keydown.enter="router.push('/landing')"
+      >
         <span class="app-brand__mark" aria-hidden="true">KG</span>
         <span class="app-brand__text">
           <span class="app-title">{{ PRODUCT_NAME }}</span>
@@ -154,6 +162,15 @@ async function handleLogout(): Promise<void> {
   align-items: center;
   gap: var(--kg-space-2);
   min-width: 0;
+  cursor: pointer;
+  border-radius: var(--kg-radius-sm);
+  transition: background var(--kg-transition-fast);
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+.app-brand:hover {
+  background: var(--kg-color-surface-soft);
 }
 
 .app-brand__mark {

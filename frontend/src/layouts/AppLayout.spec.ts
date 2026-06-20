@@ -28,6 +28,7 @@ function buildRouter(): Router {
     history: createMemoryHistory(),
     routes: [
       { path: '/', redirect: '/chat' },
+      { path: '/landing', component: { template: '<div data-testid="landing-stub" />' } },
       { path: '/login', component: { template: '<div data-testid="login-stub" />' } },
       ...NAV_ITEMS.map((item) => ({
         path: item.path,
@@ -100,6 +101,22 @@ describe('AppLayout', () => {
       node.classes().includes('is-active'),
     );
     expect(activeItem?.text().trim()).toBe('安全中心');
+  });
+
+  it('navigates to /landing when the app brand is clicked', async () => {
+    const router = buildRouter();
+    router.push('/chat');
+    await router.isReady();
+
+    const wrapper = mount(AppLayout, {
+      global: { plugins: [router, ElementPlus] },
+    });
+
+    const brand = wrapper.find('[data-testid="app-brand"]');
+    expect(brand.exists()).toBe(true);
+    await brand.trigger('click');
+    await flushPromises();
+    expect(router.currentRoute.value.path).toBe('/landing');
   });
 });
 
