@@ -126,6 +126,31 @@ public class InspectionTemplateRegistry {
     }
 
     /**
+     * 列出所有内置模板(用于 GET /api/inspections/templates,P1-02 Task 7)。
+     * 返回 HEALTH / DISK / SERVICE 三个模板的当前定义;DISK 总是返回基础版(无
+     * {@code logServiceName} 扩展),与 {@link #getTemplate(type, params)} 的
+     * 行为区分(后者是按需展开)。
+     */
+    public java.util.List<TemplateEntry> getAllTemplates() {
+        return java.util.List.of(
+                new TemplateEntry(InspectionTemplateType.HEALTH, "系统健康检查", health),
+                new TemplateEntry(InspectionTemplateType.DISK, "磁盘诊断", disk),
+                new TemplateEntry(InspectionTemplateType.SERVICE, "服务诊断", service)
+        );
+    }
+
+    /**
+     * 模板元数据条目 — 包含 type / 展示名 / 当前定义,controller 转为
+     * {@code InspectionTemplateView} 后返回。
+     */
+    public record TemplateEntry(
+            InspectionTemplateType type,
+            String displayName,
+            InspectionTemplateDefinition definition
+    ) {
+    }
+
+    /**
      * 构造模板并校验所有引用工具为 L0/L1 + READ + 已注册 + 已启用。
      */
     private InspectionTemplateDefinition buildAndValidate(

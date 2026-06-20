@@ -98,6 +98,55 @@ public class InspectionExecutionService {
         return executeInternal(plan, InspectionTriggerType.MANUAL, safeOperator);
     }
 
+    // ==================== 查询 API(P1-02 Task 7) ====================
+
+    /**
+     * 按 executionId 查询执行记录。P1-02 Task 7 详情 API 用 —
+     * 由 controller 把 {@code Optional.empty()} 映射为 HTTP 404。
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<InspectionExecution> findExecution(String executionId) {
+        if (executionId == null || executionId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return executionRepository.findByExecutionId(executionId);
+    }
+
+    /**
+     * 列出执行记录,支持按 planId / status 过滤(均可选),分页。
+     *
+     * <p>实现说明:Repository 已有 {@code findByPlanIdOrderByStartedAtDesc} 支持
+     * plan 过滤;若 status 与 planId 同时给出,先按 plan 过滤再内存中按 status 过滤
+     * (数据量小,避免引入复合索引;P1-02 MVP 阶段可接受)。</p>
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<InspectionExecution> listExecutions(
+            String planId,
+            com.kylinops.inspection.model.InspectionExecutionStatus status,
+            org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<InspectionExecution> base;
+        if (planId != null && !planId.isBlank()) {
+            base = executionRepository.findByPlanIdOrderByStartedAtDesc(planId, pageable);
+        } else {
+            // 全部:按 started_at DESC 排序
+            org.springframework.data.domain.PageRequest sorted = org.springframework.data.domain.PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    org.springframework.data.domain.Sort.by(
+                            org.springframework.data.domain.Sort.Direction.DESC, "startedAt"));
+            base = executionRepository.findAll(sorted);
+        }
+        if (status == null) {
+            return base;
+        }
+        // 内存过滤 status(数据量小,可接受)
+        java.util.List<InspectionExecution> filtered = base.getContent().stream()
+                .filter(e -> e.getStatus() == status)
+                .toList();
+        return new org.springframework.data.domain.PageImpl<>(
+                filtered, pageable, filtered.size());
+    }
+
     // ==================== 内部主流程 ====================
 
     private InspectionExecution executeInternal(InspectionPlan plan,

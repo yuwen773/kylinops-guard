@@ -208,6 +208,36 @@ public class InspectionPlanService {
                         "[plan] 不存在: " + planId));
     }
 
+    /**
+     * 查询计划(返回 Optional)。P1-02 Task 7 列表/详情 API 用 —
+     * 由 controller 把 {@code Optional.empty()} 映射为 HTTP 404(避免与
+     * 校验异常的 400 混淆)。
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<InspectionPlan> findPlan(String planId) {
+        if (planId == null || planId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return planRepository.findByPlanId(planId);
+    }
+
+    /**
+     * 列出所有计划(按 createdAt DESC,分页)。P1-02 Task 7 列表 API 用。
+     *
+     * <p>size 由 controller 在 [1, 100] 内 clamp,Service 层不再校验;
+     * 排序按创建时间倒序(最新在前),与"计划管理 → 列表"前端预期一致。</p>
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<InspectionPlan> listPlans(
+            org.springframework.data.domain.Pageable pageable) {
+        return planRepository.findAll(
+                org.springframework.data.domain.PageRequest.of(
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        org.springframework.data.domain.Sort.by(
+                                org.springframework.data.domain.Sort.Direction.DESC, "createdAt")));
+    }
+
     // ==================== 内部 ====================
 
     /**
