@@ -960,7 +960,7 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 
 .page-subtitle {
   font-size: 0.8rem;
-  color: #909399;
+  color: var(--kg-color-text-mute);
 }
 
 .audit-filters {
@@ -984,7 +984,7 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 
 .audit-filter-label {
   font-size: 0.75rem;
-  color: #606266;
+  color: var(--kg-color-text-mute);
 }
 
 .audit-filter-actions {
@@ -1000,7 +1000,7 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 
 .audit-loading {
   margin: 1rem 0;
-  color: #909399;
+  color: var(--kg-color-text-mute);
   text-align: center;
 }
 
@@ -1008,9 +1008,10 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
   margin: 1rem 0;
   padding: 1.5rem;
   text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
+  color: var(--kg-color-text-mute);
+  background: var(--kg-color-surface-soft);
+  border-radius: var(--kg-radius-md);
+  border: 1px solid var(--kg-color-border-mute);
 }
 
 .audit-error {
@@ -1022,13 +1023,13 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 }
 
 .audit-row-input {
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .audit-row-intent,
 .audit-row-time {
   font-size: 0.85rem;
-  color: #606266;
+  color: var(--kg-color-text-mute);
 }
 
 .audit-row-toolcount {
@@ -1043,7 +1044,7 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 .audit-pagination-next-btn {
   background: transparent;
   border: 0;
-  color: #409eff;
+  color: var(--kg-color-primary);
   cursor: pointer;
 }
 
@@ -1063,12 +1064,13 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 .audit-detail-title {
   font-weight: 600;
   font-size: 1.1rem;
+  color: var(--kg-color-text-primary);
 }
 
 .audit-detail-auditid {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 0.75rem;
-  color: #909399;
+  color: var(--kg-color-text-mute);
   word-break: break-all;
 }
 
@@ -1081,7 +1083,7 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 }
 
 .audit-detail-nav-link {
-  color: var(--el-color-primary);
+  color: var(--kg-color-primary);
   text-decoration: none;
   font-size: 0.875rem;
 }
@@ -1104,15 +1106,15 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 .audit-detail-status,
 .audit-detail-confirm {
   font-size: 0.85rem;
-  color: #606266;
+  color: var(--kg-color-text-mute);
 }
 
 .audit-detail-userinput {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  background: #f5f7fa;
-  border-radius: 4px;
-  color: #303133;
+  background: var(--kg-color-surface-soft);
+  border-radius: var(--kg-radius-sm);
+  color: var(--kg-color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1134,8 +1136,9 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 .audit-failure-item,
 .audit-riskcheck-item {
   padding: 0.5rem 0.75rem;
-  background: #fdf6ec;
-  border-radius: 4px;
+  background: var(--kg-color-warning-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1144,23 +1147,23 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 
 .audit-failure-name {
   font-weight: 600;
-  color: #c45656;
+  color: var(--kg-color-danger);
 }
 
 .audit-failure-status {
   font-size: 0.85rem;
-  color: #b88230;
+  color: var(--kg-color-warning);
 }
 
 .audit-failure-reason,
 .audit-riskcheck-reason {
-  color: #303133;
+  color: var(--kg-color-text-primary);
   font-size: 0.85rem;
 }
 
 .audit-riskcheck-level {
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .audit-notification-list {
@@ -1174,8 +1177,9 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 
 .audit-notification-item {
   padding: 0.5rem 0.75rem;
-  background: #f0f9eb;
-  border-radius: 4px;
+  background: var(--kg-color-success-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-sm);
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1184,28 +1188,28 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
 
 .audit-notification-channel {
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .audit-notification-status {
   font-size: 0.85rem;
-  color: #67c23a;
+  color: var(--kg-color-success);
 }
 
 .audit-notification-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 0.8rem;
-  color: #909399;
+  color: var(--kg-color-text-mute);
 }
 
 .audit-notification-error {
-  color: #c45656;
+  color: var(--kg-color-danger);
   font-size: 0.85rem;
 }
 
 .audit-notification-time {
   font-size: 0.8rem;
-  color: #909399;
+  color: var(--kg-color-text-mute);
   margin-left: auto;
 }
 
@@ -1213,28 +1217,29 @@ const decisionForTag = (level: RiskLevel | undefined): RiskDecision | undefined 
   margin: 0;
   padding: 0.75rem;
   text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 4px;
+  color: var(--kg-color-text-mute);
+  background: var(--kg-color-surface-soft);
+  border-radius: var(--kg-radius-sm);
+  border: 1px solid var(--kg-color-border-mute);
 }
 
 .audit-pending-line {
   margin: 0.25rem 0;
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .audit-pending-execution {
   margin: 0.25rem 0 0 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 0.85rem;
-  color: #303133;
+  color: var(--kg-color-text-primary);
   word-break: break-all;
   white-space: pre-wrap;
 }
 
 .audit-final-answer {
   margin: 0;
-  color: #303133;
+  color: var(--kg-color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
 }

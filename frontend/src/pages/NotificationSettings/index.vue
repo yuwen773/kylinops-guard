@@ -598,20 +598,20 @@ function lastTestLabel(row: NotificationChannel): {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .notification-settings-subtitle {
   margin: 0;
   font-size: 13px;
-  color: #5b6b80;
+  color: var(--kg-color-text-mute);
   line-height: 1.6;
 }
 
 .notification-settings-section {
-  background: #ffffff;
-  border: 1px solid #e6e8eb;
-  border-radius: 6px;
+  background: var(--kg-color-surface);
+  border: 1px solid var(--kg-color-border);
+  border-radius: var(--kg-radius-md);
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
@@ -622,7 +622,7 @@ function lastTestLabel(row: NotificationChannel): {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .notification-settings-section-header {
@@ -634,16 +634,16 @@ function lastTestLabel(row: NotificationChannel): {
 .notification-settings-loading {
   padding: 24px;
   text-align: center;
-  color: #8a99b3;
+  color: var(--kg-color-text-mute);
   font-size: 13px;
 }
 
 .notification-settings-error {
   padding: 16px;
-  border: 1px solid #f56c6c;
-  background: #fef0f0;
-  color: #c45656;
-  border-radius: 4px;
+  border: 1px solid var(--kg-color-danger);
+  background: var(--kg-color-danger-soft);
+  color: var(--kg-color-danger);
+  border-radius: var(--kg-radius-sm);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -653,7 +653,7 @@ function lastTestLabel(row: NotificationChannel): {
 .notification-settings-empty {
   padding: 32px;
   text-align: center;
-  color: #8a99b3;
+  color: var(--kg-color-text-mute);
   font-size: 13px;
 }
 
@@ -668,19 +668,20 @@ function lastTestLabel(row: NotificationChannel): {
   flex-direction: column;
   gap: 4px;
   padding: 12px 16px;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
+  border: 1px solid var(--kg-color-border);
+  border-radius: var(--kg-radius-sm);
+  background: var(--kg-color-surface-soft);
 }
 
 .notification-settings-toggle-label {
   font-size: 13px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .notification-settings-toggle-hint {
   font-size: 12px;
-  color: #8a99b3;
+  color: var(--kg-color-text-mute);
   line-height: 1.5;
 }
 
@@ -689,27 +690,28 @@ function lastTestLabel(row: NotificationChannel): {
   flex-direction: column;
   gap: 4px;
   padding: 12px 16px;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
+  border: 1px solid var(--kg-color-border);
+  border-radius: var(--kg-radius-sm);
+  background: var(--kg-color-surface-soft);
 }
 
 .notification-settings-version-value {
-  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 16px;
   font-weight: 600;
-  color: #409eff;
+  color: var(--kg-color-primary);
 }
 
 .notification-settings-channel-id {
-  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 12px;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .notification-settings-url {
-  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 12px;
-  color: #5b6b80;
+  color: var(--kg-color-text-mute);
   word-break: break-all;
 }
 
@@ -725,18 +727,18 @@ function lastTestLabel(row: NotificationChannel): {
 
 .notification-settings-last-test-prefix {
   font-size: 12px;
-  color: #5b6b80;
+  color: var(--kg-color-text-mute);
 }
 
 .notification-settings-last-test-empty {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--kg-color-text-placeholder);
 }
 
 .notification-settings-test-error {
-  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 12px;
-  color: #c45656;
+  color: var(--kg-color-danger);
   word-break: break-all;
 }
 </style>

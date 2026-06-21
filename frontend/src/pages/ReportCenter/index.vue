@@ -463,7 +463,7 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 
 .page-subtitle {
   font-size: 0.8rem;
-  color: #909399;
+  color: var(--kg-color-text-mute);
 }
 
 .report-list {
@@ -474,7 +474,7 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 
 .report-loading {
   margin: 1rem 0;
-  color: #909399;
+  color: var(--kg-color-text-mute);
   text-align: center;
 }
 
@@ -482,9 +482,10 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
   margin: 1rem 0;
   padding: 1.5rem;
   text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
+  color: var(--kg-color-text-mute);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-md);
 }
 
 .report-error {
@@ -496,7 +497,7 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 }
 
 .report-row-title {
-  color: #303133;
+  color: var(--kg-color-text-primary);
   font-weight: 500;
 }
 
@@ -505,8 +506,8 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 .report-row-audit,
 .report-row-time {
   font-size: 0.85rem;
-  color: #606266;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--kg-color-text-mute);
+  font-family: var(--kg-font-mono);
   word-break: break-all;
 }
 
@@ -535,13 +536,13 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 .report-detail-title {
   font-weight: 600;
   font-size: 1.1rem;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
 }
 
 .report-detail-reportid {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 0.75rem;
-  color: #909399;
+  color: var(--kg-color-text-mute);
   word-break: break-all;
 }
 
@@ -551,32 +552,32 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
   gap: 0.5rem;
   align-items: center;
   font-size: 0.85rem;
-  color: #606266;
+  color: var(--kg-color-text-mute);
 }
 
 .report-detail-meta-item {
   font-size: 0.85rem;
-  color: #606266;
+  color: var(--kg-color-text-mute);
 }
 
 .report-detail-source {
   margin: 0;
   font-size: 0.85rem;
-  color: #303133;
+  color: var(--kg-color-text-primary);
 }
 
 .report-detail-source-link {
-  color: #409eff;
+  color: var(--kg-color-primary);
   text-decoration: none;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
 }
 
 .report-detail-body {
   padding: 0.75rem 1rem;
-  background: #fafafa;
-  border-radius: 6px;
-  border: 1px solid #ebeef5;
-  color: #303133;
+  background: var(--kg-color-surface-soft);
+  border-radius: var(--kg-radius-md);
+  border: 1px solid var(--kg-color-border);
+  color: var(--kg-color-text-primary);
   font-size: 0.9rem;
   line-height: 1.65;
   word-break: break-word;
@@ -587,7 +588,7 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 .report-detail-body :deep(h3),
 .report-detail-body :deep(h4) {
   margin: 0.75rem 0 0.5rem 0;
-  color: #1f2d3d;
+  color: var(--kg-color-text-primary);
   font-weight: 600;
   line-height: 1.4;
 }
@@ -620,18 +621,20 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 }
 
 .report-detail-body :deep(code) {
-  background: #f0f2f5;
+  background: var(--kg-color-surface-mute);
+  color: var(--kg-color-text-primary);
   padding: 0.1rem 0.35rem;
   border-radius: 3px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--kg-font-mono);
   font-size: 0.85em;
 }
 
 .report-detail-body :deep(pre) {
-  background: #1f2d3d;
-  color: #f5f7fa;
+  background: var(--kg-color-surface-code);
+  color: var(--kg-color-text-primary);
+  border: 1px solid var(--kg-color-border);
   padding: 0.75rem;
-  border-radius: 4px;
+  border-radius: var(--kg-radius-sm);
   overflow-x: auto;
   font-size: 0.85rem;
 }
@@ -645,13 +648,13 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 .report-detail-body :deep(blockquote) {
   margin: 0.5rem 0;
   padding: 0.25rem 0.75rem;
-  border-left: 3px solid #dcdfe6;
-  color: #606266;
-  background: #f5f7fa;
+  border-left: 3px solid var(--kg-color-border-strong);
+  color: var(--kg-color-text-mute);
+  background: var(--kg-color-surface-soft);
 }
 
 .report-detail-body :deep(a) {
-  color: #409eff;
+  color: var(--kg-color-primary);
   text-decoration: none;
   word-break: break-all;
 }
@@ -659,11 +662,11 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
 .report-detail-body-fallback {
   margin: 0;
   padding: 0.75rem 1rem;
-  background: #fdf6ec;
-  border-radius: 6px;
-  border: 1px solid #faecd8;
-  color: #303133;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--kg-color-warning-soft);
+  border-radius: var(--kg-radius-md);
+  border: 1px solid var(--kg-color-border-mute);
+  color: var(--kg-color-text-primary);
+  font-family: var(--kg-font-mono);
   font-size: 0.85rem;
   white-space: pre-wrap;
   word-break: break-word;
@@ -673,9 +676,10 @@ const sourceAuditHref = (auditId: string | undefined): string | undefined => {
   margin: 0;
   padding: 1rem;
   text-align: center;
-  color: #909399;
-  background: #f5f7fa;
-  border-radius: 6px;
+  color: var(--kg-color-text-mute);
+  background: var(--kg-color-surface-soft);
+  border: 1px solid var(--kg-color-border-mute);
+  border-radius: var(--kg-radius-md);
   font-style: italic;
 }
 </style>
